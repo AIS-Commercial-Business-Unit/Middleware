@@ -150,6 +150,16 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
 
+  promtail:
+    image: grafana/promtail:3.2.0
+    container_name: promtail
+    networks: [middleware-net]
+    depends_on: [loki]
+    volumes:
+      - ./observability/promtail.yaml:/etc/promtail/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: ["-config.file=/etc/promtail/config.yaml"]
+
   # ──────────────────────────────────────────────────────────
   # EXTERNAL SYSTEM STUBS
   # ──────────────────────────────────────────────────────────

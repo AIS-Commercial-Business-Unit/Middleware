@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
+import Link from "next/link";
 
 const POLICY_TYPES = [
   { code: 1, subCode: 0, label: "Commercial Property (DuckCreek Commercial)", pas: "DuckCreek-Commercial" },
@@ -43,7 +44,7 @@ export default function HomePage() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      router.push(`/saga/${data.issuanceId}`);
+      router.push(`/ops/${data.issuanceId}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -56,7 +57,8 @@ export default function HomePage() {
       <div>
         <h1 className="text-3xl font-bold mb-1">UC1 · Policy Issuance</h1>
         <p className="text-sm" style={{ color: "var(--muted)" }}>
-          Submit an IssuePolicy command. The saga runs asynchronously — you will be redirected to the Saga Explorer.
+          Submit an IssuePolicy command. The saga runs asynchronously — you will be redirected to the{" "}
+          <Link href="/ops" className="underline" style={{ color: "var(--accent-light)" }}>Operations &amp; Observability</Link> page.
         </p>
       </div>
       <div className="rounded-lg border p-4 text-sm space-y-1" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>

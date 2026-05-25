@@ -21,6 +21,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
             Issue Policy
           </Link>
+          <Link href="/ops" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
+            Operations
+          </Link>
           <Link href="/events" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
             Live Events
           </Link>
@@ -34,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Grafana ↗
           </a>
         </nav>
-        <main className="px-6 py-8 max-w-5xl mx-auto">{children}</main>
+        <main className="px-6 py-8 max-w-7xl mx-auto">{children}</main>
       </body>
     </html>
   );
