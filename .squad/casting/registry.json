@@ -1,0 +1,81 @@
+{
+  "agents": {
+    "architect": {
+      "persistent_name": "architect",
+      "universe": "role-based",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "integration": {
+      "persistent_name": "integration",
+      "universe": "role-based",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "azure": {
+      "persistent_name": "azure",
+      "universe": "role-based",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "platform": {
+      "persistent_name": "platform",
+      "universe": "role-based",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "backend": {
+      "persistent_name": "backend",
+      "universe": "role-based",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "frontend": {
+      "persistent_name": "frontend",
+      "universe": "role-based",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "devops": {
+      "persistent_name": "devops",
+      "universe": "role-based",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "grafana": {
+      "persistent_name": "grafana",
+      "universe": "role-based",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "qa": {
+      "persistent_name": "qa",
+      "universe": "role-based",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "scribe": {
+      "persistent_name": "scribe",
+      "universe": "exempt",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "ralph": {
+      "persistent_name": "ralph",
+      "universe": "exempt",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "legacy_named": false,
+      "status": "active"
+    }
+  }
+}

@@ -1,0 +1,337 @@
+version: '3.9'
+
+# ============================================================
+# AIS Middleware Platform — Local Development Stack
+# Run: docker compose up --build
+# Platform UI: http://localhost:3000
+# Kafka UI (Kafdrop): http://localhost:9000
+# MongoDB UI: http://localhost:8888
+# Grafana: http://localhost:3001 (traces + logs + metrics)
+# ============================================================
+
+networks:
+  middleware-net:
+    driver: bridge
+
+volumes:
+  mongo-data:
+  grafana-data:
+  loki-data:
+  tempo-data:
+  prometheus-data:
+
+services:
+
+  # ──────────────────────────────────────────────────────────
+  # INFRASTRUCTURE
+  # ──────────────────────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.0
+    container_name: zookeeper
+    networks: [middleware-net]
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: kafka
+    networks: [middleware-net]
+    depends_on: [zookeeper]
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+
+  kafka-ui:
+    image: obsidiandynamics/kafdrop:4.0.2
+    container_name: kafka-ui
+    networks: [middleware-net]
+    depends_on: [kafka]
+    ports:
+      - "9000:9000"
+    environment:
+      KAFKA_BROKERCONNECT: kafka:29092
+      JVM_OPTS: "-Xms32M -Xmx64M"
+
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    networks: [middleware-net]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - ./observability/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    environment:
+      MONGO_INITDB_DATABASE: admin
+
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: mongo-express
+    networks: [middleware-net]
+    depends_on: [mongodb]
+    ports:
+      - "8888:8081"
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017
+      ME_CONFIG_BASICAUTH: "false"
+
+  # ──────────────────────────────────────────────────────────
+  # OBSERVABILITY STACK (OpenTelemetry → Grafana)
+  # ──────────────────────────────────────────────────────────
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    container_name: otel-collector
+    networks: [middleware-net]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otel/config.yaml:ro
+    command: ["--config=/etc/otel/config.yaml"]
+    # Ports 4317/4318 are internal-only — services reach the collector via Docker network.
+    # No host binding needed (avoids conflicts with other local OTel collectors).
+
+  tempo:
+    image: grafana/tempo:2.6.0
+    container_name: tempo
+    networks: [middleware-net]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    ports:
+      - "3200:3200"   # Tempo HTTP API (Grafana datasource)
+      - "4317"        # OTel gRPC ingest (internal, routed via otel-collector)
+
+  loki:
+    image: grafana/loki:3.2.0
+    container_name: loki
+    networks: [middleware-net]
+    volumes:
+      - ./observability/loki.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    command: ["-config.file=/etc/loki/config.yaml"]
+    ports:
+      - "3100:3100"   # Loki HTTP API (Grafana datasource)
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: prometheus
+    networks: [middleware-net]
+    volumes:
+      - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: grafana
+    networks: [middleware-net]
+    depends_on: [loki, tempo, prometheus]
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ./observability/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+      - ./observability/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3001:3000"   # Grafana web UI
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+
+  # ──────────────────────────────────────────────────────────
+  # EXTERNAL SYSTEM STUBS
+  # ──────────────────────────────────────────────────────────
+
+  duckcreek-commercial-stub:
+    build: ./stubs/duckcreek-commercial-stub
+    container_name: duckcreek-commercial-stub
+    networks: [middleware-net]
+    ports:
+      - "9001:9001"
+    environment:
+      SERVER_PORT: 9001
+
+  duckcreek-personal-stub:
+    build: ./stubs/duckcreek-personal-stub
+    container_name: duckcreek-personal-stub
+    networks: [middleware-net]
+    ports:
+      - "9002:9002"
+    environment:
+      SERVER_PORT: 9002
+
+  forefront-stub:
+    build: ./stubs/forefront-stub
+    container_name: forefront-stub
+    networks: [middleware-net]
+    ports:
+      - "9003:9003"
+    environment:
+      SERVER_PORT: 9003
+
+  rsk3x3-compliance-stub:
+    build: ./stubs/rsk3x3-compliance-stub
+    container_name: rsk3x3-compliance-stub
+    networks: [middleware-net]
+    ports:
+      - "9004:9004"
+    environment:
+      SERVER_PORT: 9004
+
+  erm7x1-account-stub:
+    build: ./stubs/erm7x1-account-stub
+    container_name: erm7x1-account-stub
+    networks: [middleware-net]
+    ports:
+      - "9005:9005"
+    environment:
+      SERVER_PORT: 9005
+
+  crm40x1-customer-stub:
+    build: ./stubs/crm40x1-customer-stub
+    container_name: crm40x1-customer-stub
+    networks: [middleware-net]
+    ports:
+      - "9006:9006"
+    environment:
+      SERVER_PORT: 9006
+
+  crm19x1-billing-stub:
+    build: ./stubs/crm19x1-billing-stub
+    container_name: crm19x1-billing-stub
+    networks: [middleware-net]
+    ports:
+      - "9007:9007"
+    environment:
+      SERVER_PORT: 9007
+
+  # ──────────────────────────────────────────────────────────
+  # DOMAIN SERVICES
+  # ──────────────────────────────────────────────────────────
+
+  policy-issuance-service:
+    build: ./policy-issuance-service
+    container_name: policy-issuance-service
+    networks: [middleware-net]
+    depends_on: [kafka, mongodb, otel-collector]
+    ports:
+      - "8081:8081"
+    environment:
+      SERVER_PORT: 8081
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/policy_issuance_db
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: policy-issuance-service
+      OTEL_RESOURCE_ATTRIBUTES: service.version=1.0.0,deployment.environment=local
+
+  platform-compliance-service:
+    build: ./platform-compliance-service
+    container_name: platform-compliance-service
+    networks: [middleware-net]
+    depends_on: [kafka, mongodb, otel-collector, rsk3x3-compliance-stub]
+    ports:
+      - "8082:8082"
+    environment:
+      SERVER_PORT: 8082
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/compliance_db
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: platform-compliance-service
+      RSK3X3_URL: rsk3x3-compliance-stub:9004
+
+  customer-identity-service:
+    build: ./customer-identity-service
+    container_name: customer-identity-service
+    networks: [middleware-net]
+    depends_on: [kafka, mongodb, otel-collector, erm7x1-account-stub, crm40x1-customer-stub]
+    ports:
+      - "8083:8083"
+    environment:
+      SERVER_PORT: 8083
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/customer_identity_db
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: customer-identity-service
+      ERM7X1_URL: erm7x1-account-stub:9005
+      CRM40X1_URL: crm40x1-customer-stub:9006
+
+  platform-integration-service:
+    build: ./platform-integration-service
+    container_name: platform-integration-service
+    networks: [middleware-net]
+    depends_on:
+      - kafka
+      - mongodb
+      - otel-collector
+      - duckcreek-commercial-stub
+      - duckcreek-personal-stub
+      - forefront-stub
+    ports:
+      - "8084:8084"
+    environment:
+      SERVER_PORT: 8084
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/integration_db
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: platform-integration-service
+      DUCKCREEK_COMMERCIAL_URL: duckcreek-commercial-stub:9001
+      DUCKCREEK_PERSONAL_URL: duckcreek-personal-stub:9002
+      FOREFRONT_URL: forefront-stub:9003
+
+  billing-finance-service:
+    build: ./billing-finance-service
+    container_name: billing-finance-service
+    networks: [middleware-net]
+    depends_on: [kafka, mongodb, otel-collector, crm19x1-billing-stub]
+    ports:
+      - "8085:8085"
+    environment:
+      SERVER_PORT: 8085
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/billing_finance_db
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: billing-finance-service
+      CRM19X1_URL: crm19x1-billing-stub:9007
+
+  platform-notification-service:
+    build: ./platform-notification-service
+    container_name: platform-notification-service
+    networks: [middleware-net]
+    depends_on: [kafka, mongodb, otel-collector]
+    ports:
+      - "8086:8086"
+    environment:
+      SERVER_PORT: 8086
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/notification_db
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: platform-notification-service
+
+  # ──────────────────────────────────────────────────────────
+  # PLATFORM UI
+  # ──────────────────────────────────────────────────────────
+
+  platform-ui:
+    build: ./platform-ui
+    container_name: platform-ui
+    networks: [middleware-net]
+    depends_on:
+      - policy-issuance-service
+      - platform-compliance-service
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_POLICY_ISSUANCE_URL: http://localhost:8081
+      NEXT_PUBLIC_GRAFANA_URL: http://localhost:3001

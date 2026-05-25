@@ -1,0 +1,40 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Metrics from the OTel Collector's Prometheus exporter
+  - job_name: otel-collector
+    static_configs:
+      - targets: ['otel-collector:8889']
+
+  # Spring Boot Actuator /actuator/prometheus endpoints
+  - job_name: policy-issuance-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['policy-issuance-service:8081']
+
+  - job_name: platform-compliance-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['platform-compliance-service:8082']
+
+  - job_name: customer-identity-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['customer-identity-service:8083']
+
+  - job_name: platform-integration-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['platform-integration-service:8084']
+
+  - job_name: billing-finance-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['billing-finance-service:8085']
+
+  - job_name: platform-notification-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['platform-notification-service:8086']

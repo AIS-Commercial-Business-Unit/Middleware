@@ -1,0 +1,17 @@
+{
+  "universe_usage_history": [
+    {
+      "universe": "role-based",
+      "used_at": "2026-05-25T13:07:36.766-04:00",
+      "note": "User requested role names instead of fictional cast names"
+    }
+  ],
+  "assignment_cast_snapshots": {
+    "2026-05-25": {
+      "assignment_id": "middleware-2026-05-25",
+      "universe": "role-based",
+      "created_at": "2026-05-25T13:07:36.766-04:00",
+      "agents": ["architect", "integration", "azure", "platform", "backend", "frontend", "devops", "grafana", "qa", "scribe", "ralph"]
+    }
+  }
+}

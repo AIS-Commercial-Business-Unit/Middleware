@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.ais.middleware</groupId>
+    <artifactId>middleware-platform</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>AIS Middleware Platform</name>
+    <description>Event-driven middleware replacing BizTalk. Apache Camel + Kafka + MongoDB on Azure.</description>
+
+    <modules>
+        <module>common</module>
+        <module>policy-issuance-service</module>
+        <module>platform-compliance-service</module>
+        <module>customer-identity-service</module>
+        <module>platform-integration-service</module>
+        <module>billing-finance-service</module>
+        <module>platform-notification-service</module>
+        <module>stubs/duckcreek-commercial-stub</module>
+        <module>stubs/duckcreek-personal-stub</module>
+        <module>stubs/forefront-stub</module>
+        <module>stubs/rsk3x3-compliance-stub</module>
+        <module>stubs/erm7x1-account-stub</module>
+        <module>stubs/crm40x1-customer-stub</module>
+        <module>stubs/crm19x1-billing-stub</module>
+    </modules>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Core framework versions -->
+        <spring-boot.version>3.3.4</spring-boot.version>
+        <camel.version>4.8.0</camel.version>
+
+        <!-- Observability -->
+        <micrometer-tracing.version>1.3.4</micrometer-tracing.version>
+        <opentelemetry.version>1.41.0</opentelemetry.version>
+        <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
+
+        <!-- Utilities -->
+        <jackson.version>2.17.2</jackson.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Spring Boot BOM — manages all Spring dependencies -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Apache Camel BOM — manages all Camel component versions -->
+            <dependency>
+                <groupId>org.apache.camel.springboot</groupId>
+                <artifactId>camel-spring-boot-bom</artifactId>
+                <version>${camel.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- This platform's common module -->
+            <dependency>
+                <groupId>com.ais.middleware</groupId>
+                <artifactId>common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Structured JSON logging (Serilog-style for Java) -->
+            <dependency>
+                <groupId>net.logstash.logback</groupId>
+                <artifactId>logstash-logback-encoder</artifactId>
+                <version>${logstash-logback-encoder.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring-boot.version}</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>repackage</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                    <configuration>
+                        <source>21</source>
+                        <target>21</target>
+                        <encoding>UTF-8</encoding>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

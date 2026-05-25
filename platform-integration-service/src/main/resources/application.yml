@@ -1,0 +1,55 @@
+server:
+  port: ${SERVER_PORT:8084}
+
+spring:
+  application:
+    name: platform-integration-service
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/integration_db}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: platform-integration-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  tracing:
+    sampling:
+      probability: 1.0
+
+camel:
+  springboot:
+    main-run-controller: true
+  component:
+    kafka:
+      brokers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+otel:
+  exporter:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+  service:
+    name: ${OTEL_SERVICE_NAME:platform-integration-service}
+
+duckcreek:
+  commercial:
+    url: ${DUCKCREEK_COMMERCIAL_URL:localhost:9001}
+  personal:
+    url: ${DUCKCREEK_PERSONAL_URL:localhost:9002}
+forefront:
+  url: ${FOREFRONT_URL:localhost:9003}
+
+logging:
+  level:
+    com.ais.middleware: DEBUG
+    org.apache.camel: INFO
