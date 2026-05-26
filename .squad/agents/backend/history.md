@@ -29,3 +29,14 @@
 
 - **All events in common are already Java records.** No POJO-to-record conversion needed — every event class in common/events/** uses `public record`.
 
+**Backend Code Quality Sweep Results:**
+- 6 critical defects fixed: MongoDB indexes, ProducerTemplate leak, compilation bug, MDC gaps, missing exception handler, HTTP status
+- All actively-queried fields now indexed (4 indexes across 3 document classes)
+- ProducerTemplate injected as singleton bean in both high-throughput routes
+- FileBatchController now compiles; findAll() infrastructure-clean in adapter
+- MDC context now present in all 3 satellite service routes for distributed tracing
+- GlobalExceptionHandler added to 2 REST services for consistent error responses
+- HTTP 201 Created status now returned on resource creation
+- No compilation errors; all tests pass
+- Orchestration log: `.squad/orchestration-log/2026-05-26T01-33-25Z-backend-1.md`
+

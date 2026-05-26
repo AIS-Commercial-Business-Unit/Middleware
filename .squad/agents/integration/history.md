@@ -31,3 +31,11 @@
 - **`maxMessagesPerPoll` on file routes**: Always set `&maxMessagesPerPoll=N` on file endpoints in production. Without it, a burst of queued files (e.g., after outage) processes all files in one poll cycle, which can exhaust heap on large CSV files. `10` is a reasonable default for renewal batch.
 - **DLQ topic naming standard**: `{domain}.dlq.{route-name}` — no `-failures` suffix. Maps 1:1 to the route that publishes to it for easy ops correlation.
 
+**Integration Architecture Sweep Results:**
+- 4 critical issues fixed: race condition, DLQ inconsistencies, topic naming, file polling
+- All 9 routes now have consistent DLQ handlers with exponential backoff
+- All fileprocessing topics renamed to file.events.*
+- Atomic join condition prevents duplicate PolicyIssued events
+- UC1 & UC3 verified end-to-end with no race conditions
+- Orchestration log: `.squad/orchestration-log/2026-05-26T01-33-25Z-integration-1.md`
+

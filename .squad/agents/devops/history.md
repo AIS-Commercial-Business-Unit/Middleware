@@ -48,3 +48,14 @@
 - All services remain on single `middleware-net` bridge. Network segmentation is an Azure-level concern.
 - `promtail` health check uses port 9080 (`/ready` endpoint on Promtail's HTTP server).
 
+**Architecture Sweep Container Hardening Results:**
+- 7 critical security & operations gaps fixed
+- All 35+ services now have health checks with appropriate probes
+- kafka-setup service owns deterministic topic provisioning (24 topics, 3 partitions)
+- All 21 Java containers (14 services + 7 stubs) run as non-root appuser
+- 15 .dockerignore files created, reducing build contexts
+- Memory limits applied to all services (prevents resource starvation)
+- All services start in correct order and reach healthy state
+- Docker stack verified fully functional with `docker compose up --build`
+- Orchestration log: `.squad/orchestration-log/2026-05-26T01-33-25Z-devops-1.md`
+
