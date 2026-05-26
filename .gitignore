@@ -183,6 +183,10 @@ coverage/
 !.docs/
 .docs/*
 !.docs/testing-comparison.md
+!.docs/getting-started.md
+!.docs/getting-started-java.md
+!.docs/getting-started-dotnet.md
+!.docs/running-the-demos.md
 
 ## .NET / C#
 bin/

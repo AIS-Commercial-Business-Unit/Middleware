@@ -16,7 +16,7 @@
 - Test evidence documents: inputs, expected outputs, actual outputs, log excerpts
 - End-to-end test scenarios: message in via APIM → Kafka → Camel route → MongoDB → event published
 - Performance/load test baselines (Gatling or k6)
-- Test data generation for Chubb migration scenarios
+- Test data generation for enterprise migration scenarios
 
 ## How I Work
 

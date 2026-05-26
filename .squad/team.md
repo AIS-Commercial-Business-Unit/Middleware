@@ -36,6 +36,6 @@
 - **Architecture:** DDD, SOA (event-driven pub/sub), abstract layer for stack portability
 - **Owner:** Steven Suing
 - **Created:** 2026-05-25
-- **Goals:** Functional correctness against Chubb BizTalk baseline; throughput/latency targets; observability (App Insights, Azure Monitor); security posture (Defender for Cloud, Key Vault, Managed Identities); side-by-side Java vs .NET comparison
+- **Goals:** Functional correctness against BizTalk baseline; throughput/latency targets; observability (App Insights, Azure Monitor); security posture (Defender for Cloud, Key Vault, Managed Identities); side-by-side Java vs .NET comparison
 - **Local dev:** Rancher Desktop (Docker)
 - **Logging:** Serilog (.NET), SLF4J+Logback (Java)
