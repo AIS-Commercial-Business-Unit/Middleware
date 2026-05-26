@@ -685,8 +685,12 @@ services:
       - "3000:3000"
     environment:
       POLICY_ISSUANCE_SERVICE_URL: http://policy-issuance-service:8081
+      DOTNET_POLICY_ISSUANCE_URL: http://dotnet-policy-issuance:8181
+      ACTIVE_BACKEND: ${ACTIVE_BACKEND:-java}
       NEXT_PUBLIC_POLICY_ISSUANCE_URL: http://localhost:8081
+      NEXT_PUBLIC_DOTNET_POLICY_ISSUANCE_URL: http://localhost:8181
       NEXT_PUBLIC_GRAFANA_URL: http://localhost:3001
+      NEXT_PUBLIC_ACTIVE_BACKEND: ${ACTIVE_BACKEND:-java}
       FILE_PROCESSING_SERVICE_URL: http://platform-file-processing-service:8087
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ > /dev/null 2>&1"]

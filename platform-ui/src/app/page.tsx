@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import Link from "next/link";
@@ -24,6 +24,16 @@ export default function HomePage() {
   const [channel, setChannel] = useState("DirectRequest");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeBackend, setActiveBackend] = useState<string>("java");
+
+  // Detect active backend from the response header after first request
+  // or from the meta tag injected server-side via next.config.ts
+  useEffect(() => {
+    fetch("/api/backend-info")
+      .then((r) => r.json())
+      .then((d) => setActiveBackend(d.backend ?? "java"))
+      .catch(() => setActiveBackend("java"));
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,13 +64,26 @@ export default function HomePage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold mb-1">UC1 · Policy Issuance</h1>
-
-        <p className="text-sm" style={{ color: "var(--muted)" }}>
-          Submit an IssuePolicy command. The saga runs asynchronously — you will be redirected to the{" "}
-          <Link href="/ops" className="underline" style={{ color: "var(--accent-light)" }}>Operations &amp; Observability</Link> page.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold mb-1">UC1 · Policy Issuance</h1>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            Submit an IssuePolicy command. The saga runs asynchronously — you will be redirected to the{" "}
+            <Link href="/ops" className="underline" style={{ color: "var(--accent-light)" }}>Operations &amp; Observability</Link> page.
+          </p>
+        </div>
+        {/* Active backend badge */}
+        <span
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider"
+          style={{
+            background: activeBackend === "dotnet" ? "#1e3a5f" : "#1a2e1a",
+            color: activeBackend === "dotnet" ? "#60a5fa" : "#4ade80",
+            border: `1px solid ${activeBackend === "dotnet" ? "#3b82f6" : "#22c55e"}`,
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: activeBackend === "dotnet" ? "#60a5fa" : "#4ade80" }} />
+          {activeBackend === "dotnet" ? ".NET / NServiceBus" : "Java / Apache Camel"}
+        </span>
       </div>
       <div className="rounded-lg border p-4 text-sm space-y-1" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
         <p className="font-semibold" style={{ color: "var(--accent-light)" }}>What happens after you submit</p>
