@@ -1,0 +1,53 @@
+server:
+  port: ${SERVER_PORT:8087}
+
+spring:
+  application:
+    name: platform-file-processing-service
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/file_processing_db}
+      auto-index-creation: true
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: platform-file-processing-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  tracing:
+    sampling:
+      probability: 1.0
+
+camel:
+  springboot:
+    main-run-controller: true
+  component:
+    kafka:
+      brokers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+otel:
+  exporter:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+  service:
+    name: ${OTEL_SERVICE_NAME:platform-file-processing-service}
+
+fileprocessing:
+  inbound-dir: ${FILE_INBOUND_DIR:/app/data/renewals/inbound}
+  processed-dir: ${FILE_PROCESSED_DIR:/app/data/renewals/processed}
+  error-dir: ${FILE_ERROR_DIR:/app/data/renewals/error}
+
+logging:
+  level:
+    com.ais.middleware: DEBUG
+    org.apache.camel: INFO

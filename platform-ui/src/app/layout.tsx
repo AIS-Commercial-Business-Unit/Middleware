@@ -27,6 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/events" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
             Live Events
           </Link>
+          <Link href="/batches" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
+            Batches
+          </Link>
           <a
             href={process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001"}
             target="_blank"

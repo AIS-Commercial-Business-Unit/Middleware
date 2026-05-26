@@ -4,7 +4,11 @@ import com.ais.middleware.common.events.compliance.ComplianceClearedEvent;
 import com.ais.middleware.common.events.compliance.RequestComplianceCheckCommand;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
@@ -16,6 +20,8 @@ import java.time.OffsetDateTime;
 @Component
 public class ComplianceCheckRoute extends RouteBuilder {
 
+    private static final Logger log = LoggerFactory.getLogger(ComplianceCheckRoute.class);
+
     private final ObjectMapper objectMapper;
 
     public ComplianceCheckRoute(ObjectMapper objectMapper) {
@@ -24,17 +30,36 @@ public class ComplianceCheckRoute extends RouteBuilder {
 
     @Override
     public void configure() throws Exception {
+
+        // Global DLQ handler: 2 retries with exponential backoff, then dead-letter.
+        onException(Exception.class)
+            .maximumRedeliveries(2)
+            .redeliveryDelay(1000)
+            .backOffMultiplier(2)
+            .useExponentialBackOff()
+            .handled(true)
+            .process(exchange -> {
+                Exception cause = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class);
+                String correlationId = exchange.getProperty("correlationId", String.class);
+                log.error("Unhandled exception in compliance-check route — routing to DLQ. correlationId={} error={}",
+                        correlationId, cause != null ? cause.getMessage() : "unknown", cause);
+                exchange.getIn().setHeader("X-DLQ-Error", cause != null ? cause.getMessage() : "unknown");
+                exchange.getIn().setHeader("X-DLQ-RouteId", exchange.getFromRouteId());
+            })
+            .to("kafka:compliance.dlq.compliance-check");
+
         from("kafka:compliance.commands.request-compliance-check?groupId=platform-compliance-service")
             .routeId("compliance-check")
             .process(exchange -> {
                 String json = exchange.getIn().getBody(String.class);
                 RequestComplianceCheckCommand cmd = objectMapper.readValue(json, RequestComplianceCheckCommand.class);
+                MDC.put("issuanceId", cmd.correlationId());
+                log.info("ComplianceCheck received — correlationId={} checkType={}", cmd.correlationId(), cmd.checkType());
                 exchange.setProperty("correlationId", cmd.correlationId());
                 exchange.setProperty("checkId", cmd.checkId());
                 // Forward the original body as HTTP POST payload
                 exchange.getIn().setBody(json);
             })
-            .log("ComplianceCheck received for correlationId=${exchangeProperty.correlationId}")
             .to("http://{{rsk3x3.url}}/screen?bridgeEndpoint=true")
             .process(exchange -> {
                 String responseBody = exchange.getIn().getBody(String.class);
@@ -53,8 +78,9 @@ public class ComplianceCheckRoute extends RouteBuilder {
                 );
                 exchange.getIn().setBody(objectMapper.writeValueAsString(event));
                 exchange.getIn().setHeader("issuanceId", correlationId);
+                log.info("RSK3X3 response received — publishing ComplianceCleared correlationId={}", correlationId);
+                MDC.clear();
             })
-            .log("RSK3X3 response received — publishing ComplianceCleared for ${exchangeProperty.correlationId}")
             .to("kafka:compliance.events.compliance-cleared");
     }
 }

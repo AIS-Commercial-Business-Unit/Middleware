@@ -1,19 +1,15 @@
 package com.ais.middleware.policy.issuance.domain;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
- * The persisted state of one IssuanceSaga instance.
- * Every state transition updates this document in MongoDB.
- * Searchable by issuanceId in the Saga Explorer.
+ * Domain entity representing an IssuanceSaga instance.
+ * CLEAN DOMAIN: No infrastructure imports (Spring, MongoDB, etc.).
+ * Persistence is handled by the adapter in the persistence package.
  */
-@Document(collection = "issuance_sagas")
 public class IssuanceSagaRecord {
 
-    @Id
     private String issuanceId;
     private String accountId;
     private String accountServiceRequestNumber;
@@ -29,6 +25,8 @@ public class IssuanceSagaRecord {
     private OffsetDateTime requestedAt;
     private OffsetDateTime completedAt;
     private String submittingChannel;
+    private String recordId;    // BatchRecord.RecordId — null for manual issuance
+    private String batchId;     // FileBatch.BatchId — null for manual issuance
 
     public enum SagaStatus {
         Initiated,
@@ -74,4 +72,8 @@ public class IssuanceSagaRecord {
     public void setCompletedAt(OffsetDateTime completedAt) { this.completedAt = completedAt; }
     public String getSubmittingChannel() { return submittingChannel; }
     public void setSubmittingChannel(String submittingChannel) { this.submittingChannel = submittingChannel; }
+    public String getRecordId() { return recordId; }
+    public void setRecordId(String recordId) { this.recordId = recordId; }
+    public String getBatchId() { return batchId; }
+    public void setBatchId(String batchId) { this.batchId = batchId; }
 }

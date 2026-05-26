@@ -10,3 +10,28 @@
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+
+### 2026-05-25 — Architecture Sweep
+
+**DDD Layer Separation Pattern:**
+- Domain entities MUST be clean Java — no Spring, MongoDB, or Camel annotations
+- Infrastructure lives in `persistence/` subpackage with:
+  - `*Document.java` — database-annotated entities
+  - `*MongoRepository.java` — Spring Data interfaces
+  - `*RepositoryAdapter.java` — implements domain interface, handles mapping
+- Domain repositories are pure Java interfaces (e.g., `Optional<T> findById(String id)`)
+
+**DLQ Convention:**
+- Every Camel route must have `onException` handler with DLQ
+- Topic pattern: `{domain}.dlq.{route-name}-failures`
+- Standard policy: 3 retries, exponential backoff, then DLQ
+
+**Event Schema Versioning:**
+- `VersionedEvent` and `VersionedCommand` interfaces added to common
+- Events should implement these for forward/backward compatibility
+- Schema version starts at "1.0", increment major on breaking changes
+
+**Naming Conventions Verified:**
+- Commands: `*Command` suffix (e.g., `IssuePolicyCommand`, `AssociateBillingAccountCommand`)
+- Events: `*Event` suffix (e.g., `PolicyIssuedEvent`, `ComplianceClearedEvent`)
+- All current events/commands follow convention

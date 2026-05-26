@@ -1,0 +1,22 @@
+# Build artifacts not needed by Docker (JAR is already in target/)
+src/
+.mvn/
+mvnw
+mvnw.cmd
+pom.xml
+*.md
+.git
+.gitignore
+.gitattributes
+*.iml
+.idea/
+.vscode/
+target/surefire-reports/
+target/failsafe-reports/
+target/site/
+target/classes/
+target/test-classes/
+target/generated-sources/
+target/generated-test-sources/
+target/maven-archiver/
+target/maven-status/

@@ -56,6 +56,7 @@ export default function HomePage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold mb-1">UC1 · Policy Issuance</h1>
+
         <p className="text-sm" style={{ color: "var(--muted)" }}>
           Submit an IssuePolicy command. The saga runs asynchronously — you will be redirected to the{" "}
           <Link href="/ops" className="underline" style={{ color: "var(--accent-light)" }}>Operations &amp; Observability</Link> page.
@@ -109,6 +110,22 @@ export default function HomePage() {
           {loading ? "Submitting..." : "Submit IssuePolicy Command →"}
         </button>
       </form>
+      {/* UC3 link */}
+      <Link
+        href="/batches"
+        className="flex items-center justify-between rounded-lg border p-4 hover:border-indigo-500 transition-colors group"
+        style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+      >
+        <div>
+          <p className="font-semibold text-sm group-hover:text-white transition-colors" style={{ color: "var(--accent-light)" }}>
+            UC3 · Automated Renewal Batch
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+            Generate and process bulk renewal files through the file processing pipeline
+          </p>
+        </div>
+        <span className="text-lg" style={{ color: "var(--muted)" }}>→</span>
+      </Link>
     </div>
   );
 }

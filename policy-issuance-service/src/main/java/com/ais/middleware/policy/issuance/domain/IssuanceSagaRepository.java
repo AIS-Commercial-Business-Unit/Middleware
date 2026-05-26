@@ -1,8 +1,14 @@
 package com.ais.middleware.policy.issuance.domain;
 
-import org.springframework.data.mongodb.repository.MongoRepository;
-import org.springframework.stereotype.Repository;
+import java.util.Optional;
 
-@Repository
-public interface IssuanceSagaRepository extends MongoRepository<IssuanceSagaRecord, String> {
+/**
+ * Domain repository interface for IssuanceSaga persistence.
+ * CLEAN DOMAIN: No infrastructure imports — just pure Java.
+ * Implementation provided by the persistence adapter.
+ */
+public interface IssuanceSagaRepository {
+    void save(IssuanceSagaRecord saga);
+    Optional<IssuanceSagaRecord> findById(String issuanceId);
+    boolean existsById(String issuanceId);
 }

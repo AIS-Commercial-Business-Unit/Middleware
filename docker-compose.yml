@@ -15,10 +15,12 @@ networks:
 
 volumes:
   mongo-data:
+  kafka-data:
   grafana-data:
   loki-data:
   tempo-data:
   prometheus-data:
+  renewal-data:
 
 services:
 
@@ -30,19 +32,32 @@ services:
     image: confluentinc/cp-zookeeper:7.7.0
     container_name: zookeeper
     networks: [middleware-net]
+    restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    healthcheck:
+      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 | grep -q Mode"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 256m
 
   kafka:
     image: confluentinc/cp-kafka:7.7.0
     container_name: kafka
     networks: [middleware-net]
-    depends_on: [zookeeper]
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -50,24 +65,80 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_LOG_RETENTION_HOURS: 168
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    mem_limit: 1g
+
+  kafka-setup:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: kafka-setup
+    networks: [middleware-net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo "Creating Kafka topics..."
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic policy.commands.issue-policy --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic compliance.commands.request-compliance-check --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic compliance.events.compliance-cleared --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic compliance.events.compliance-blocked --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic customer.commands.get-or-create-account-record --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic customer.commands.update-customer-record --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic customer.events.account-service-record-retrieved --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic customer.events.customer-updated --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic policy.events.issue-policy-requested --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic policy.events.policy-issued --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic policy.events.issuance-failed --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic billing.commands.associate-billing-account --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic billing.events.billing-association-created --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic integration.events.policy-admin-system-response-received --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic integration.events.policy-admin-system-call-failed --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic notification.commands.publish-notification-intent --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic notification.events.notification-dispatched --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic file.events.renewal-record-ready-for-issuance --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic file.events.file-batch-started --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic file.events.file-batch-progress-updated --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic file.events.file-batch-completed --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic file.events.file-batch-partial-failure --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic policy.events.renewal-record-processed --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic policy.events.renewal-record-failed --partitions 3 --replication-factor 1
+        echo "All topics created."
+    restart: on-failure
 
   kafka-ui:
     image: obsidiandynamics/kafdrop:4.0.2
     container_name: kafka-ui
     networks: [middleware-net]
-    depends_on: [kafka]
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
     ports:
       - "9000:9000"
     environment:
       KAFKA_BROKERCONNECT: kafka:29092
       JVM_OPTS: "-Xms32M -Xmx64M"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/ > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 128m
 
   mongodb:
     image: mongo:7.0
     container_name: mongodb
     networks: [middleware-net]
+    restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
@@ -75,17 +146,34 @@ services:
       - ./observability/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     environment:
       MONGO_INITDB_DATABASE: admin
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping').ok", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 1g
 
   mongo-express:
     image: mongo-express:1.0.2
     container_name: mongo-express
     networks: [middleware-net]
-    depends_on: [mongodb]
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
     ports:
       - "8888:8081"
     environment:
       ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017
       ME_CONFIG_BASICAUTH: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/ > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 128m
 
   # ──────────────────────────────────────────────────────────
   # OBSERVABILITY STACK (OpenTelemetry → Grafana)
@@ -95,16 +183,21 @@ services:
     image: otel/opentelemetry-collector-contrib:0.111.0
     container_name: otel-collector
     networks: [middleware-net]
+    restart: unless-stopped
     volumes:
       - ./observability/otel-collector.yaml:/etc/otel/config.yaml:ro
     command: ["--config=/etc/otel/config.yaml"]
     # Ports 4317/4318 are internal-only — services reach the collector via Docker network.
     # No host binding needed (avoids conflicts with other local OTel collectors).
+    # Note: distroless image has no shell utilities — health check not possible via CMD-SHELL.
+    # Services use condition: service_started; OTel is non-critical for app startup.
+    mem_limit: 256m
 
   tempo:
     image: grafana/tempo:2.6.0
     container_name: tempo
     networks: [middleware-net]
+    restart: unless-stopped
     volumes:
       - ./observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
       - tempo-data:/var/tempo
@@ -112,33 +205,63 @@ services:
     ports:
       - "3200:3200"   # Tempo HTTP API (Grafana datasource)
       - "4317"        # OTel gRPC ingest (internal, routed via otel-collector)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3200/ready > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 512m
 
   loki:
     image: grafana/loki:3.2.0
     container_name: loki
     networks: [middleware-net]
+    restart: unless-stopped
     volumes:
       - ./observability/loki.yaml:/etc/loki/config.yaml:ro
       - loki-data:/loki
     command: ["-config.file=/etc/loki/config.yaml"]
     ports:
       - "3100:3100"   # Loki HTTP API (Grafana datasource)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 256m
 
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: prometheus
     networks: [middleware-net]
+    restart: unless-stopped
     volumes:
       - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 512m
 
   grafana:
     image: grafana/grafana:11.2.2
     container_name: grafana
     networks: [middleware-net]
-    depends_on: [loki, tempo, prometheus]
+    restart: unless-stopped
+    depends_on:
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
     volumes:
       - grafana-data:/var/lib/grafana
       - ./observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
@@ -147,18 +270,35 @@ services:
     ports:
       - "3001:3000"   # Grafana web UI
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 256m
 
   promtail:
     image: grafana/promtail:3.2.0
     container_name: promtail
     networks: [middleware-net]
-    depends_on: [loki]
+    restart: unless-stopped
+    depends_on:
+      loki:
+        condition: service_healthy
     volumes:
       - ./observability/promtail.yaml:/etc/promtail/config.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     command: ["-config.file=/etc/promtail/config.yaml"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9080/ready > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 128m
 
   # ──────────────────────────────────────────────────────────
   # EXTERNAL SYSTEM STUBS
@@ -168,64 +308,120 @@ services:
     build: ./stubs/duckcreek-commercial-stub
     container_name: duckcreek-commercial-stub
     networks: [middleware-net]
+    restart: unless-stopped
     ports:
       - "9001:9001"
     environment:
       SERVER_PORT: 9001
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9001/actuator/health > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 256m
 
   duckcreek-personal-stub:
     build: ./stubs/duckcreek-personal-stub
     container_name: duckcreek-personal-stub
     networks: [middleware-net]
+    restart: unless-stopped
     ports:
       - "9002:9002"
     environment:
       SERVER_PORT: 9002
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9002/actuator/health > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 256m
 
   forefront-stub:
     build: ./stubs/forefront-stub
     container_name: forefront-stub
     networks: [middleware-net]
+    restart: unless-stopped
     ports:
       - "9003:9003"
     environment:
       SERVER_PORT: 9003
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9003/actuator/health > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 256m
 
   rsk3x3-compliance-stub:
     build: ./stubs/rsk3x3-compliance-stub
     container_name: rsk3x3-compliance-stub
     networks: [middleware-net]
+    restart: unless-stopped
     ports:
       - "9004:9004"
     environment:
       SERVER_PORT: 9004
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9004/actuator/health > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 256m
 
   erm7x1-account-stub:
     build: ./stubs/erm7x1-account-stub
     container_name: erm7x1-account-stub
     networks: [middleware-net]
+    restart: unless-stopped
     ports:
       - "9005:9005"
     environment:
       SERVER_PORT: 9005
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9005/actuator/health > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 256m
 
   crm40x1-customer-stub:
     build: ./stubs/crm40x1-customer-stub
     container_name: crm40x1-customer-stub
     networks: [middleware-net]
+    restart: unless-stopped
     ports:
       - "9006:9006"
     environment:
       SERVER_PORT: 9006
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9006/actuator/health > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 256m
 
   crm19x1-billing-stub:
     build: ./stubs/crm19x1-billing-stub
     container_name: crm19x1-billing-stub
     networks: [middleware-net]
+    restart: unless-stopped
     ports:
       - "9007:9007"
     environment:
       SERVER_PORT: 9007
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9007/actuator/health > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 256m
 
   # ──────────────────────────────────────────────────────────
   # DOMAIN SERVICES
@@ -235,7 +431,16 @@ services:
     build: ./policy-issuance-service
     container_name: policy-issuance-service
     networks: [middleware-net]
-    depends_on: [kafka, mongodb, otel-collector]
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
     ports:
       - "8081:8081"
     environment:
@@ -245,12 +450,30 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: policy-issuance-service
       OTEL_RESOURCE_ATTRIBUTES: service.version=1.0.0,deployment.environment=local
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health > /dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    mem_limit: 512m
 
   platform-compliance-service:
     build: ./platform-compliance-service
     container_name: platform-compliance-service
     networks: [middleware-net]
-    depends_on: [kafka, mongodb, otel-collector, rsk3x3-compliance-stub]
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+      rsk3x3-compliance-stub:
+        condition: service_healthy
     ports:
       - "8082:8082"
     environment:
@@ -260,12 +483,32 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: platform-compliance-service
       RSK3X3_URL: rsk3x3-compliance-stub:9004
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health > /dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    mem_limit: 512m
 
   customer-identity-service:
     build: ./customer-identity-service
     container_name: customer-identity-service
     networks: [middleware-net]
-    depends_on: [kafka, mongodb, otel-collector, erm7x1-account-stub, crm40x1-customer-stub]
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+      erm7x1-account-stub:
+        condition: service_healthy
+      crm40x1-customer-stub:
+        condition: service_healthy
     ports:
       - "8083:8083"
     environment:
@@ -276,18 +519,34 @@ services:
       OTEL_SERVICE_NAME: customer-identity-service
       ERM7X1_URL: erm7x1-account-stub:9005
       CRM40X1_URL: crm40x1-customer-stub:9006
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health > /dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    mem_limit: 512m
 
   platform-integration-service:
     build: ./platform-integration-service
     container_name: platform-integration-service
     networks: [middleware-net]
+    restart: unless-stopped
     depends_on:
-      - kafka
-      - mongodb
-      - otel-collector
-      - duckcreek-commercial-stub
-      - duckcreek-personal-stub
-      - forefront-stub
+      kafka:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+      duckcreek-commercial-stub:
+        condition: service_healthy
+      duckcreek-personal-stub:
+        condition: service_healthy
+      forefront-stub:
+        condition: service_healthy
     ports:
       - "8084:8084"
     environment:
@@ -299,12 +558,30 @@ services:
       DUCKCREEK_COMMERCIAL_URL: duckcreek-commercial-stub:9001
       DUCKCREEK_PERSONAL_URL: duckcreek-personal-stub:9002
       FOREFRONT_URL: forefront-stub:9003
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health > /dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    mem_limit: 512m
 
   billing-finance-service:
     build: ./billing-finance-service
     container_name: billing-finance-service
     networks: [middleware-net]
-    depends_on: [kafka, mongodb, otel-collector, crm19x1-billing-stub]
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+      crm19x1-billing-stub:
+        condition: service_healthy
     ports:
       - "8085:8085"
     environment:
@@ -314,12 +591,28 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: billing-finance-service
       CRM19X1_URL: crm19x1-billing-stub:9007
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health > /dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    mem_limit: 512m
 
   platform-notification-service:
     build: ./platform-notification-service
     container_name: platform-notification-service
     networks: [middleware-net]
-    depends_on: [kafka, mongodb, otel-collector]
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
     ports:
       - "8086:8086"
     environment:
@@ -328,6 +621,49 @@ services:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/notification_db
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: platform-notification-service
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/actuator/health > /dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    mem_limit: 512m
+
+  platform-file-processing-service:
+    build: ./platform-file-processing-service
+    container_name: platform-file-processing-service
+    networks: [middleware-net]
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    ports:
+      - "8087:8087"
+    volumes:
+      - renewal-data:/app/data/renewals
+    environment:
+      SERVER_PORT: 8087
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/file_processing_db
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: platform-file-processing-service
+      FILE_INBOUND_DIR: /app/data/renewals/inbound
+      FILE_PROCESSED_DIR: /app/data/renewals/processed
+      FILE_ERROR_DIR: /app/data/renewals/error
+      OTEL_RESOURCE_ATTRIBUTES: service.version=1.0.0,deployment.environment=local
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health > /dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    mem_limit: 512m
 
   # ──────────────────────────────────────────────────────────
   # PLATFORM UI
@@ -337,11 +673,26 @@ services:
     build: ./platform-ui
     container_name: platform-ui
     networks: [middleware-net]
+    restart: unless-stopped
     depends_on:
-      - policy-issuance-service
-      - platform-compliance-service
+      policy-issuance-service:
+        condition: service_healthy
+      platform-compliance-service:
+        condition: service_healthy
+      platform-file-processing-service:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
+      POLICY_ISSUANCE_SERVICE_URL: http://policy-issuance-service:8081
       NEXT_PUBLIC_POLICY_ISSUANCE_URL: http://localhost:8081
       NEXT_PUBLIC_GRAFANA_URL: http://localhost:3001
+      FILE_PROCESSING_SERVICE_URL: http://platform-file-processing-service:8087
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ > /dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    mem_limit: 256m
+

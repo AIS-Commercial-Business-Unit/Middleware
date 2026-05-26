@@ -4,7 +4,10 @@ import com.ais.middleware.common.events.integration.PolicyAdminSystemResponseRec
 import com.ais.middleware.common.events.policy.IssuePolicyRequestedEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
@@ -27,6 +30,8 @@ import java.util.List;
 @Component
 public class PasGatewayRoute extends RouteBuilder {
 
+    private static final Logger log = LoggerFactory.getLogger(PasGatewayRoute.class);
+
     private final ObjectMapper objectMapper;
 
     public PasGatewayRoute(ObjectMapper objectMapper) {
@@ -35,6 +40,24 @@ public class PasGatewayRoute extends RouteBuilder {
 
     @Override
     public void configure() throws Exception {
+
+        // Global DLQ handler: 2 retries with exponential backoff, then dead-letter.
+        onException(Exception.class)
+            .maximumRedeliveries(2)
+            .redeliveryDelay(1000)
+            .backOffMultiplier(2)
+            .useExponentialBackOff()
+            .handled(true)
+            .process(exchange -> {
+                Exception cause = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class);
+                String issuanceId = exchange.getProperty("issuanceId", String.class);
+                log.error("Unhandled exception in pas-gateway route — routing to DLQ. issuanceId={} routeId={} error={}",
+                        issuanceId, exchange.getFromRouteId(),
+                        cause != null ? cause.getMessage() : "unknown", cause);
+                exchange.getIn().setHeader("X-DLQ-Error", cause != null ? cause.getMessage() : "unknown");
+                exchange.getIn().setHeader("X-DLQ-RouteId", exchange.getFromRouteId());
+            })
+            .to("kafka:integration.dlq.pas-gateway");
 
         // Parse the incoming IssuePolicyRequestedEvent and store issuanceId + policyTypeCode before routing
         from("kafka:policy.events.issue-policy-requested?groupId=platform-integration-service")

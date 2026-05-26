@@ -1,12 +1,13 @@
 package com.ais.middleware.platform.compliance.domain;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.OffsetDateTime;
 
-@Document(collection = "compliance_checks")
+/**
+ * Domain entity representing a compliance check.
+ * CLEAN DOMAIN: No infrastructure imports (Spring, MongoDB, etc.).
+ * Persistence is handled by the adapter in the persistence package.
+ */
 public class ComplianceCheck {
-    @Id
     private String checkId;
     private String correlationId;
     private String sourceDomain;

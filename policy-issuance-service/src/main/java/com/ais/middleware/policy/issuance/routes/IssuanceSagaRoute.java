@@ -12,11 +12,18 @@ import com.ais.middleware.common.events.integration.PolicyAdminSystemCallFailedE
 import com.ais.middleware.common.events.policy.*;
 import com.ais.middleware.policy.issuance.domain.IssuanceSagaRecord;
 import com.ais.middleware.policy.issuance.domain.IssuanceSagaRepository;
+import com.ais.middleware.policy.issuance.persistence.IssuanceSagaDocument;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
@@ -36,14 +43,36 @@ public class IssuanceSagaRoute extends RouteBuilder {
 
     private final IssuanceSagaRepository repository;
     private final ObjectMapper objectMapper;
+    private final MongoTemplate mongoTemplate;
 
-    public IssuanceSagaRoute(IssuanceSagaRepository repository, ObjectMapper objectMapper) {
+    public IssuanceSagaRoute(IssuanceSagaRepository repository, ObjectMapper objectMapper,
+                             MongoTemplate mongoTemplate) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.mongoTemplate = mongoTemplate;
     }
 
     @Override
     public void configure() throws Exception {
+
+        // Global DLQ handler: 2 retries with exponential backoff, then dead-letter.
+        // handled(true) commits the Kafka offset so the poison message is not redelivered indefinitely.
+        onException(Exception.class)
+            .maximumRedeliveries(2)
+            .redeliveryDelay(1000)
+            .backOffMultiplier(2)
+            .useExponentialBackOff()
+            .handled(true)
+            .process(exchange -> {
+                Exception cause = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class);
+                String issuanceId = exchange.getIn().getHeader("issuanceId", String.class);
+                log.error("Unhandled exception in issuance-saga — routing to DLQ. issuanceId={} routeId={} error={}",
+                        issuanceId, exchange.getFromRouteId(),
+                        cause != null ? cause.getMessage() : "unknown", cause);
+                exchange.getIn().setHeader("X-DLQ-Error", cause != null ? cause.getMessage() : "unknown");
+                exchange.getIn().setHeader("X-DLQ-RouteId", exchange.getFromRouteId());
+            })
+            .to("kafka:policy.dlq.issuance-saga");
 
         // ── Route 1: Accept IssuePolicy command from Kafka → start saga ──────────
         from("kafka:policy.commands.issue-policy?groupId=policy-issuance-saga")
@@ -233,12 +262,14 @@ public class IssuanceSagaRoute extends RouteBuilder {
         // ── Route 6: BillingAssociationCreated → check join condition ─────────────
         from("kafka:billing.events.billing-association-created?groupId=policy-issuance-saga")
             .routeId("saga-billing-complete")
-            .process(exchange -> checkJoinCondition(exchange, "billing"));
+            .process(exchange -> checkJoinCondition(exchange, "billing"))
+            .to("kafka:policy.events.policy-issued");
 
         // ── Route 7: CustomerUpdated → check join condition ───────────────────────
         from("kafka:customer.events.customer-updated?groupId=policy-issuance-saga")
             .routeId("saga-customer-updated")
-            .process(exchange -> checkJoinCondition(exchange, "customer"));
+            .process(exchange -> checkJoinCondition(exchange, "customer"))
+            .to("kafka:policy.events.policy-issued");
 
         // ── Route 8: PAS call failed → retry or fail ──────────────────────────────
         from("kafka:integration.events.policy-admin-system-call-failed?groupId=policy-issuance-saga")
@@ -288,6 +319,15 @@ public class IssuanceSagaRoute extends RouteBuilder {
             .end();
     }
 
+    /**
+     * Atomically sets the branch completion flag and checks the join condition (BR-PIL-003).
+     *
+     * The previous read-modify-write (findById → setFlag → save) had a race condition: if billing
+     * and customer events arrived concurrently, each thread could read stale data before the other
+     * had persisted its flag, meaning neither thread saw both flags set and PolicyIssued was never
+     * published. Fixed by using MongoDB findAndModify (atomic set + returnNew), which guarantees
+     * exactly one thread observes both flags = true and wins the CAS to publish PolicyIssued.
+     */
     private void checkJoinCondition(org.apache.camel.Exchange exchange, String branch) throws Exception {
         String json = exchange.getIn().getBody(String.class);
         String issuanceId;
@@ -300,34 +340,57 @@ public class IssuanceSagaRoute extends RouteBuilder {
         }
         MDC.put("issuanceId", issuanceId);
 
-        IssuanceSagaRecord saga = repository.findById(issuanceId).orElse(null);
-        if (saga == null) { log.warn("No saga for issuanceId={}", issuanceId); return; }
+        // Step 1: Atomically set the branch flag; returnNew=true gives us the post-update state.
+        String flagField = "billing".equals(branch) ? "billingComplete" : "customerUpdateComplete";
+        var flagQuery = Query.query(Criteria.where("_id").is(issuanceId));
+        var flagUpdate = new Update().set(flagField, true);
+        IssuanceSagaDocument updated = mongoTemplate.findAndModify(
+                flagQuery, flagUpdate,
+                FindAndModifyOptions.options().returnNew(true).upsert(false),
+                IssuanceSagaDocument.class);
+
+        if (updated == null) {
+            log.warn("No saga document for issuanceId={} in checkJoinCondition — skipping", issuanceId);
+            exchange.setRouteStop(true);
+            MDC.clear();
+            return;
+        }
 
         if ("billing".equals(branch)) {
-            saga.setBillingComplete(true);
-            log.info("Billing branch complete — waitingForCustomer={}", !saga.isCustomerUpdateComplete());
+            log.info("Billing branch complete — waitingForCustomer={}", !updated.isCustomerUpdateComplete());
         } else {
-            saga.setCustomerUpdateComplete(true);
-            log.info("Customer branch complete — waitingForBilling={}", !saga.isBillingComplete());
+            log.info("Customer branch complete — waitingForBilling={}", !updated.isBillingComplete());
         }
-        repository.save(saga);
 
-        // Saga join: both branches must complete before advancing (BR-PIL-003)
-        if (saga.isBillingComplete() && saga.isCustomerUpdateComplete()) {
-            log.info("Saga join complete — both branches done — publishing PolicyIssued");
-            saga.setStatus(IssuanceSagaRecord.SagaStatus.Completed);
-            saga.setCompletedAt(OffsetDateTime.now());
-            repository.save(saga);
+        if (updated.isBillingComplete() && updated.isCustomerUpdateComplete()) {
+            // Step 2: Both flags are set. Use a conditional CAS to transition status to Completed
+            // so exactly one of the two concurrent threads publishes PolicyIssued (BR-PIL-003).
+            var completeQuery = Query.query(
+                    Criteria.where("_id").is(issuanceId)
+                            .and("status").ne("Completed"));
+            var completeUpdate = new Update()
+                    .set("status", "Completed")
+                    .set("completedAt", OffsetDateTime.now());
+            IssuanceSagaDocument completed = mongoTemplate.findAndModify(
+                    completeQuery, completeUpdate,
+                    FindAndModifyOptions.options().returnNew(true).upsert(false),
+                    IssuanceSagaDocument.class);
 
-            var issued = new PolicyIssuedEvent(
-                    issuanceId,
-                    saga.getAccountServiceRequestNumber(),
-                    saga.getPolicyNumbers(),
-                    saga.getTargetPas(),
-                    OffsetDateTime.now()
-            );
-            exchange.getIn().setBody(objectMapper.writeValueAsString(issued));
-            exchange.getIn().setHeader("issuanceId", issuanceId);
+            if (completed == null) {
+                log.debug("PolicyIssued already published by sibling branch — suppressing duplicate for issuanceId={}", issuanceId);
+                exchange.setRouteStop(true);
+            } else {
+                log.info("Saga join complete — both branches done — publishing PolicyIssued for issuanceId={}", issuanceId);
+                var issued = new PolicyIssuedEvent(
+                        issuanceId,
+                        completed.getAccountServiceRequestNumber(),
+                        completed.getPolicyNumbers(),
+                        completed.getTargetPas(),
+                        OffsetDateTime.now()
+                );
+                exchange.getIn().setBody(objectMapper.writeValueAsString(issued));
+                exchange.getIn().setHeader("issuanceId", issuanceId);
+            }
         } else {
             exchange.setRouteStop(true);
         }

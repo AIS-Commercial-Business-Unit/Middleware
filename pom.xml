@@ -19,6 +19,7 @@
         <module>platform-integration-service</module>
         <module>billing-finance-service</module>
         <module>platform-notification-service</module>
+        <module>platform-file-processing-service</module>
         <module>stubs/duckcreek-commercial-stub</module>
         <module>stubs/duckcreek-personal-stub</module>
         <module>stubs/forefront-stub</module>
@@ -106,6 +107,9 @@
                         <source>21</source>
                         <target>21</target>
                         <encoding>UTF-8</encoding>
+                        <compilerArgs>
+                            <arg>-parameters</arg>
+                        </compilerArgs>
                     </configuration>
                 </plugin>
             </plugins>
