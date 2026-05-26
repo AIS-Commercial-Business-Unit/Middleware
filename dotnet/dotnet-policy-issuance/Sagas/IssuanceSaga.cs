@@ -3,6 +3,7 @@ using dotnet_policy_issuance.Infrastructure;
 using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using NServiceBus;
+using Serilog.Context;
 
 namespace dotnet_policy_issuance.Sagas;
 
@@ -54,6 +55,14 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
         Data.RecordId = message.RecordId;
         Data.Status = "AwaitingCompliance";
 
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+        using (LogContext.PushProperty("accountId", Data.AccountId))
+        {
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "IssuanceSaga STARTED — issuanceId={IssuanceId} accountId={AccountId} policyTypeCode={PolicyTypeCode} channel={Channel} → AwaitingCompliance",
+                Data.IssuanceId, Data.AccountId, Data.PolicyTypeCode, Data.SubmittingChannel);
+        }
+
         await PersistAsync().ConfigureAwait(false);
 
         await context.Publish(new IssuanceSagaStartedEvent
@@ -75,6 +84,10 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
     public async Task Handle(ComplianceClearedEvent message, IMessageHandlerContext context)
     {
         Data.Status = "AwaitingAccountRecord";
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "IssuanceSaga ComplianceCleared — issuanceId={IssuanceId} → AwaitingAccountRecord",
+                Data.IssuanceId);
         await PersistAsync().ConfigureAwait(false);
 
         await context.Send(new GetOrCreateAccountServiceRecordCommand
@@ -89,6 +102,10 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
         Data.Status = "ComplianceBlocked";
         Data.FailureReason = message.Reason;
         Data.CompletedAt = message.BlockedAt == default ? DateTimeOffset.UtcNow : message.BlockedAt;
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+            PolicyIssuanceRuntime.Logger?.LogWarning(
+                "IssuanceSaga ComplianceBlocked — issuanceId={IssuanceId} reason={Reason}",
+                Data.IssuanceId, message.Reason);
         await PersistAsync().ConfigureAwait(false);
 
         await context.Publish(new IssuanceFailedEvent
@@ -107,6 +124,10 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
     {
         Data.AccountServiceRequestNumber = message.AccountServiceRequestNumber;
         Data.Status = "AwaitingPAS";
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "IssuanceSaga AccountRecordRetrieved — issuanceId={IssuanceId} asr={AccountServiceRequestNumber} → AwaitingPAS",
+                Data.IssuanceId, Data.AccountServiceRequestNumber);
         await PersistAsync().ConfigureAwait(false);
 
         await context.Publish(new IssuePolicyRequestedEvent
@@ -132,6 +153,10 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
         Data.TargetPas = message.TargetPas;
         Data.PolicyNumbers = message.PolicyNumbers;
         Data.Status = "PASConfirmed";
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "IssuanceSaga PASConfirmed — issuanceId={IssuanceId} targetPas={TargetPas} policyNumbers={PolicyNumbers}",
+                Data.IssuanceId, Data.TargetPas, string.Join(",", Data.PolicyNumbers));
         await PersistAsync().ConfigureAwait(false);
 
         await context.Send(new AssociateBillingAccountCommand
@@ -156,6 +181,10 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
         Data.Status = "Failed";
         Data.FailureReason = message.Reason;
         Data.CompletedAt = message.FailedAt == default ? DateTimeOffset.UtcNow : message.FailedAt;
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+            PolicyIssuanceRuntime.Logger?.LogError(
+                "IssuanceSaga PASFailed — issuanceId={IssuanceId} reason={Reason}",
+                Data.IssuanceId, message.Reason);
         await PersistAsync().ConfigureAwait(false);
 
         await context.Publish(new IssuanceFailedEvent
@@ -174,6 +203,10 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
     {
         Data.BillingComplete = true;
         Data.Status = Data.CustomerUpdateComplete ? "Completed" : "BillingAssociated";
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "IssuanceSaga BillingComplete — issuanceId={IssuanceId} customerDone={CustomerDone} → {Status}",
+                Data.IssuanceId, Data.CustomerUpdateComplete, Data.Status);
         await PersistAsync().ConfigureAwait(false);
 
         if (Data.BillingComplete && Data.CustomerUpdateComplete)
@@ -186,6 +219,10 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
     {
         Data.CustomerUpdateComplete = true;
         Data.Status = Data.BillingComplete ? "Completed" : "CustomerUpdateComplete";
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "IssuanceSaga CustomerUpdateComplete — issuanceId={IssuanceId} billingDone={BillingDone} → {Status}",
+                Data.IssuanceId, Data.BillingComplete, Data.Status);
         await PersistAsync().ConfigureAwait(false);
 
         if (Data.BillingComplete && Data.CustomerUpdateComplete)
@@ -198,6 +235,12 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
     {
         Data.Status = "Completed";
         Data.CompletedAt = DateTimeOffset.UtcNow;
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "IssuanceSaga COMPLETED — issuanceId={IssuanceId} policyNumbers={PolicyNumbers} durationMs={DurationMs}",
+                Data.IssuanceId,
+                string.Join(",", Data.PolicyNumbers),
+                (long)(Data.CompletedAt.Value - Data.RequestedAt).TotalMilliseconds);
         await PersistAsync().ConfigureAwait(false);
 
         await context.Publish(new PolicyIssuedEvent

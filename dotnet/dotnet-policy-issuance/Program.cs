@@ -5,6 +5,7 @@ using Serilog;
 using Serilog.Formatting.Json;
 using dotnet_policy_issuance.Handlers;
 using dotnet_policy_issuance.Infrastructure;
+using dotnet_policy_issuance.Sagas;
 using Middleware.Contracts.Commands;
 using NServiceBus;
 
@@ -61,6 +62,7 @@ var endpointInstance = await NServiceBus.Endpoint.Start(endpointConfiguration).C
 builder.Services.AddSingleton<IMessageSession>(endpointInstance);
 
 var app = builder.Build();
+PolicyIssuanceRuntime.Logger = app.Services.GetService<ILogger<IssuanceSaga>>();
 app.UseSerilogRequestLogging();
 app.MapHealthChecks("/health");
 app.MapControllers();
