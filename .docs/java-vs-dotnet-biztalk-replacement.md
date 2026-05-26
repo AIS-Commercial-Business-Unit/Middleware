@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-This document recommends **Java/Apache Camel** as the target integration stack for this client's BizTalk modernization. The recommendation is grounded in three factors: (1) Apache Camel provides native, production-tested components for every integration pattern found in the client's BizTalk environment — EDI, SOAP/WCF, file-based batch, IBM MQ, SFTP, DB2, and SQL polling; (2) the client's operational team already runs Java, Kafka, MongoDB, and Docker in production; and (3) the actual risk in this migration is not technology selection but program execution — discovery completeness, orchestration-to-saga decomposition, cutover sequencing, and change management across 67+ BizTalk applications spanning four business portfolios.
+This document recommends **Java/Apache Camel** as the target integration stack for this client's BizTalk modernization. The recommendation is grounded in three factors: (1) Apache Camel provides native, production-tested components for every integration pattern found in the client's BizTalk environment — EDI, SOAP/WCF, file-based batch, IBM MQ, SFTP, DB2, and SQL polling; (2) the client's operational team already runs Java, Kafka, MongoDB, and Docker in production; and (3) the actual risk in this migration is not technology selection but program execution — discovery completeness, orchestration-to-saga decomposition, cutover sequencing, and change management across 67+ BizTalk applications spanning four business portfolios. The Java/Kafka stack eliminates Azure Service Bus and Azure Logic Apps from the target architecture entirely; the .NET/NServiceBus path reintroduces both as new Azure spend on top of the Kafka investment the team has already made.
 
 ---
 
@@ -31,10 +31,13 @@ This comparison evaluates the two stacks specifically on:
 
 | Concern | Why Excluded |
 |---|---|
-| **HTTP/REST APIs** | Azure API Management handles this on both stacks. Not a differentiator. |
-| **ETL / Data Pipeline** | Azure Data Factory is off the table. Neither stack handles this. |
-| **Monitoring / Observability** | Both stacks use Azure Monitor, App Insights, Grafana. Commodity. |
+| **HTTP/REST APIs** | Azure API Management is shared by both stacks. Not a differentiator. |
+| **Blob / artifact storage** | Azure Blob Storage is shared by both stacks. Not a differentiator. |
+| **Secrets / configuration** | Azure Key Vault and App Configuration are shared by both stacks. Not a differentiator. |
+| **Monitoring / Observability** | Azure Monitor and App Insights are shared by both stacks. Not a differentiator. |
 | **Authentication / Identity** | Azure Entra ID handles both. Commodity. |
+| **ETL / Data Pipeline** | Azure Data Factory is off the table. Neither stack handles this. |
+| **Stack impact** | **Java + Kafka:** no Azure Service Bus, no Logic Apps. **.NET + NServiceBus:** Azure Service Bus or SQL transport, plus Logic Apps for adapter gaps. |
 
 ---
 
@@ -143,10 +146,11 @@ Let's be honest about what NServiceBus does well:
 
 | BizTalk Need | .NET Solution Required | Concern |
 |---|---|---|
-| **IBM MQ** | IBM MQ .NET client + custom `IHostedService` OR MassTransit IBM MQ transport (less mature) | Operational expertise gap; IBM MQ .NET client is less commonly deployed than Java equivalent |
-| **SFTP polling** | WinSCP .NET + custom scheduler OR Azure Logic Apps SFTP connector | Logic Apps adds licensing cost ($$$) and operational sprawl; custom code adds maintenance |
-| **File drop zones** | `FileSystemWatcher` + custom error handling + idempotent consumer pattern | Must build what Camel provides out of the box |
-| **SQL polling** | EF Core + `BackgroundService` + custom polling loop OR Logic Apps SQL connector | Reinventing `camel-sql` from scratch |
+| **Durable messaging transport in Azure** | **Azure Service Bus** for NServiceBus transport (typical) OR **SQL Server transport** | Service Bus adds a second message bus alongside Kafka; SQL transport swaps that for SQL Server as message infrastructure |
+| **IBM MQ** | IBM MQ .NET client + custom `IHostedService` OR Azure Logic Apps / custom bridge into NServiceBus | Operational expertise gap; bridge pattern is extra moving parts that Camel avoids |
+| **SFTP polling** | WinSCP .NET + custom scheduler OR Azure Logic Apps SFTP connector | Logic Apps becomes the practical adapter layer in Azure; custom code adds maintenance |
+| **File drop zones** | `FileSystemWatcher` + custom error handling + idempotent consumer pattern OR Logic Apps file connector | Must build what Camel provides out of the box or add Logic Apps |
+| **SQL polling** | EF Core + `BackgroundService` + custom polling loop OR Logic Apps SQL connector | Reinventing `camel-sql` from scratch or adding Logic Apps |
 | **DB2** | IBM.Data.DB2 .NET provider (exists but niche in .NET world) | Less community support, fewer Stack Overflow answers |
 | **SOAP/WCF consumption** | WCF is deprecated in .NET Core. Options: `System.ServiceModel` (limited), `HttpClient` with manual SOAP, or CoreWCF (server-only) | Active pain point for any .NET Core migration from WCF-heavy BizTalk |
 | **EDI X12/EDIFACT** | EdiFabric (commercial, licensed per transaction) OR custom parsing | **No open-source equivalent to Smooks/camel-edi in .NET** |
@@ -155,7 +159,7 @@ Let's be honest about what NServiceBus does well:
 
 ### The Logic Apps Escape Hatch
 
-For the protocol gaps, Microsoft's answer is typically **Azure Logic Apps**. Logic Apps does provide connectors for SFTP, IBM MQ, AS2, File, SQL, and more. However:
+For the protocol gaps, Microsoft's answer is typically **Azure Logic Apps**. In this migration that is not an optional convenience layer — it is the required adapter tier for SFTP, IBM MQ bridging, file polling, AS2, and SQL polling patterns that Camel handles natively inside the service. However:
 
 | Logic Apps Concern | Impact |
 |---|---|
@@ -163,8 +167,11 @@ For the protocol gaps, Microsoft's answer is typically **Azure Logic Apps**. Log
 | **Operational sprawl** | Each Logic App is a separate Azure resource; 67+ BizTalk apps → potentially hundreds of Logic Apps |
 | **Two operational models** | Team now operates NServiceBus workers + Logic Apps flows — different monitoring, different deployment, different debugging |
 | **Consumption vs. Standard tier** | Standard tier requires dedicated App Service Plan; Consumption tier has cold-start latency |
+| **Container boundary break** | Adapter logic now lives outside the containerized microservice architecture instead of with the service that owns the flow |
 | **Vendor lock-in** | Logic Apps is Azure-only; no local development parity (despite VS Code extension) |
 | **Testing** | Logic Apps are notoriously difficult to unit test compared to Camel routes or NServiceBus handlers |
+
+The net effect is architectural, not cosmetic: the .NET option keeps Kafka for event streaming, adds Azure Service Bus (or SQL Server transport) for NServiceBus messaging, and adds Logic Apps for adapter coverage. That is three integration layers where Java + Kafka + Camel uses one.
 
 ### NServiceBus Licensing
 
@@ -202,25 +209,33 @@ With Java/Apache Camel:
 |---|---|---|
 | .NET Runtime operations | High | Team has no .NET production experience |
 | NServiceBus deployment and monitoring | High | Proprietary tooling (ServicePulse, ServiceInsight) |
-| NServiceBus SQL Transport configuration | Medium | Tuning, table management, purging |
+| Azure Service Bus or NServiceBus SQL transport | Medium | Either a second message bus or SQL Server as message infrastructure |
 | C# development | High | Entire development team retooling |
 | Logic Apps operations (for protocol gaps) | Medium | Azure Portal debugging, different deployment model |
 | Visual Studio / Rider toolchain | Medium | IDE migration across team |
 
 ### The Operational Math
 
-Adopting .NET means:
-1. **Hiring or retraining** the entire integration development team in C#/.NET
-2. **Adding NServiceBus licensing** as a permanent OpEx line item
-3. **Adding Logic Apps** for protocol adapters Camel handles natively, adding a second operational model
-4. **Learning Particular Platform** tooling (ServicePulse, ServiceInsight, ServiceControl) for NServiceBus observability
-5. **Maintaining two deployment models** — containerized NServiceBus workers + Azure Logic Apps resources
+**Java stack components:**
+- Kafka (already running) ✓
+- MongoDB (already running) ✓
+- Apache Camel on AKS (new, but zero licensing)
+- Azure API Management (shared)
+- Azure Blob Storage (shared)
+- **Azure Service Bus: NOT NEEDED**
+- **Logic Apps: NOT NEEDED**
 
-Staying on Java means:
-1. **No team retraining** — existing skills apply directly
-2. **Zero licensing cost** for the integration framework
-3. **One deployment model** — Spring Boot containers on AKS
-4. **One operational model** — Kafka + Camel routes, monitored via the same Grafana/App Insights stack already in place
+**.NET stack components:**
+- Kafka (still needed for event streaming — cannot eliminate it)
+- MongoDB (still needed for domain persistence)
+- NServiceBus on AKS (new, commercial license)
+- Azure API Management (shared)
+- Azure Blob Storage (shared)
+- **Azure Service Bus: ADDED** (typical NServiceBus transport in Azure)
+- **Logic Apps: ADDED** (protocol adapter gaps)
+- SQL Server (message infrastructure if avoiding Service Bus via SQL transport)
+
+That is the real cost model: Java adds Camel to the stack the team already runs. .NET adds NServiceBus **plus** either Azure Service Bus or SQL transport **plus** Logic Apps, while Kafka still remains in place for event streaming.
 
 ---
 
@@ -283,7 +298,7 @@ The rationale:
 
 4. **Zero licensing cost.** Apache Camel is Apache 2.0. NServiceBus licensing for 67+ applications at enterprise scale would be a significant annual cost with no corresponding capability advantage for this client's patterns.
 
-5. **One operational model.** Camel runs as Spring Boot containers. Kafka is the messaging backbone. MongoDB + SQL Server handle persistence. Grafana + App Insights provide observability. No Logic Apps sprawl. No second deployment model. No second monitoring tool.
+5. **One operational model.** Camel runs as Spring Boot containers. Kafka is the messaging backbone. MongoDB + SQL Server handle persistence. Grafana + App Insights provide observability. No Azure Service Bus layered on top of Kafka. No Logic Apps sprawl. No second deployment model. No second monitoring tool.
 
 6. **The saga gap is addressable.** NServiceBus has better saga primitives — acknowledged. However, sagas can be implemented cleanly with Camel + Kafka Streams state stores, or via a lightweight saga framework layered on top of the Camel/Kafka foundation. The UC1 IssuanceSaga and UC3 RenewalBatchSaga patterns are already designed technology-agnostically and are implementable on either stack.
 
@@ -291,9 +306,10 @@ The rationale:
 
 - Full team retraining (Java → C#)
 - NServiceBus licensing (commercial, ongoing)
-- Logic Apps for SFTP, IBM MQ, AS2, File adapters (Azure-only, per-action cost, second operational model)
+- Azure Service Bus (NServiceBus Azure transport) **or** SQL Server (NServiceBus SQL transport) — adds a second messaging layer alongside Kafka
+- Logic Apps Standard tier for protocol adapters — adds Azure-only, per-action-billed, non-containerizable integration flows
 - New monitoring toolchain (ServicePulse/ServiceInsight)
-- Loss of existing Kafka operational investment (NServiceBus typically uses SQL transport or RabbitMQ)
+- Kafka still remains in the estate for event streaming, so the .NET path adds infrastructure rather than removing it
 
 ### Professional Services Scope
 

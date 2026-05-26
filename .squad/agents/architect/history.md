@@ -62,3 +62,11 @@
 
 **Output:** `.docs/java-vs-dotnet-biztalk-replacement.md` — full strategic comparison document
 **Decision:** `.squad/decisions/inbox/architect-java-vs-dotnet-recommendation.md`
+
+### 2026-05-26 — AIS Stack Framing Correction
+
+**Integration Boundary Framing:**
+- Azure API Management, Blob Storage, Key Vault, App Configuration, Entra ID, Azure Monitor, and App Insights are shared platform services, not stack differentiators.
+- When Kafka is already the production messaging backbone, Java + Camel removes the need for Azure Service Bus and Azure Logic Apps entirely.
+- In Azure, .NET + NServiceBus typically adds Azure Service Bus as the transport; avoiding that means using SQL Server as message infrastructure instead.
+- Logic Apps should be framed as a required adapter tier for .NET protocol gaps (SFTP, IBM MQ bridging, file polling, SQL polling), not as an optional convenience layer.
