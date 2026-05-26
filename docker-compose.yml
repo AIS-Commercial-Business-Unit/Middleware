@@ -305,7 +305,7 @@ services:
   # ──────────────────────────────────────────────────────────
 
   duckcreek-commercial-stub:
-    build: ./stubs/duckcreek-commercial-stub
+    build: ./java/stubs/duckcreek-commercial-stub
     container_name: duckcreek-commercial-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -322,7 +322,7 @@ services:
     mem_limit: 256m
 
   duckcreek-personal-stub:
-    build: ./stubs/duckcreek-personal-stub
+    build: ./java/stubs/duckcreek-personal-stub
     container_name: duckcreek-personal-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -339,7 +339,7 @@ services:
     mem_limit: 256m
 
   forefront-stub:
-    build: ./stubs/forefront-stub
+    build: ./java/stubs/forefront-stub
     container_name: forefront-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -356,7 +356,7 @@ services:
     mem_limit: 256m
 
   rsk3x3-compliance-stub:
-    build: ./stubs/rsk3x3-compliance-stub
+    build: ./java/stubs/rsk3x3-compliance-stub
     container_name: rsk3x3-compliance-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -373,7 +373,7 @@ services:
     mem_limit: 256m
 
   erm7x1-account-stub:
-    build: ./stubs/erm7x1-account-stub
+    build: ./java/stubs/erm7x1-account-stub
     container_name: erm7x1-account-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -390,7 +390,7 @@ services:
     mem_limit: 256m
 
   crm40x1-customer-stub:
-    build: ./stubs/crm40x1-customer-stub
+    build: ./java/stubs/crm40x1-customer-stub
     container_name: crm40x1-customer-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -407,7 +407,7 @@ services:
     mem_limit: 256m
 
   crm19x1-billing-stub:
-    build: ./stubs/crm19x1-billing-stub
+    build: ./java/stubs/crm19x1-billing-stub
     container_name: crm19x1-billing-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -428,7 +428,7 @@ services:
   # ──────────────────────────────────────────────────────────
 
   policy-issuance-service:
-    build: ./policy-issuance-service
+    build: ./java/policy-issuance-service
     container_name: policy-issuance-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -459,7 +459,7 @@ services:
     mem_limit: 512m
 
   platform-compliance-service:
-    build: ./platform-compliance-service
+    build: ./java/platform-compliance-service
     container_name: platform-compliance-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -492,7 +492,7 @@ services:
     mem_limit: 512m
 
   customer-identity-service:
-    build: ./customer-identity-service
+    build: ./java/customer-identity-service
     container_name: customer-identity-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -528,7 +528,7 @@ services:
     mem_limit: 512m
 
   platform-integration-service:
-    build: ./platform-integration-service
+    build: ./java/platform-integration-service
     container_name: platform-integration-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -567,7 +567,7 @@ services:
     mem_limit: 512m
 
   billing-finance-service:
-    build: ./billing-finance-service
+    build: ./java/billing-finance-service
     container_name: billing-finance-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -600,7 +600,7 @@ services:
     mem_limit: 512m
 
   platform-notification-service:
-    build: ./platform-notification-service
+    build: ./java/platform-notification-service
     container_name: platform-notification-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -630,7 +630,7 @@ services:
     mem_limit: 512m
 
   platform-file-processing-service:
-    build: ./platform-file-processing-service
+    build: ./java/platform-file-processing-service
     container_name: platform-file-processing-service
     networks: [middleware-net]
     restart: unless-stopped
