@@ -375,8 +375,7 @@ if ($Stack -in @("dotnet","both")) {
     }
 
     Write-Step "UC3-DOTNET-001: Generate renewal batch via .NET service"
-    $dotGenPayload = @{ recordCount = 3; policyTypeCode = 1 }
-    $dotGenResp = Invoke-Post "$dotnetFileUrl/api/v1/batches/generate" $dotGenPayload 30
+    $dotGenResp = Invoke-RestMethod -Uri "$dotnetFileUrl/api/v1/batches/generate?count=3" -Method POST -TimeoutSec 30 -ErrorAction SilentlyContinue
     if ($dotGenResp) {
         Pass ".NET batch generate accepted"
         Info "Response: $($dotGenResp | ConvertTo-Json -Compress)"

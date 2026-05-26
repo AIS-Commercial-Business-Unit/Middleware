@@ -21,6 +21,7 @@ volumes:
   tempo-data:
   prometheus-data:
   renewal-data:
+  dotnet-renewal-data:
   sqlserver-data:
 
 services:
@@ -196,7 +197,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    mem_limit: 1g
+    mem_limit: 2g
 
   sqlserver-init:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -206,7 +207,7 @@ services:
       sqlserver:
         condition: service_healthy
     restart: "no"
-    entrypoint: ["/bin/bash", "-c", "sleep 5 && /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P 'AIS_Middleware_2024!' -No -l 30 -Q \"IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'middleware_nsb') CREATE DATABASE middleware_nsb; PRINT 'middleware_nsb ready'\""]
+    entrypoint: ["/bin/bash", "-c", "for i in 1 2 3 4 5; do /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P 'AIS_Middleware_2024!' -No -l 15 -Q \"IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'middleware_nsb') CREATE DATABASE middleware_nsb; PRINT 'middleware_nsb ready'\" && exit 0; echo Retry $i; sleep 5; done; echo 'DB init gave up (may already exist)'; exit 0"]
 
 
 
@@ -960,7 +961,7 @@ services:
     ports:
       - "8187:8187"
     volumes:
-      - renewal-data:/app/data/renewals
+      - dotnet-renewal-data:/app/data/renewals
     environment:
       ASPNETCORE_URLS: http://+:8187
       ConnectionStrings__MongoDB: "mongodb://mongodb:27017"
