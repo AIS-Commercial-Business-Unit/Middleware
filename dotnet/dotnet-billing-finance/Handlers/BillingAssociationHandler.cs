@@ -14,9 +14,9 @@ public sealed class BillingAssociationHandler : IHandleMessages<AssociateBilling
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             BillingRuntime.Logger?.LogInformation(
-                "BillingAssociation started — issuanceId={IssuanceId} accountId={AccountId} " +
-                "accountServiceRequestNumber={AccountServiceRequestNumber} billingChannel={BillingChannel}",
-                message.IssuanceId, message.AccountId, message.AccountServiceRequestNumber, message.BillingChannel);
+                "BillingAssociation started — issuanceId={IssuanceId} billingChannel={BillingChannel}",
+                message.IssuanceId,
+                message.BillingChannel);
         }
 
         try
@@ -32,37 +32,42 @@ public sealed class BillingAssociationHandler : IHandleMessages<AssociateBilling
                     },
                     context.CancellationToken)
                 .ConfigureAwait(false);
+
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))
             {
                 BillingRuntime.Logger?.LogInformation(
-                    "BillingAssociation HTTP call completed — issuanceId={IssuanceId} httpStatus={StatusCode}",
-                    message.IssuanceId, (int)response.StatusCode);
+                    "BillingAssociation HTTP success — issuanceId={IssuanceId} httpStatus={StatusCode}",
+                    message.IssuanceId,
+                    (int)response.StatusCode);
             }
         }
         catch (Exception ex)
         {
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))
             {
-                BillingRuntime.Logger?.LogWarning(ex,
-                    "BillingAssociation HTTP call failed (non-fatal) — issuanceId={IssuanceId} — continuing with event publish",
+                BillingRuntime.Logger?.LogWarning(
+                    ex,
+                    "BillingAssociation HTTP failed (non-fatal) — issuanceId={IssuanceId}",
                     message.IssuanceId);
             }
         }
 
-        using (LogContext.PushProperty("issuanceId", message.IssuanceId))
-        {
-            BillingRuntime.Logger?.LogInformation(
-                "BillingAssociation CREATED — issuanceId={IssuanceId} billingChannel={BillingChannel}",
-                message.IssuanceId, message.BillingChannel);
-        }
-
-        await context.Publish(new BillingAssociationCreatedEvent
+        var createdEvent = new BillingAssociationCreatedEvent
         {
             IssuanceId = message.IssuanceId,
             AccountId = message.AccountId,
             AccountServiceRequestNumber = message.AccountServiceRequestNumber,
             BillingChannel = message.BillingChannel,
             CreatedAt = DateTimeOffset.UtcNow
-        }).ConfigureAwait(false);
+        };
+
+        await context.Publish(createdEvent).ConfigureAwait(false);
+
+        using (LogContext.PushProperty("issuanceId", message.IssuanceId))
+        {
+            BillingRuntime.Logger?.LogInformation(
+                "BillingAssociation CREATED — issuanceId={IssuanceId}",
+                createdEvent.IssuanceId);
+        }
     }
 }

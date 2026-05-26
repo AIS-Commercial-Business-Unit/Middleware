@@ -2,6 +2,7 @@ using dotnet_policy_issuance.Domain;
 using dotnet_policy_issuance.Handlers;
 using dotnet_policy_issuance.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using NServiceBus;
 
 namespace dotnet_policy_issuance.Controllers;
@@ -13,21 +14,30 @@ public sealed class PolicyIssuanceController : ControllerBase
     private readonly IssuePolicyCommandHandler _commandHandler;
     private readonly IMessageSession _messageSession;
     private readonly IIssuanceSagaRecordRepository _repository;
+    private readonly ILogger<PolicyIssuanceController> _logger;
 
     public PolicyIssuanceController(
         IssuePolicyCommandHandler commandHandler,
         IMessageSession messageSession,
-        IIssuanceSagaRecordRepository repository)
+        IIssuanceSagaRecordRepository repository,
+        ILogger<PolicyIssuanceController> logger)
     {
         _commandHandler = commandHandler;
         _messageSession = messageSession;
         _repository = repository;
+        _logger = logger;
     }
 
     [HttpPost("issue")]
     public async Task<IActionResult> IssuePolicy([FromBody] PolicyIssuanceRequest request, CancellationToken cancellationToken)
     {
         var command = _commandHandler.Normalize(request);
+        _logger.LogInformation(
+            "IssuePolicy received — issuanceId={IssuanceId} accountId={AccountId} channel={Channel}",
+            command.IssuanceId,
+            command.AccountId,
+            command.SubmittingChannel);
+
         var firstPolicy = command.Policies.First();
 
         await _repository.UpsertAsync(new IssuanceSagaRecord
@@ -47,6 +57,10 @@ public sealed class PolicyIssuanceController : ControllerBase
 
         await _messageSession.SendLocal(command, cancellationToken).ConfigureAwait(false);
 
+        _logger.LogInformation(
+            "IssuePolicy dispatched — issuanceId={IssuanceId}",
+            command.IssuanceId);
+
         return Accepted(new
         {
             issuanceId = command.IssuanceId,
@@ -59,7 +73,15 @@ public sealed class PolicyIssuanceController : ControllerBase
     public async Task<IActionResult> GetSagaState(string issuanceId, CancellationToken cancellationToken)
     {
         var record = await _repository.GetAsync(issuanceId, cancellationToken).ConfigureAwait(false);
-        return record is null ? NotFound() : Ok(record);
+        if (record is null)
+        {
+            _logger.LogWarning(
+                "Saga not found — issuanceId={IssuanceId}",
+                issuanceId);
+            return NotFound();
+        }
+
+        return Ok(record);
     }
 }
 

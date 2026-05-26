@@ -14,8 +14,9 @@ public sealed class UpdateCustomerRecordHandler : IHandleMessages<UpdateCustomer
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             CustomerIdentityRuntime.Logger?.LogInformation(
-                "UpdateCustomerRecord started — issuanceId={IssuanceId} accountId={AccountId} policyNumbers={PolicyNumbers} targetPas={TargetPas}",
-                message.IssuanceId, message.AccountId, string.Join(",", message.PolicyNumbers ?? []), message.TargetPas);
+                "UpdateCustomerRecord started — issuanceId={IssuanceId} targetPas={TargetPas}",
+                message.IssuanceId,
+                message.TargetPas);
         }
 
         try
@@ -31,36 +32,43 @@ public sealed class UpdateCustomerRecordHandler : IHandleMessages<UpdateCustomer
                     },
                     context.CancellationToken)
                 .ConfigureAwait(false);
+
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))
             {
                 CustomerIdentityRuntime.Logger?.LogInformation(
-                    "UpdateCustomerRecord HTTP response — issuanceId={IssuanceId} httpStatus={StatusCode}",
-                    message.IssuanceId, (int)response.StatusCode);
+                    "UpdateCustomerRecord HTTP success — issuanceId={IssuanceId} httpStatus={StatusCode} policyNumbers={PolicyNumbers}",
+                    message.IssuanceId,
+                    (int)response.StatusCode,
+                    string.Join(",", message.PolicyNumbers ?? []));
             }
         }
         catch (Exception ex)
         {
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))
             {
-                CustomerIdentityRuntime.Logger?.LogWarning(ex,
-                    "UpdateCustomerRecord HTTP call failed (non-fatal) — issuanceId={IssuanceId} — continuing",
-                    message.IssuanceId);
+                CustomerIdentityRuntime.Logger?.LogWarning(
+                    ex,
+                    "UpdateCustomerRecord HTTP failed (non-fatal) — issuanceId={IssuanceId} targetPas={TargetPas}",
+                    message.IssuanceId,
+                    message.TargetPas);
             }
         }
 
-        using (LogContext.PushProperty("issuanceId", message.IssuanceId))
-        {
-            CustomerIdentityRuntime.Logger?.LogInformation(
-                "CustomerRecord UPDATED — issuanceId={IssuanceId} fieldsUpdated={Fields}",
-                message.IssuanceId, "policyNumbers,targetPas");
-        }
-
-        await context.Publish(new CustomerUpdatedEvent
+        var updatedEvent = new CustomerUpdatedEvent
         {
             IssuanceId = message.IssuanceId,
             AccountId = message.AccountId,
             FieldsUpdated = ["policyNumbers", "targetPas"],
             UpdatedAt = DateTimeOffset.UtcNow
-        }).ConfigureAwait(false);
+        };
+
+        await context.Publish(updatedEvent).ConfigureAwait(false);
+
+        using (LogContext.PushProperty("issuanceId", message.IssuanceId))
+        {
+            CustomerIdentityRuntime.Logger?.LogInformation(
+                "CustomerRecord UPDATED — issuanceId={IssuanceId}",
+                updatedEvent.IssuanceId);
+        }
     }
 }

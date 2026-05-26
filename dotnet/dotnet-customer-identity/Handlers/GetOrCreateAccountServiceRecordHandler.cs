@@ -14,8 +14,8 @@ public sealed class GetOrCreateAccountServiceRecordHandler : IHandleMessages<Get
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             CustomerIdentityRuntime.Logger?.LogInformation(
-                "GetOrCreateAccountServiceRecord started — issuanceId={IssuanceId} accountId={AccountId} url={Url}",
-                message.IssuanceId, message.AccountId, CustomerIdentityRuntime.AccountServiceUrl);
+                "GetOrCreateAccountRecord started — issuanceId={IssuanceId}",
+                message.IssuanceId);
         }
 
         try
@@ -25,38 +25,42 @@ public sealed class GetOrCreateAccountServiceRecordHandler : IHandleMessages<Get
                     new { issuanceId = message.IssuanceId, accountId = message.AccountId },
                     context.CancellationToken)
                 .ConfigureAwait(false);
+
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))
             {
                 CustomerIdentityRuntime.Logger?.LogInformation(
-                    "GetOrCreateAccountServiceRecord HTTP response — issuanceId={IssuanceId} httpStatus={StatusCode}",
-                    message.IssuanceId, (int)response.StatusCode);
+                    "GetOrCreateAccountRecord HTTP success — issuanceId={IssuanceId} httpStatus={StatusCode}",
+                    message.IssuanceId,
+                    (int)response.StatusCode);
             }
         }
         catch (Exception ex)
         {
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))
             {
-                CustomerIdentityRuntime.Logger?.LogWarning(ex,
-                    "GetOrCreateAccountServiceRecord HTTP call failed (non-fatal) — issuanceId={IssuanceId} — continuing",
+                CustomerIdentityRuntime.Logger?.LogWarning(
+                    ex,
+                    "GetOrCreateAccountRecord HTTP failed (non-fatal) — issuanceId={IssuanceId}",
                     message.IssuanceId);
             }
         }
 
-        var accountServiceRequestNumber = $"ASR-{message.IssuanceId[..8].ToUpperInvariant()}";
+        var retrievedEvent = new AccountServiceRecordRetrievedEvent
+        {
+            IssuanceId = message.IssuanceId,
+            AccountId = message.AccountId,
+            AccountServiceRequestNumber = $"ASR-{message.IssuanceId[..8].ToUpperInvariant()}",
+            RetrievedAt = DateTimeOffset.UtcNow
+        };
+
+        await context.Publish(retrievedEvent).ConfigureAwait(false);
 
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             CustomerIdentityRuntime.Logger?.LogInformation(
-                "AccountServiceRecord RETRIEVED — issuanceId={IssuanceId} accountServiceRequestNumber={AccountServiceRequestNumber}",
-                message.IssuanceId, accountServiceRequestNumber);
+                "AccountServiceRecord RETRIEVED — issuanceId={IssuanceId} accountServiceRequestNumber={Asr}",
+                retrievedEvent.IssuanceId,
+                retrievedEvent.AccountServiceRequestNumber);
         }
-
-        await context.Publish(new AccountServiceRecordRetrievedEvent
-        {
-            IssuanceId = message.IssuanceId,
-            AccountId = message.AccountId,
-            AccountServiceRequestNumber = accountServiceRequestNumber,
-            RetrievedAt = DateTimeOffset.UtcNow
-        }).ConfigureAwait(false);
     }
 }

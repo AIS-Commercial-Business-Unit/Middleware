@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using dotnet_file_processing.Domain;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace dotnet_file_processing.Services;
 
@@ -14,12 +14,14 @@ public sealed class FilePollingService : BackgroundService
     private readonly string _processedDir;
     private readonly string _errorDir;
     private readonly string _policyIssuanceUrl;
+    private readonly ILogger<FilePollingService> _logger;
 
     public FilePollingService(
         FileProcessingStore store,
         FileBatchKafkaPublisher publisher,
         IHttpClientFactory httpClientFactory,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ILogger<FilePollingService> logger)
     {
         _store = store;
         _publisher = publisher;
@@ -28,6 +30,7 @@ public sealed class FilePollingService : BackgroundService
         _processedDir = configuration["FileProcessing:ProcessedDir"] ?? "/app/data/renewals/processed";
         _errorDir = configuration["FileProcessing:ErrorDir"] ?? "/app/data/renewals/error";
         _policyIssuanceUrl = configuration["ExternalServices:PolicyIssuanceUrl"] ?? "http://dotnet-policy-issuance:8181";
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -36,10 +39,28 @@ public sealed class FilePollingService : BackgroundService
         Directory.CreateDirectory(_processedDir);
         Directory.CreateDirectory(_errorDir);
 
+        _logger.LogInformation(
+            "File polling started — inboundDir={InboundDir} processedDir={ProcessedDir} errorDir={ErrorDir} policyIssuanceUrl={PolicyIssuanceUrl}",
+            _inboundDir,
+            _processedDir,
+            _errorDir,
+            _policyIssuanceUrl);
+
         while (!stoppingToken.IsCancellationRequested)
         {
-            foreach (var file in Directory.EnumerateFiles(_inboundDir, "*.*")
-                         .Where(path => path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)))
+            var files = Directory.EnumerateFiles(_inboundDir, "*.*")
+                .Where(path => path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (files.Count > 0)
+            {
+                _logger.LogInformation(
+                    "File polling detected files — fileCount={FileCount} inboundDir={InboundDir}",
+                    files.Count,
+                    _inboundDir);
+            }
+
+            foreach (var file in files)
             {
                 await ProcessFileAsync(file, stoppingToken).ConfigureAwait(false);
             }
@@ -61,6 +82,12 @@ public sealed class FilePollingService : BackgroundService
             ReceivedAt = DateTimeOffset.UtcNow
         };
 
+        _logger.LogInformation(
+            "File batch processing started — batchId={BatchId} fileName={FileName} fileSizeBytes={FileSizeBytes}",
+            batch.BatchId,
+            batch.FileName,
+            batch.FileSizeBytes);
+
         try
         {
             var lines = await File.ReadAllLinesAsync(filePath, cancellationToken).ConfigureAwait(false);
@@ -75,6 +102,12 @@ public sealed class FilePollingService : BackgroundService
                 recordCount = batch.TotalRecords,
                 startedAt = batch.ReceivedAt
             }, cancellationToken).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "File batch published start event — batchId={BatchId} fileName={FileName} recordCount={RecordCount}",
+                batch.BatchId,
+                batch.FileName,
+                batch.TotalRecords);
 
             var sequence = 0;
             foreach (var line in dataLines)
@@ -93,6 +126,13 @@ public sealed class FilePollingService : BackgroundService
                 await _store.UpsertRecordAsync(record, cancellationToken).ConfigureAwait(false);
 
                 var issuanceId = Guid.NewGuid().ToString();
+                _logger.LogInformation(
+                    "File polling dispatching issuance — batchId={BatchId} recordId={RecordId} issuanceId={IssuanceId} accountId={AccountId}",
+                    batch.BatchId,
+                    record.RecordId,
+                    issuanceId,
+                    renewal.AccountId);
+
                 var response = await _httpClient.PostAsJsonAsync(
                         $"{_policyIssuanceUrl}/api/v1/policies/issue",
                         new
@@ -121,12 +161,28 @@ public sealed class FilePollingService : BackgroundService
                     record.CorrelationId = issuanceId;
                     record.ProcessorResult = JsonSerializer.Serialize(new { policyNumbers = new[] { issuanceId }, issuanceId });
                     batch.SucceededRecords++;
+
+                    _logger.LogInformation(
+                        "File polling issuance accepted — batchId={BatchId} recordId={RecordId} issuanceId={IssuanceId} httpStatus={StatusCode}",
+                        batch.BatchId,
+                        record.RecordId,
+                        issuanceId,
+                        (int)response.StatusCode);
                 }
                 else
                 {
+                    var error = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                     record.Status = "Failed";
-                    record.ProcessorResult = JsonSerializer.Serialize(new { error = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false) });
+                    record.ProcessorResult = JsonSerializer.Serialize(new { error });
                     batch.FailedRecords++;
+
+                    _logger.LogWarning(
+                        "File polling issuance failed — batchId={BatchId} recordId={RecordId} issuanceId={IssuanceId} httpStatus={StatusCode} error={Error}",
+                        batch.BatchId,
+                        record.RecordId,
+                        issuanceId,
+                        (int)response.StatusCode,
+                        error);
                 }
 
                 record.ProcessedAt = DateTimeOffset.UtcNow;
@@ -161,10 +217,22 @@ public sealed class FilePollingService : BackgroundService
                 failedRecords = batch.FailedRecords,
                 completedAt = batch.ProcessingCompletedAt
             }, cancellationToken).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "File batch completed — batchId={BatchId} fileName={FileName} succeededRecords={SucceededRecords} failedRecords={FailedRecords} destination={Destination}",
+                batch.BatchId,
+                batch.FileName,
+                batch.SucceededRecords,
+                batch.FailedRecords,
+                destination);
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Failed to process renewal file {FileName}", batch.FileName);
+            _logger.LogError(
+                ex,
+                "File batch processing failed — batchId={BatchId} fileName={FileName}",
+                batch.BatchId,
+                batch.FileName);
             batch.Status = "Failed";
             batch.ProcessingCompletedAt = DateTimeOffset.UtcNow;
             batch.PercentComplete = 100;
@@ -180,6 +248,12 @@ public sealed class FilePollingService : BackgroundService
             {
                 File.Move(filePath, destination);
             }
+
+            _logger.LogWarning(
+                "File batch moved to error directory — batchId={BatchId} fileName={FileName} destination={Destination}",
+                batch.BatchId,
+                batch.FileName,
+                destination);
         }
     }
 

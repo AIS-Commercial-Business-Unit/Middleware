@@ -16,7 +16,9 @@ public sealed class PolicyIssuedEventHandler :
         {
             KafkaBridgeRuntime.Logger?.LogInformation(
                 "KafkaBridge forwarding PolicyIssuedEvent — issuanceId={IssuanceId} topic={Topic} policyNumbers={PolicyNumbers}",
-                message.IssuanceId, topic, string.Join(",", message.PolicyNumbers ?? []));
+                message.IssuanceId,
+                topic,
+                string.Join(",", message.PolicyNumbers ?? []));
         }
 
         await KafkaBridgeRuntime.PublishAsync(topic, message, context.CancellationToken).ConfigureAwait(false);
@@ -25,7 +27,8 @@ public sealed class PolicyIssuedEventHandler :
         {
             KafkaBridgeRuntime.Logger?.LogInformation(
                 "KafkaBridge event forwarded — issuanceId={IssuanceId} topic={Topic}",
-                message.IssuanceId, topic);
+                message.IssuanceId,
+                topic);
         }
     }
 
@@ -33,12 +36,22 @@ public sealed class PolicyIssuedEventHandler :
     {
         const string topic = "policy.events.issuance-failed";
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
+        using (LogContext.PushProperty("topic", topic))
         {
             KafkaBridgeRuntime.Logger?.LogWarning(
-                "KafkaBridge forwarding IssuanceFailedEvent — issuanceId={IssuanceId} topic={Topic} reason={Reason}",
-                message.IssuanceId, topic, message.Reason);
+                "KafkaBridge forwarding IssuanceFailedEvent — issuanceId={IssuanceId} reason={Reason}",
+                message.IssuanceId,
+                message.Reason);
         }
 
         await KafkaBridgeRuntime.PublishAsync(topic, message, context.CancellationToken).ConfigureAwait(false);
+
+        using (LogContext.PushProperty("issuanceId", message.IssuanceId))
+        {
+            KafkaBridgeRuntime.Logger?.LogInformation(
+                "KafkaBridge event forwarded — issuanceId={IssuanceId} topic={Topic}",
+                message.IssuanceId,
+                topic);
+        }
     }
 }

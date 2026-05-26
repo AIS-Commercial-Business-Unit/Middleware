@@ -13,25 +13,26 @@ public sealed class NotificationDispatchHandler : IHandleMessages<PublishNotific
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             NotificationRuntime.Logger?.LogInformation(
-                "NotificationDispatch started — issuanceId={IssuanceId} accountId={AccountId} " +
-                "notificationType={NotificationType} message={NotificationMessage}",
-                message.IssuanceId, message.AccountId, message.NotificationType,
-                message.Message?.Length > 100 ? message.Message[..100] + "…" : message.Message);
+                "NotificationDispatch started — issuanceId={IssuanceId} type={NotificationType}",
+                message.IssuanceId,
+                message.NotificationType);
         }
 
-        using (LogContext.PushProperty("issuanceId", message.IssuanceId))
-        {
-            NotificationRuntime.Logger?.LogInformation(
-                "Notification DISPATCHED — issuanceId={IssuanceId} notificationType={NotificationType}",
-                message.IssuanceId, message.NotificationType);
-        }
-
-        await context.Publish(new NotificationDispatchedEvent
+        var dispatchedEvent = new NotificationDispatchedEvent
         {
             IssuanceId = message.IssuanceId,
             AccountId = message.AccountId,
             NotificationType = message.NotificationType,
             DispatchedAt = DateTimeOffset.UtcNow
-        }).ConfigureAwait(false);
+        };
+
+        await context.Publish(dispatchedEvent).ConfigureAwait(false);
+
+        using (LogContext.PushProperty("issuanceId", message.IssuanceId))
+        {
+            NotificationRuntime.Logger?.LogInformation(
+                "Notification DISPATCHED — issuanceId={IssuanceId}",
+                dispatchedEvent.IssuanceId);
+        }
     }
 }

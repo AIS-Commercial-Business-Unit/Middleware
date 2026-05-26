@@ -1,9 +1,11 @@
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Formatting.Json;
 using NServiceBus;
+using dotnet_platform_compliance.Handlers;
 using dotnet_platform_compliance.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -45,6 +47,9 @@ persistence.TablePrefix("nsb");
 
 var endpointInstance = await NServiceBus.Endpoint.Start(endpointConfiguration).ConfigureAwait(false);
 var app = builder.Build();
+
+ComplianceRuntime.Logger = app.Services.GetService<ILogger<ComplianceCheckHandler>>();
+
 app.UseSerilogRequestLogging();
 app.MapHealthChecks("/health");
 app.MapControllers();
