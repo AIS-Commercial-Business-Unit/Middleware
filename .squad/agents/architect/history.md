@@ -11,6 +11,15 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### 2026-05-26 — Pattern Proof vs. Program Risk Framing
+
+**Positioning Guidance:**
+- Once the platform demonstrates the major BizTalk-replacement EIP patterns end-to-end, the technical viability argument is closed.
+- The remaining delivery risk should be framed as organizational: program management, migration sequencing, CI/CD maturity, team enablement, and governance.
+- This repo should be described as proof that the patterns work; professional services is the mechanism that gets 67+ real applications migrated without collapse.
+- CI/CD must be treated as a prerequisite for integration modernization, not as follow-on implementation detail.
+
+
 ### 2026-05-25 — Architecture Sweep
 
 **DDD Layer Separation Pattern:**

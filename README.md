@@ -2,6 +2,22 @@
 
 A dual-stack enterprise middleware platform demonstrating how to replace legacy BizTalk with a modern, cloud-native event-driven architecture. The same business logic is implemented side-by-side in two technology stacks so you can compare, contrast, and choose the approach that best fits your team.
 
+## Why This Demo Matters
+
+This repository is not primarily a technology demo. It is a proof that **the EIP patterns required to replace BizTalk are solved problems** when the right platform is in place.
+
+The patterns demonstrated here — publish/subscribe, saga/long-running process, dead letter queues, idempotent consumers, scatter-gather, outbox, content-based routing, and data movement — are the same patterns that appear in every BizTalk modernization engagement. Once a platform demonstrates these patterns work end-to-end, the technology question is answered.
+
+**What remains is not a technology problem. It is an organizational one:**
+
+- Program management: who is sequencing the migration of dozens of applications across teams that have other work to do?
+- Discovery: is the real BizTalk estate (including informal customizations) fully inventoried?
+- CI/CD: does the organization have the pipeline maturity to deploy and test integration changes independently?
+- Enablement: are the teams trained on event-driven patterns and the new operational model?
+- Governance: who owns the domain boundaries when two teams' applications overlap?
+
+The platform answers "can we?" The professional services engagement answers "will we, on time, without the program falling apart."
+
 ---
 
 ## What Is This?
