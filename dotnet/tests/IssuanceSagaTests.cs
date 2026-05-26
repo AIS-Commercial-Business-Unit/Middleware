@@ -1,0 +1,148 @@
+using dotnet_policy_issuance.Domain;
+using dotnet_policy_issuance.Infrastructure;
+using dotnet_policy_issuance.Sagas;
+using Middleware.Contracts.Commands;
+using Middleware.Contracts.Events;
+using Middleware.Contracts.Models;
+using NServiceBus.Testing;
+using NUnit.Framework;
+
+namespace Middleware.Tests;
+
+[TestFixture]
+public sealed class IssuanceSagaTests
+{
+    [Test]
+    public async Task WhenIssuePolicyReceived_SagaAdvancesToAwaitingCompliance()
+    {
+        var saga = new IssuanceSaga(new InMemoryIssuanceSagaRecordRepository());
+        var context = new TestableMessageHandlerContext();
+        var command = CreateCommand();
+
+        await saga.Handle(command, context);
+
+        Assert.That(saga.Data.Status, Is.EqualTo("AwaitingCompliance"));
+        Assert.That(context.SentMessages.Length, Is.EqualTo(1));
+        Assert.That(context.SentMessages[0].Message<RequestComplianceCheckCommand>(), Is.Not.Null);
+    }
+
+    [Test]
+    public async Task WhenComplianceCleared_SagaAdvancesToAwaitingAccountRecord()
+    {
+        var saga = new IssuanceSaga(new InMemoryIssuanceSagaRecordRepository());
+        var context = new TestableMessageHandlerContext();
+        var command = CreateCommand();
+
+        await saga.Handle(command, context);
+        await saga.Handle(new ComplianceClearedEvent
+        {
+            IssuanceId = command.IssuanceId,
+            AccountId = command.AccountId,
+            CheckId = "CHK-1",
+            ClearedAt = DateTimeOffset.UtcNow
+        }, context);
+
+        Assert.That(saga.Data.Status, Is.EqualTo("AwaitingAccountRecord"));
+        Assert.That(context.SentMessages.Any(message => message.Message<GetOrCreateAccountServiceRecordCommand>() is not null), Is.True);
+    }
+
+    [Test]
+    public async Task WhenComplianceBlocked_SagaTransitionsToComplianceBlocked()
+    {
+        var saga = new IssuanceSaga(new InMemoryIssuanceSagaRecordRepository());
+        var context = new TestableMessageHandlerContext();
+        var command = CreateCommand();
+
+        await saga.Handle(command, context);
+        await saga.Handle(new ComplianceBlockedEvent
+        {
+            IssuanceId = command.IssuanceId,
+            AccountId = command.AccountId,
+            CheckId = "CHK-2",
+            Reason = "Sanctions match",
+            BlockedAt = DateTimeOffset.UtcNow
+        }, context);
+
+        Assert.That(saga.Data.Status, Is.EqualTo("ComplianceBlocked"));
+        Assert.That(context.PublishedMessages.Any(message => message.Message<IssuanceFailedEvent>() is not null), Is.True);
+    }
+
+    [Test]
+    public async Task WhenBothBillingAndCustomerComplete_SagaCompletes()
+    {
+        var saga = new IssuanceSaga(new InMemoryIssuanceSagaRecordRepository());
+        var context = new TestableMessageHandlerContext();
+        var command = CreateCommand();
+
+        await saga.Handle(command, context);
+        await saga.Handle(new ComplianceClearedEvent
+        {
+            IssuanceId = command.IssuanceId,
+            AccountId = command.AccountId,
+            CheckId = "CHK-3",
+            ClearedAt = DateTimeOffset.UtcNow
+        }, context);
+        await saga.Handle(new AccountServiceRecordRetrievedEvent
+        {
+            IssuanceId = command.IssuanceId,
+            AccountId = command.AccountId,
+            AccountServiceRequestNumber = "ASR-123",
+            RetrievedAt = DateTimeOffset.UtcNow
+        }, context);
+        await saga.Handle(new PolicyAdminSystemResponseReceivedEvent
+        {
+            IssuanceId = command.IssuanceId,
+            AccountId = command.AccountId,
+            TargetPas = "DuckCreek-Commercial",
+            PolicyNumbers = ["POL-1001"],
+            ReceivedAt = DateTimeOffset.UtcNow
+        }, context);
+        await saga.Handle(new BillingAssociationCreatedEvent
+        {
+            IssuanceId = command.IssuanceId,
+            AccountId = command.AccountId,
+            AccountServiceRequestNumber = "ASR-123",
+            BillingChannel = "DirectBill",
+            CreatedAt = DateTimeOffset.UtcNow
+        }, context);
+        await saga.Handle(new CustomerUpdatedEvent
+        {
+            IssuanceId = command.IssuanceId,
+            AccountId = command.AccountId,
+            FieldsUpdated = ["policyNumbers"],
+            UpdatedAt = DateTimeOffset.UtcNow
+        }, context);
+
+        Assert.That(saga.Data.Status, Is.EqualTo("Completed"));
+        Assert.That(context.PublishedMessages.Any(message => message.Message<PolicyIssuedEvent>() is not null), Is.True);
+    }
+
+    private static IssuePolicyCommand CreateCommand()
+    {
+        return new IssuePolicyCommand
+        {
+            IssuanceId = Guid.NewGuid().ToString(),
+            AccountId = "ACC-UNITTEST",
+            Policies = [new PolicyItem { PolicyTypeCode = 1, PolicyTypeSubCode = 0 }],
+            RequestedAt = DateTimeOffset.UtcNow,
+            SubmittingChannel = "DirectRequest"
+        };
+    }
+}
+
+internal sealed class InMemoryIssuanceSagaRecordRepository : IIssuanceSagaRecordRepository
+{
+    private readonly Dictionary<string, IssuanceSagaRecord> _store = [];
+
+    public Task<IssuanceSagaRecord?> GetAsync(string issuanceId, CancellationToken cancellationToken = default)
+    {
+        _store.TryGetValue(issuanceId, out var record);
+        return Task.FromResult(record);
+    }
+
+    public Task UpsertAsync(IssuanceSagaRecord record, CancellationToken cancellationToken = default)
+    {
+        _store[record.IssuanceId] = record;
+        return Task.CompletedTask;
+    }
+}

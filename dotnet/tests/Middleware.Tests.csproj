@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
+    <PackageReference Include="NServiceBus.Testing" Version="8.*" />
+    <PackageReference Include="NUnit" Version="3.*" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.*" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Middleware.Contracts\Middleware.Contracts.csproj" />
+    <ProjectReference Include="..\dotnet-policy-issuance\dotnet-policy-issuance.csproj" />
+  </ItemGroup>
+</Project>

@@ -179,3 +179,18 @@ coverage/
 .squad/sessions/
 .squad/.scratch/
 .squad-workstream
+
+!.docs/
+.docs/*
+!.docs/testing-comparison.md
+
+## .NET / C#
+bin/
+obj/
+*.user
+*.suo
+*.vs
+.vs/
+TestResults/
+*.nupkg
+*.snupkg

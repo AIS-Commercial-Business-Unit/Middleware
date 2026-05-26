@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const FILE_PROCESSING_URL = process.env.FILE_PROCESSING_SERVICE_URL ?? "http://localhost:8087";
+import { getFileProcessingServiceUrl } from "@/lib/backend";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
   const joined = path.join("/");
   const search = req.nextUrl.search;
   try {
-    const upstream = await fetch(`${FILE_PROCESSING_URL}/api/v1/${joined}${search}`, {
+    const fileProcessingUrl = getFileProcessingServiceUrl();
+    const upstream = await fetch(`${fileProcessingUrl}/api/v1/${joined}${search}`, {
       headers: { "Content-Type": "application/json" },
       next: { revalidate: 0 },
     });
@@ -24,7 +24,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
   const search = req.nextUrl.search;
   const body = await req.text();
   try {
-    const upstream = await fetch(`${FILE_PROCESSING_URL}/api/v1/${joined}${search}`, {
+    const fileProcessingUrl = getFileProcessingServiceUrl();
+    const upstream = await fetch(`${fileProcessingUrl}/api/v1/${joined}${search}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
