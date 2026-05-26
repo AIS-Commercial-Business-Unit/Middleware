@@ -41,3 +41,24 @@
 - UC3 verified end-to-end after sweep
 - All DDD violations eliminated; domain layer now completely infrastructure-free
 - Orchestration log: `.squad/orchestration-log/2026-05-26T01-33-25Z-architect-1.md`
+
+### 2026-05-26 — Java vs .NET BizTalk Replacement Analysis
+
+**Intel Findings:**
+- Client has 67+ BizTalk applications across 4 portfolios: SCI (18), PRS/RiskID (19), ClaimCare (30), ECOS (4+)
+- BizTalk adapters in use: WCF-SQL, WCF-WebHTTP, WCF-BasicHTTP, WCF-WSHTTP, SFTP, FILE, MSMQ, MQSC (IBM MQ), DB2
+- Sanctions system: 18K transactions/day/region across EMEA, APAC, LATAM; 24/7 availability; uses IBM MQ and SOAP/CLink
+- ECOS: SQL polling at 10-12K txn/hour throughput
+- Renewal batch: 40-60K records nightly; currently sequential (performance bottleneck)
+- PAS integrations: DuckCreek, ForeFront, Insurity — all SOAP/WCF based
+- PRS uses IBM MQ heavily for RiskID and Appraisal workflows
+
+**Decision Rationale:**
+- Apache Camel provides native, production-tested components for every adapter pattern found in client BizTalk environment
+- Client team already operates Java, Kafka, MongoDB, Docker — zero retraining required
+- .NET/NServiceBus would require Logic Apps for adapter gaps (IBM MQ, SFTP, File), commercial licensing, and full team retraining
+- NServiceBus has superior saga primitives but this doesn't outweigh the operational and licensing burden
+- The real engagement value is program management (discovery, architecture, migration, testing, change management) not platform adoption
+
+**Output:** `.docs/java-vs-dotnet-biztalk-replacement.md` — full strategic comparison document
+**Decision:** `.squad/decisions/inbox/architect-java-vs-dotnet-recommendation.md`

@@ -11,6 +11,17 @@
 
 <!-- Append new learnings below. -->
 
+### 2026-05-26 — Integration Coverage Matrix Research
+
+- **EDI not in scope**: No X12, EDIFACT, or AS2 found in any of the five in-scope Chubb BizTalk applications (SCI, PRS, ClaimCare, ECOS, Sanctions). The estate is XML/WCF/MQ-centric. This eliminates the hardest BizTalk replacement pattern from the migration scope.
+- **IBM MQ is the most critical protocol dependency**: Confirmed in PRS (MQSC adapter — appraisal chain), Sanctions (IBM MQ polling — Clearance Processor), ClaimCare (MQSC in trigger inventory), and proposal explicitly lists IBM MQ as requiring ExpressRoute. Both Camel (JMS + IBM MQ JARs) and Logic Apps (IBM MQ connector + on-prem data gateway) need explicit setup.
+- **MSMQ confirmed in SCI and ECOS**: Azure Service Bus is the canonical replacement. `camel-msmq` is Windows-only/community; this is a Camel gap. .NET/Azure wins on MSMQ replacement.
+- **DB2 confirmed in ECOS and FiRM (via Genius ODBC)**: Logic Apps DB2 connector is well-supported; Camel uses JDBC. FiRM's ODBC path to Genius stored procedures may need custom code on either platform.
+- **WCF-WSHTTP (WS-Security) confirmed in PRS**: Camel/CXF/WSS4J is more battle-tested for full WS-Security than CoreWCF (still maturing). Flag for Architect.
+- **Camel-on-AKS hybrid**: The AIS+ architecture includes AKS as the primary hosting tier. A Camel component on AKS is architecturally coherent for IBM MQ flows or XSLT-heavy transforms within the .NET/Azure target platform — does not require choosing Camel as the primary platform.
+- **Adapter inventory sources**: SCI POC doc, PRS POC doc, ECOS POC doc, Sanctions POC doc, AIS Proposal (section 3.2 "Integration Patterns Observed"), UC1/UC3 rebuild guides.
+- **Output**: `.docs/intel-integration-coverage.md`
+
 ### 2026-05-25 — UC3 AutomatedRenewal Batch Backend
 
 - **File polling pattern**: Camel file component with `@Value`-injected path variables is the correct approach in Java DSL (not Camel `{{...}}` placeholders which require Camel property component to be configured). URI built by string concatenation in `configure()` after field injection.

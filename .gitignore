@@ -187,6 +187,7 @@ coverage/
 !.docs/getting-started-java.md
 !.docs/getting-started-dotnet.md
 !.docs/running-the-demos.md
+!.docs/java-vs-dotnet-biztalk-replacement.md
 
 ## .NET / C#
 bin/
