@@ -75,6 +75,12 @@
 - Standardizes error response format (400/500 with `{"error": "..."}`)
 - Handles IllegalArgumentException, MethodArgumentNotValidException, and catch-all Exception
 
+### 15. NServiceBus Saga Persistence: MongoDB (Not SQL Server)
+- MongoDB persists .NET/NServiceBus saga state (same as Java stack)
+- SQL Server is used only as NServiceBus transport for message queuing
+- Clarification: Both Camel and NServiceBus stacks use MongoDB for saga/domain persistence
+- **Decision drivers:** Unified persistence model across tech stacks, SQL Server relegated to transport
+
 ## Governance
 
 - All meaningful changes require team consensus
