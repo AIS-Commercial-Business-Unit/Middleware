@@ -50,12 +50,23 @@ Both stacks share:
 
 ---
 
-## Getting Started
+## Documentation
 
-- 📖 [Getting Started — Java Stack](.docs/getting-started-java.md)
-- 📖 [Getting Started — .NET Stack](.docs/getting-started-dotnet.md)
-- 🎬 [Running the Demos](.docs/running-the-demos.md) *(tech-agnostic — what to look for)*
-- 🧪 [Apache Camel vs NServiceBus: Testability Comparison](.docs/testing-comparison.md)
+### Getting Started
+
+| Guide | Description |
+|---|---|
+| 📖 [Platform Concepts](.docs/getting-started.md) | How Kafka, sagas, DLQ, idempotency, and EIPs fit together — read this first |
+| ☕ [Getting Started — Java Stack](.docs/getting-started-java.md) | Run the Apache Camel / Spring Boot stack locally |
+| 🔷 [Getting Started — .NET Stack](.docs/getting-started-dotnet.md) | Run the NServiceBus / ASP.NET Core stack locally |
+| 🎬 [Running the Demos](.docs/running-the-demos.md) | Tech-agnostic walkthrough of UC1 and UC3 — what to look for |
+
+### Technical References
+
+| Document | Description |
+|---|---|
+| 🧪 [Testability Comparison](.docs/testing-comparison.md) | Apache Camel vs NServiceBus — unit testing sagas and routes |
+| 📊 [Java vs .NET — Strategy & Recommendation](.docs/java-vs-dotnet-biztalk-replacement.md) | Deep-dive comparison for BizTalk replacement: adapter coverage, EIP patterns, operational fit, and final recommendation |
 
 ---
 
