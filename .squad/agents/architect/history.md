@@ -11,6 +11,20 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### 2026-05-26 — EIP Pattern Checklist Closes Technology Debate
+
+**Positioning Guidance:**
+- Once platform demonstrates all major BizTalk-replacement EIP patterns (dead letter queue, retry, pub/sub, scatter-gather, saga, idempotent consumer, outbox, content-based routing, message translation, data movement/ETL adapter flows), the technical viability argument is closed.
+- Remaining delivery risk must be framed as organizational: program management, migration sequencing, CI/CD maturity, team enablement, and governance.
+- This repo is proof that patterns work; professional services is the mechanism for migrating 67+ real applications without collapse.
+- CI/CD must be a prerequisite for integration modernization, not a follow-on implementation detail.
+
+**AIS Stack Framing Correction:**
+- Azure APIM, Blob Storage, Key Vault, App Configuration, Entra ID, Monitor, App Insights are shared platform services, NOT stack differentiators.
+- With Kafka as the production backbone, Java + Camel removes Azure Service Bus and Logic Apps entirely.
+- .NET + NServiceBus typically adds Azure Service Bus or SQL Server as message infrastructure; Logic Apps bridges protocol gaps Camel handles natively.
+- The Java/Camel path is architecturally simpler because it preserves shared Azure services while removing operational sprawl.
+
 ### 2026-05-26 — Pattern Proof vs. Program Risk Framing
 
 **Positioning Guidance:**
