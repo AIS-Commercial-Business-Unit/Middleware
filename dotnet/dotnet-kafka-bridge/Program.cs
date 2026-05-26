@@ -38,6 +38,7 @@ endpointConfiguration.UseSerialization<SystemJsonSerializer>();
 
 var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
 transport.ConnectionString(sqlConnectionString);
+transport.Transactions(TransportTransactionMode.ReceiveOnly);
 
 var endpointInstance = await NServiceBus.Endpoint.Start(endpointConfiguration).ConfigureAwait(false);
 var app = builder.Build();

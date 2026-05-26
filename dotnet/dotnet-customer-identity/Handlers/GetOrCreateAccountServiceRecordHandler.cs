@@ -20,10 +20,9 @@ public sealed class GetOrCreateAccountServiceRecordHandler : IHandleMessages<Get
 
         try
         {
-            var response = await CustomerIdentityRuntime.HttpClient.PostAsJsonAsync(
-                    CustomerIdentityRuntime.AccountServiceUrl,
-                    new { issuanceId = message.IssuanceId, accountId = message.AccountId },
-                    context.CancellationToken)
+            // account-service stub uses GET with query params
+            var url = $"{CustomerIdentityRuntime.AccountServiceUrl}?issuanceId={Uri.EscapeDataString(message.IssuanceId)}&accountId={Uri.EscapeDataString(message.AccountId)}";
+            var response = await CustomerIdentityRuntime.HttpClient.GetAsync(url, context.CancellationToken)
                 .ConfigureAwait(false);
 
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))

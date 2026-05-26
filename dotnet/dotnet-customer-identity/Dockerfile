@@ -5,7 +5,7 @@ RUN dotnet restore ./dotnet-customer-identity/dotnet-customer-identity.csproj
 RUN dotnet publish ./dotnet-customer-identity/dotnet-customer-identity.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
-RUN apt-get update         && apt-get install -y --no-install-recommends wget         && rm -rf /var/lib/apt/lists/*         && groupadd -r appuser         && useradd -r -g appuser appuser
+RUN apt-get update         && apt-get install -y --no-install-recommends wget         && rm -rf /var/lib/apt/lists/*         && groupadd -r appuser && useradd -r -g appuser -d /home/appuser -m appuser
 ENV ASPNETCORE_URLS=http://+:8183
 WORKDIR /app
 COPY --from=build /app/publish .

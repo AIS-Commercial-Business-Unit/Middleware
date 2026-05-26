@@ -43,6 +43,7 @@ endpointConfiguration.UseSerialization<SystemJsonSerializer>();
 
 var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
 transport.ConnectionString(sqlConnectionString);
+transport.Transactions(TransportTransactionMode.ReceiveOnly);
 
 var persistence = endpointConfiguration.UsePersistence<SqlPersistence>();
 persistence.SqlDialect<SqlDialect.MsSqlServer>();

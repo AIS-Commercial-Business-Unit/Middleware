@@ -43,6 +43,7 @@ endpointConfiguration.UseSerialization<SystemJsonSerializer>();
 
 var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
 transport.ConnectionString(sqlConnectionString);
+transport.Transactions(TransportTransactionMode.ReceiveOnly);
 var routing = transport.Routing();
 routing.RouteToEndpoint(typeof(RequestComplianceCheckCommand), "dotnet-platform-compliance");
 routing.RouteToEndpoint(typeof(GetOrCreateAccountServiceRecordCommand), "dotnet-customer-identity");

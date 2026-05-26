@@ -5,7 +5,7 @@ RUN dotnet restore ./dotnet-platform-integration/dotnet-platform-integration.csp
 RUN dotnet publish ./dotnet-platform-integration/dotnet-platform-integration.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
-RUN apt-get update         && apt-get install -y --no-install-recommends wget         && rm -rf /var/lib/apt/lists/*         && groupadd -r appuser         && useradd -r -g appuser appuser
+RUN apt-get update         && apt-get install -y --no-install-recommends wget         && rm -rf /var/lib/apt/lists/*         && groupadd -r appuser && useradd -r -g appuser -d /home/appuser -m appuser
 ENV ASPNETCORE_URLS=http://+:8184
 WORKDIR /app
 COPY --from=build /app/publish .
