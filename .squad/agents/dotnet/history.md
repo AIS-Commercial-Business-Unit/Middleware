@@ -35,3 +35,35 @@
 - **EDAFlowBehavior labels now match the ops diagram and use canonical UC1 participant names.** The ParticipantMap ensures that dotnet-policy-issuance renders as PolicyIssuance, dotnet-billing-finance as Billing, etc. This creates the feedback loop where live EDA_FLOW logs match the static .docs/req/use-cases.html topology.
 
 - **Live issuance 232eb4f4 completed end-to-end with canonical flow.** API→PolicyIssuance→Compliance, API→PolicyIssuance→Integration→(fan-out)→Billing+CustomerIdentity→back to PolicyIssuance→Notification. All 6 tests pass. The .NET stack now enforces Udi Dahan pub/subscribe semantics operationally.
+
+### 2026-05-27 — Debug: dotnet-platform-integration container never started (IssuePolicyRequestedEvent stuck)
+
+- **Root cause: `dotnet-platform-integration` container was in `Created` state and never started.** The container has `depends_on` conditions on `dotnet-policy-issuance`, `dotnet-billing-finance`, and `dotnet-customer-identity` (all `service_healthy`). These services only became healthy after a delay, and the integration container either was not started in the initial `docker compose up` invocation or failed silently to start after its dependencies became healthy.
+
+- **Symptom chain:** `dotnet-policy-issuance` saga received `AccountServiceRecordRetrievedEvent` and tried to publish `IssuePolicyRequestedEvent`. NServiceBus SQL transport looked up the `SubscriptionRouting` table, found `dotnet-platform-integration@[dbo]@[middleware_nsb]` as the subscriber, and attempted to INSERT into the `dotnet-platform-integration` SQL queue table — which didn't exist because the service had never started. NServiceBus threw `QueueNotFoundException` (SQL Error 208) and moved the `AccountServiceRecordRetrievedEvent` messages to the `error` queue.
+
+- **Fix:** `docker compose up -d dotnet-platform-integration` started the container. NServiceBus auto-created the `dotnet-platform-integration` and `dotnet-platform-integration.Delayed` queue tables on startup. Two stranded `AccountServiceRecordRetrievedEvent` messages were moved from `dbo.error` back to `dbo.dotnet-policy-issuance` via direct SQL INSERT, allowing the saga to re-process them.
+
+- **Verification:** New issuance `f43d16ea-4403-470a-9214-aa5f6f3157b2` reached `Completed` with policy `DC-COMM-F43D16EA`. Loki EDA_FLOW trace confirms: API→PolicyIssuance→Compliance→PolicyIssuance→CustomerIdentity→PolicyIssuance→**Integration**→PolicyIssuance→Billing+CustomerIdentity→Notification. Error queue is empty (0 rows).
+
+- **Operational note:** `dotnet-platform-integration` must be explicitly started or its `depends_on` timing improved. The container is healthy after startup but is not guaranteed to come up automatically if its health-dependent parents start slowly. Consider adding an explicit startup step or health retry loop in the compose workflow.
+
+### 2026-05-27 — Kafka camelCase serialization fix (cross-stack interop)
+
+- **Root cause of batch demo stall:** `KafkaBridgeRuntime.PublishAsync` called `JsonSerializer.Serialize(payload)` with no options, producing PascalCase JSON (e.g. `IssuanceId`). Java's Jackson deserializer expects camelCase (`issuanceId`) by default, so every field deserialized to null, causing exceptions and DLQ routing.
+
+- **Fix (Option A — centralized):** Added a static `JsonSerializerOptions KafkaJsonOptions` with `PropertyNamingPolicy = JsonNamingPolicy.CamelCase` to `KafkaBridgeRuntime` and passed it to every `JsonSerializer.Serialize` call. All current and future handlers automatically use camelCase because all Kafka publication flows through this single method.
+
+- **Convention:** All .NET → Kafka serialization must use `JsonNamingPolicy.CamelCase`. Do not use `[JsonPropertyName]` attributes on `Middleware.Contracts` event classes; the serializer option at the bridge is the canonical fix.
+
+- **Verification:** New batch (`count=3`) completed with `status: Completed, processedRecords: 3`. Kafka topic `policy.events.policy-issued` confirmed camelCase format: `{"issuanceId":"...","accountId":"...","policyNumbers":[...],"completedAt":"..."}`. Decision documented in `.squad/decisions/inbox/dotnet-kafka-camelcase.md`.
+
+### 2026-05-27 — Cross-agent synchronization (Scribe session)
+
+- **qa-1 root cause diagnosis enabled dotnet-4 fix:** QA diagnosed the batch stall as cross-stack JSON serialization mismatch (PascalCase vs. camelCase). DotNet team implemented centralized `JsonNamingPolicy.CamelCase` in `KafkaBridgeRuntime`, fixing batch processing end-to-end.
+
+- **dotnet-3 startup ordering pattern established:** Container startup sequencing revealed infrastructure-critical pattern — NServiceBus endpoints must start to create their queue tables. Decision documented; structural hardening recommendations provided for future sprint.
+
+- **frontend-3 corrections unified all 4 agents' observability contract:** Flow diagram fixes (stale container + dedup key + TOPIC_TO_CONSUMER mapping + health check) enabled live Loki-backed visualization of entire cross-stack architecture. Platform-UI now shows real topology matching Java/Camel and .NET/NServiceBus pub/subscribe.
+
+- **Decisions archive:** 4 inbox files merged into unified `.squad/decisions/decisions.md`. Serialization, startup, and flow conventions now central reference for team-wide cross-stack interop.

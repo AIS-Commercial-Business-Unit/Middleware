@@ -49,3 +49,25 @@
 - **FlowEventDetails type centralized in Loki proxy response.** Rather than deriving descriptions on the frontend, the /api/policies/[issuanceId]/flow route enriches each FlowEvent with a typed details object including human-readable description, topic, direction, stack, and ISO timestamp. This keeps copy centralized and consistent with the backend observability contract.
 
 - **Verification:** TypeScript clean, build passed, platform-ui container restarted. Live tooltips show EDA_FLOW event metadata on ops page hover. Static UC1_STEPS fallback displays when no live events available yet.
+
+### 2026-05-27 — Flow diagram dedup fix + Java EDAFlowProcessor correction
+
+- **Root cause of static fallback:** The `/api/policies/[issuanceId]/flow/route.ts` existed in source but had never been compiled into the running `platform-ui` container image. The container returned 404 for every flow API request, so `liveSteps.length` was always 0, and the ops page fell back to static UC1_STEPS permanently. **Fix:** Rebuilt the container.
+
+- **Deduplication key was including `direction`, causing published+consumed pairs to appear as two separate arrows.** Every Kafka hop is logged twice — once as `published` (from the sender) and once as `consumed` (from the receiver). The dedup key `messageType|from|to|direction` preserved both, creating a noisy diagram with doubled arrows. **Fix:** Changed key to `messageType|from|to` (removed `direction`). Result: 16 raw Loki entries → 11 deduplicated unique flow edges.
+
+- **`TOPIC_TO_CONSUMER["policy.events.policy-issued"]` was `"PolicyIssuance"` instead of `"Notification"`.** This caused the final UC1 step to render as a self-loop (`PolicyIssuance → PolicyIssuance`) rather than the correct terminal arrow to the Notification service. **Fix:** Changed the mapping in `EDAFlowProcessor.java` and added the missing `compliance.commands.request-compliance-check` mappings for UC3 batch flows. Required Maven rebuild of the Java project using Docker.
+
+- **`HOSTNAME=0.0.0.0` must be set in docker-compose for Next.js standalone to bind to the IPv4 loopback.** Alpine Linux resolves `localhost` to `::1` (IPv6), but Next.js standalone only listens on IPv4. The health check `wget http://localhost:3000/` always failed. **Fix:** Added `HOSTNAME: 0.0.0.0` to platform-ui environment + changed health check to use `http://127.0.0.1:3000/`.
+
+- **Verification:** Flow API at `/api/policies/{id}/flow` returns 11 correctly-shaped events for a completed UC1 issuance. `isLiveMode=true`, diagram shows "📡 Live — from Loki" badge. Final step correctly shows `PolicyIssuance → Notification | PolicyIssuedEvent`. Platform-UI container status: healthy.
+
+### 2026-05-27 — Cross-agent synchronization (Scribe session)
+
+- **qa-1 root cause diagnosis enabled dotnet-4 fix:** QA diagnosed the batch stall as cross-stack JSON serialization mismatch (PascalCase vs. camelCase). Serialization fix in `KafkaBridgeRuntime` enabled batch processing end-to-end. Frontend flow diagram now correctly shows both Java and .NET event streams.
+
+- **dotnet-3 startup ordering pattern established:** Container startup sequencing revealed infrastructure-critical pattern — NServiceBus endpoints must start to create their queue tables. This ensures queue table creation happens before message routing begins. Structural hardening recommendations provided for future sprint.
+
+- **Unified observability contract validated:** Flow diagram dedup fix + TOPIC_TO_CONSUMER corrections unified .NET and Java `EDAFlowProcessor` emissions. Platform-UI now displays true live topology from both stacks in single Loki-backed sequence diagram. Real architecture (pub/subscribe) now matches rendered diagram.
+
+- **Decisions archive:** 4 inbox files merged into unified `.squad/decisions/decisions.md`. Flow diagram conventions (dedup key, topic mappings, Next.js Docker setup) now team-wide reference.
