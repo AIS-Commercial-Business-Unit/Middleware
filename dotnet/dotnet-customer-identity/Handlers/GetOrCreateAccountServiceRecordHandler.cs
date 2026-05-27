@@ -1,5 +1,3 @@
-using System.Net.Http.Json;
-using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using NServiceBus;
 using Serilog.Context;
@@ -7,20 +5,19 @@ using dotnet_customer_identity.Infrastructure;
 
 namespace dotnet_customer_identity.Handlers;
 
-public sealed class GetOrCreateAccountServiceRecordHandler : IHandleMessages<GetOrCreateAccountServiceRecordCommand>
+public sealed class GetOrCreateAccountServiceRecordHandler : IHandleMessages<AccountLookupRequestedEvent>
 {
-    public async Task Handle(GetOrCreateAccountServiceRecordCommand message, IMessageHandlerContext context)
+    public async Task Handle(AccountLookupRequestedEvent message, IMessageHandlerContext context)
     {
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             CustomerIdentityRuntime.Logger?.LogInformation(
-                "GetOrCreateAccountRecord started — issuanceId={IssuanceId}",
+                "[EDA subscriber] dotnet-customer-identity received AccountLookupRequestedEvent — issuanceId={IssuanceId}",
                 message.IssuanceId);
         }
 
         try
         {
-            // account-service stub uses GET with query params
             var url = $"{CustomerIdentityRuntime.AccountServiceUrl}?issuanceId={Uri.EscapeDataString(message.IssuanceId)}&accountId={Uri.EscapeDataString(message.AccountId)}";
             var response = await CustomerIdentityRuntime.HttpClient.GetAsync(url, context.CancellationToken)
                 .ConfigureAwait(false);
@@ -52,14 +49,13 @@ public sealed class GetOrCreateAccountServiceRecordHandler : IHandleMessages<Get
             RetrievedAt = DateTimeOffset.UtcNow
         };
 
-        await context.Publish(retrievedEvent).ConfigureAwait(false);
-
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             CustomerIdentityRuntime.Logger?.LogInformation(
-                "AccountServiceRecord RETRIEVED — issuanceId={IssuanceId} accountServiceRequestNumber={Asr}",
-                retrievedEvent.IssuanceId,
-                retrievedEvent.AccountServiceRequestNumber);
+                "[EDA publish] dotnet-customer-identity publishing AccountServiceRecordRetrievedEvent — issuanceId={IssuanceId}",
+                message.IssuanceId);
         }
+
+        await context.Publish(retrievedEvent).ConfigureAwait(false);
     }
 }

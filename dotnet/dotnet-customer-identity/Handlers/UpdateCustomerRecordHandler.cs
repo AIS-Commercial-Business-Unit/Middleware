@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using NServiceBus;
 using Serilog.Context;
@@ -7,16 +6,15 @@ using dotnet_customer_identity.Infrastructure;
 
 namespace dotnet_customer_identity.Handlers;
 
-public sealed class UpdateCustomerRecordHandler : IHandleMessages<UpdateCustomerRecordCommand>
+public sealed class UpdateCustomerRecordHandler : IHandleMessages<PolicyAdminSystemResponseReceivedEvent>
 {
-    public async Task Handle(UpdateCustomerRecordCommand message, IMessageHandlerContext context)
+    public async Task Handle(PolicyAdminSystemResponseReceivedEvent message, IMessageHandlerContext context)
     {
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             CustomerIdentityRuntime.Logger?.LogInformation(
-                "UpdateCustomerRecord started — issuanceId={IssuanceId} targetPas={TargetPas}",
-                message.IssuanceId,
-                message.TargetPas);
+                "[EDA subscriber] dotnet-customer-identity received PolicyAdminSystemResponseReceivedEvent — issuanceId={IssuanceId}",
+                message.IssuanceId);
         }
 
         try
@@ -62,13 +60,13 @@ public sealed class UpdateCustomerRecordHandler : IHandleMessages<UpdateCustomer
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
-        await context.Publish(updatedEvent).ConfigureAwait(false);
-
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             CustomerIdentityRuntime.Logger?.LogInformation(
-                "CustomerRecord UPDATED — issuanceId={IssuanceId}",
-                updatedEvent.IssuanceId);
+                "[EDA publish] dotnet-customer-identity publishing CustomerUpdatedEvent — issuanceId={IssuanceId}",
+                message.IssuanceId);
         }
+
+        await context.Publish(updatedEvent).ConfigureAwait(false);
     }
 }

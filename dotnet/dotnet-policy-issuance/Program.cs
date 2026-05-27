@@ -46,11 +46,6 @@ var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
 transport.ConnectionString(sqlConnectionString);
 transport.Transactions(TransportTransactionMode.ReceiveOnly);
 var routing = transport.Routing();
-routing.RouteToEndpoint(typeof(RequestComplianceCheckCommand), "dotnet-platform-compliance");
-routing.RouteToEndpoint(typeof(GetOrCreateAccountServiceRecordCommand), "dotnet-customer-identity");
-routing.RouteToEndpoint(typeof(IssueToAdminSystemCommand), "dotnet-platform-integration");
-routing.RouteToEndpoint(typeof(AssociateBillingAccountCommand), "dotnet-billing-finance");
-routing.RouteToEndpoint(typeof(UpdateCustomerRecordCommand), "dotnet-customer-identity");
 routing.RouteToEndpoint(typeof(PublishNotificationIntentCommand), "dotnet-platform-notification");
 
 var persistence = endpointConfiguration.UsePersistence<SqlPersistence>();

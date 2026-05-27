@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using NServiceBus;
 using Serilog.Context;
@@ -7,16 +6,15 @@ using dotnet_platform_compliance.Infrastructure;
 
 namespace dotnet_platform_compliance.Handlers;
 
-public sealed class ComplianceCheckHandler : IHandleMessages<RequestComplianceCheckCommand>
+public sealed class ComplianceCheckHandler : IHandleMessages<PolicyIssuanceInitiatedEvent>
 {
-    public async Task Handle(RequestComplianceCheckCommand message, IMessageHandlerContext context)
+    public async Task Handle(PolicyIssuanceInitiatedEvent message, IMessageHandlerContext context)
     {
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             ComplianceRuntime.Logger?.LogInformation(
-                "ComplianceCheck started — issuanceId={IssuanceId} policyTypeCode={PolicyTypeCode}",
-                message.IssuanceId,
-                message.PolicyTypeCode);
+                "[EDA subscriber] dotnet-platform-compliance received PolicyIssuanceInitiatedEvent — issuanceId={IssuanceId}",
+                message.IssuanceId);
         }
 
         HttpResponseMessage response;
@@ -62,16 +60,14 @@ public sealed class ComplianceCheckHandler : IHandleMessages<RequestComplianceCh
                 BlockedAt = DateTimeOffset.UtcNow
             };
 
-            await context.Publish(blockedEvent).ConfigureAwait(false);
-
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))
             {
-                ComplianceRuntime.Logger?.LogWarning(
-                    "ComplianceCheck BLOCKED — issuanceId={IssuanceId} reason={Reason}",
-                    blockedEvent.IssuanceId,
-                    blockedEvent.Reason);
+                ComplianceRuntime.Logger?.LogInformation(
+                    "[EDA publish] dotnet-platform-compliance publishing ComplianceBlockedEvent — issuanceId={IssuanceId}",
+                    message.IssuanceId);
             }
 
+            await context.Publish(blockedEvent).ConfigureAwait(false);
             return;
         }
 
@@ -91,16 +87,14 @@ public sealed class ComplianceCheckHandler : IHandleMessages<RequestComplianceCh
                 BlockedAt = DateTimeOffset.UtcNow
             };
 
-            await context.Publish(blockedEvent).ConfigureAwait(false);
-
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))
             {
-                ComplianceRuntime.Logger?.LogWarning(
-                    "ComplianceCheck BLOCKED — issuanceId={IssuanceId} reason={Reason}",
-                    blockedEvent.IssuanceId,
-                    blockedEvent.Reason);
+                ComplianceRuntime.Logger?.LogInformation(
+                    "[EDA publish] dotnet-platform-compliance publishing ComplianceBlockedEvent — issuanceId={IssuanceId}",
+                    message.IssuanceId);
             }
 
+            await context.Publish(blockedEvent).ConfigureAwait(false);
             return;
         }
 
@@ -112,14 +106,13 @@ public sealed class ComplianceCheckHandler : IHandleMessages<RequestComplianceCh
             ClearedAt = DateTimeOffset.UtcNow
         };
 
-        await context.Publish(clearedEvent).ConfigureAwait(false);
-
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             ComplianceRuntime.Logger?.LogInformation(
-                "ComplianceCheck CLEARED — issuanceId={IssuanceId} checkId={CheckId}",
-                clearedEvent.IssuanceId,
-                clearedEvent.CheckId);
+                "[EDA publish] dotnet-platform-compliance publishing ComplianceClearedEvent — issuanceId={IssuanceId}",
+                message.IssuanceId);
         }
+
+        await context.Publish(clearedEvent).ConfigureAwait(false);
     }
 }

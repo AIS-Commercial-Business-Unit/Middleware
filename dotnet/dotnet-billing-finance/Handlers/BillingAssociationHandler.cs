@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using NServiceBus;
 using Serilog.Context;
@@ -7,16 +6,17 @@ using dotnet_billing_finance.Infrastructure;
 
 namespace dotnet_billing_finance.Handlers;
 
-public sealed class BillingAssociationHandler : IHandleMessages<AssociateBillingAccountCommand>
+public sealed class BillingAssociationHandler : IHandleMessages<PolicyAdminSystemResponseReceivedEvent>
 {
-    public async Task Handle(AssociateBillingAccountCommand message, IMessageHandlerContext context)
+    public async Task Handle(PolicyAdminSystemResponseReceivedEvent message, IMessageHandlerContext context)
     {
+        const string billingChannel = "DirectBill";
+
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             BillingRuntime.Logger?.LogInformation(
-                "BillingAssociation started — issuanceId={IssuanceId} billingChannel={BillingChannel}",
-                message.IssuanceId,
-                message.BillingChannel);
+                "[EDA subscriber] dotnet-billing-finance received PolicyAdminSystemResponseReceivedEvent — issuanceId={IssuanceId}",
+                message.IssuanceId);
         }
 
         try
@@ -28,7 +28,7 @@ public sealed class BillingAssociationHandler : IHandleMessages<AssociateBilling
                         issuanceId = message.IssuanceId,
                         accountId = message.AccountId,
                         accountServiceRequestNumber = message.AccountServiceRequestNumber,
-                        billingChannel = message.BillingChannel
+                        billingChannel
                     },
                     context.CancellationToken)
                 .ConfigureAwait(false);
@@ -57,17 +57,17 @@ public sealed class BillingAssociationHandler : IHandleMessages<AssociateBilling
             IssuanceId = message.IssuanceId,
             AccountId = message.AccountId,
             AccountServiceRequestNumber = message.AccountServiceRequestNumber,
-            BillingChannel = message.BillingChannel,
+            BillingChannel = billingChannel,
             CreatedAt = DateTimeOffset.UtcNow
         };
-
-        await context.Publish(createdEvent).ConfigureAwait(false);
 
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             BillingRuntime.Logger?.LogInformation(
-                "BillingAssociation CREATED — issuanceId={IssuanceId}",
-                createdEvent.IssuanceId);
+                "[EDA publish] dotnet-billing-finance publishing BillingAssociationCreatedEvent — issuanceId={IssuanceId}",
+                message.IssuanceId);
         }
+
+        await context.Publish(createdEvent).ConfigureAwait(false);
     }
 }

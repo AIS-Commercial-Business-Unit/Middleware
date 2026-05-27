@@ -65,6 +65,13 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
 
         await PersistAsync().ConfigureAwait(false);
 
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+        {
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "[EDA publish] dotnet-policy-issuance publishing IssuanceSagaStartedEvent — issuanceId={IssuanceId}",
+                Data.IssuanceId);
+        }
+
         await context.Publish(new IssuanceSagaStartedEvent
         {
             IssuanceId = Data.IssuanceId,
@@ -72,7 +79,14 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
             StartedAt = DateTimeOffset.UtcNow
         }).ConfigureAwait(false);
 
-        await context.Send(new RequestComplianceCheckCommand
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+        {
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "[EDA publish] dotnet-policy-issuance publishing PolicyIssuanceInitiatedEvent — issuanceId={IssuanceId}",
+                Data.IssuanceId);
+        }
+
+        await context.Publish(new PolicyIssuanceInitiatedEvent
         {
             IssuanceId = Data.IssuanceId,
             AccountId = Data.AccountId,
@@ -85,15 +99,26 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
     {
         Data.Status = "AwaitingAccountRecord";
         using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+        {
             PolicyIssuanceRuntime.Logger?.LogInformation(
-                "IssuanceSaga ComplianceCleared — issuanceId={IssuanceId} → AwaitingAccountRecord",
+                "[EDA subscriber] dotnet-policy-issuance received ComplianceClearedEvent — issuanceId={IssuanceId}",
                 Data.IssuanceId);
+        }
+
         await PersistAsync().ConfigureAwait(false);
 
-        await context.Send(new GetOrCreateAccountServiceRecordCommand
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+        {
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "[EDA publish] dotnet-policy-issuance publishing AccountLookupRequestedEvent — issuanceId={IssuanceId}",
+                Data.IssuanceId);
+        }
+
+        await context.Publish(new AccountLookupRequestedEvent
         {
             IssuanceId = Data.IssuanceId,
-            AccountId = Data.AccountId
+            AccountId = Data.AccountId,
+            RequestedAt = DateTimeOffset.UtcNow
         }).ConfigureAwait(false);
     }
 
@@ -107,6 +132,13 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
                 "IssuanceSaga ComplianceBlocked — issuanceId={IssuanceId} reason={Reason}",
                 Data.IssuanceId, message.Reason);
         await PersistAsync().ConfigureAwait(false);
+
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+        {
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "[EDA publish] dotnet-policy-issuance publishing IssuanceFailedEvent — issuanceId={IssuanceId}",
+                Data.IssuanceId);
+        }
 
         await context.Publish(new IssuanceFailedEvent
         {
@@ -125,10 +157,20 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
         Data.AccountServiceRequestNumber = message.AccountServiceRequestNumber;
         Data.Status = "AwaitingPAS";
         using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+        {
             PolicyIssuanceRuntime.Logger?.LogInformation(
-                "IssuanceSaga AccountRecordRetrieved — issuanceId={IssuanceId} asr={AccountServiceRequestNumber} → AwaitingPAS",
-                Data.IssuanceId, Data.AccountServiceRequestNumber);
+                "[EDA subscriber] dotnet-policy-issuance received AccountServiceRecordRetrievedEvent — issuanceId={IssuanceId}",
+                Data.IssuanceId);
+        }
+
         await PersistAsync().ConfigureAwait(false);
+
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+        {
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "[EDA publish] dotnet-policy-issuance publishing IssuePolicyRequestedEvent — issuanceId={IssuanceId}",
+                Data.IssuanceId);
+        }
 
         await context.Publish(new IssuePolicyRequestedEvent
         {
@@ -136,15 +178,8 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
             AccountId = Data.AccountId,
             PolicyTypeCode = Data.PolicyTypeCode,
             PolicyTypeSubCode = Data.PolicyTypeSubCode,
+            AccountServiceRequestNumber = Data.AccountServiceRequestNumber ?? string.Empty,
             RequestedAt = DateTimeOffset.UtcNow
-        }).ConfigureAwait(false);
-
-        await context.Send(new IssueToAdminSystemCommand
-        {
-            IssuanceId = Data.IssuanceId,
-            AccountId = Data.AccountId,
-            PolicyTypeCode = Data.PolicyTypeCode,
-            PolicyTypeSubCode = Data.PolicyTypeSubCode
         }).ConfigureAwait(false);
     }
 
@@ -154,26 +189,24 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
         Data.PolicyNumbers = message.PolicyNumbers;
         Data.Status = "PASConfirmed";
         using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+        {
             PolicyIssuanceRuntime.Logger?.LogInformation(
-                "IssuanceSaga PASConfirmed — issuanceId={IssuanceId} targetPas={TargetPas} policyNumbers={PolicyNumbers}",
-                Data.IssuanceId, Data.TargetPas, string.Join(",", Data.PolicyNumbers));
+                "[EDA subscriber] dotnet-policy-issuance received PolicyAdminSystemResponseReceivedEvent — issuanceId={IssuanceId}",
+                Data.IssuanceId);
+        }
+
         await PersistAsync().ConfigureAwait(false);
 
-        await context.Send(new AssociateBillingAccountCommand
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
         {
-            IssuanceId = Data.IssuanceId,
-            AccountId = Data.AccountId,
-            AccountServiceRequestNumber = Data.AccountServiceRequestNumber ?? string.Empty,
-            BillingChannel = "DirectBill"
-        }).ConfigureAwait(false);
-
-        await context.Send(new UpdateCustomerRecordCommand
-        {
-            IssuanceId = Data.IssuanceId,
-            AccountId = Data.AccountId,
-            PolicyNumbers = Data.PolicyNumbers,
-            TargetPas = Data.TargetPas ?? string.Empty
-        }).ConfigureAwait(false);
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "PASConfirmed — issuanceId={IssuanceId} targetPas={TargetPas} [EDA fan-out: billing-finance + customer-identity subscribed to PolicyAdminSystemResponseReceived]",
+                Data.IssuanceId,
+                Data.TargetPas);
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "[EDA fan-out] PolicyAdminSystemResponseReceived published — billing-finance + customer-identity subscribed — issuanceId={IssuanceId}",
+                Data.IssuanceId);
+        }
     }
 
     public async Task Handle(PolicyAdminSystemCallFailedEvent message, IMessageHandlerContext context)
@@ -186,6 +219,13 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
                 "IssuanceSaga PASFailed — issuanceId={IssuanceId} reason={Reason}",
                 Data.IssuanceId, message.Reason);
         await PersistAsync().ConfigureAwait(false);
+
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+        {
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "[EDA publish] dotnet-policy-issuance publishing IssuanceFailedEvent — issuanceId={IssuanceId}",
+                Data.IssuanceId);
+        }
 
         await context.Publish(new IssuanceFailedEvent
         {
@@ -242,6 +282,13 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
                 string.Join(",", Data.PolicyNumbers),
                 (long)(Data.CompletedAt.Value - Data.RequestedAt).TotalMilliseconds);
         await PersistAsync().ConfigureAwait(false);
+
+        using (LogContext.PushProperty("issuanceId", Data.IssuanceId))
+        {
+            PolicyIssuanceRuntime.Logger?.LogInformation(
+                "[EDA publish] dotnet-policy-issuance publishing PolicyIssuedEvent — issuanceId={IssuanceId}",
+                Data.IssuanceId);
+        }
 
         await context.Publish(new PolicyIssuedEvent
         {

@@ -13,6 +13,7 @@ import java.util.List;
 public record PolicyAdminSystemResponseReceivedEvent(
         String issuanceId,
         String targetPas,
+        String accountServiceRequestNumber,
         List<String> policyNumbers,
         OffsetDateTime receivedAt
 ) {
@@ -20,11 +21,13 @@ public record PolicyAdminSystemResponseReceivedEvent(
     public PolicyAdminSystemResponseReceivedEvent(
             @JsonProperty("issuanceId") String issuanceId,
             @JsonProperty("targetPas") String targetPas,
+            @JsonProperty("accountServiceRequestNumber") String accountServiceRequestNumber,
             @JsonProperty("policyNumbers") List<String> policyNumbers,
             @JsonProperty("receivedAt") OffsetDateTime receivedAt
     ) {
         this.issuanceId = issuanceId;
         this.targetPas = targetPas;
+        this.accountServiceRequestNumber = accountServiceRequestNumber;
         this.policyNumbers = policyNumbers;
         this.receivedAt = receivedAt;
     }

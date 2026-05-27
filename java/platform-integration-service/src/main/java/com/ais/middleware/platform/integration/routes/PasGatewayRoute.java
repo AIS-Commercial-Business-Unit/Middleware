@@ -66,11 +66,13 @@ public class PasGatewayRoute extends RouteBuilder {
                 String json = exchange.getIn().getBody(String.class);
                 IssuePolicyRequestedEvent evt = objectMapper.readValue(json, IssuePolicyRequestedEvent.class);
                 exchange.setProperty("issuanceId", evt.issuanceId());
+                exchange.setProperty("accountServiceRequestNumber", evt.accountServiceRequestNumber());
                 int policyTypeCode = (evt.policies() != null && !evt.policies().isEmpty())
                         ? evt.policies().get(0).policyTypeCode() : 0;
                 exchange.setProperty("policyTypeCode", policyTypeCode);
                 exchange.getIn().setBody(json);
                 exchange.getIn().setHeader("policyTypeCode", String.valueOf(policyTypeCode));
+                log.info("[EDA subscriber] PlatformIntegration received IssuePolicyRequestedEvent — issuanceId={}", evt.issuanceId());
             })
             .log("IssuePolicyRequested received — routing by policyTypeCode=${exchangeProperty.policyTypeCode}")
             .choice()
@@ -96,7 +98,7 @@ public class PasGatewayRoute extends RouteBuilder {
             .routeId("duckcreek-commercial-adapter")
             .to("http://{{duckcreek.commercial.url}}/policy/issue?bridgeEndpoint=true")
             .process(exchange -> buildPasResponseEvent(exchange, "DuckCreek-Commercial"))
-            .log("DuckCreek Commercial response received — publishing PolicyAdminSystemResponseReceived for ${exchangeProperty.issuanceId}")
+            .log("[EDA publish] PlatformIntegration publishing PolicyAdminSystemResponseReceivedEvent — issuanceId=${exchangeProperty.issuanceId} — PAS response received with accountServiceRequestNumber (fan-out: billing-finance + customer-identity + policy-issuance subscribed)")
             .to("kafka:integration.events.policy-admin-system-response-received");
 
         // DuckCreek Personal: call stub, publish PolicyAdminSystemResponseReceived
@@ -104,7 +106,7 @@ public class PasGatewayRoute extends RouteBuilder {
             .routeId("duckcreek-personal-adapter")
             .to("http://{{duckcreek.personal.url}}/policy/issue?bridgeEndpoint=true")
             .process(exchange -> buildPasResponseEvent(exchange, "DuckCreek-Personal"))
-            .log("DuckCreek Personal response received — publishing PolicyAdminSystemResponseReceived for ${exchangeProperty.issuanceId}")
+            .log("[EDA publish] PlatformIntegration publishing PolicyAdminSystemResponseReceivedEvent — issuanceId=${exchangeProperty.issuanceId} — PAS response received with accountServiceRequestNumber (fan-out: billing-finance + customer-identity + policy-issuance subscribed)")
             .to("kafka:integration.events.policy-admin-system-response-received");
 
         // ForeFront: call stub, publish PolicyAdminSystemResponseReceived
@@ -112,7 +114,7 @@ public class PasGatewayRoute extends RouteBuilder {
             .routeId("forefront-adapter")
             .to("http://{{forefront.url}}/policy/issue?bridgeEndpoint=true")
             .process(exchange -> buildPasResponseEvent(exchange, "ForeFront"))
-            .log("ForeFront response received — publishing PolicyAdminSystemResponseReceived for ${exchangeProperty.issuanceId}")
+            .log("[EDA publish] PlatformIntegration publishing PolicyAdminSystemResponseReceivedEvent — issuanceId=${exchangeProperty.issuanceId} — PAS response received with accountServiceRequestNumber (fan-out: billing-finance + customer-identity + policy-issuance subscribed)")
             .to("kafka:integration.events.policy-admin-system-response-received");
     }
 
@@ -120,6 +122,7 @@ public class PasGatewayRoute extends RouteBuilder {
         String responseBody = exchange.getIn().getBody(String.class);
         JsonNode resp = objectMapper.readTree(responseBody);
         String issuanceId = exchange.getProperty("issuanceId", String.class);
+        String accountServiceRequestNumber = exchange.getProperty("accountServiceRequestNumber", String.class);
 
         String policyNumber = resp.path("policyNumber").asText(null);
         List<String> policyNumbers = (policyNumber != null) ? List.of(policyNumber) : List.of();
@@ -127,6 +130,7 @@ public class PasGatewayRoute extends RouteBuilder {
         PolicyAdminSystemResponseReceivedEvent event = new PolicyAdminSystemResponseReceivedEvent(
                 issuanceId,
                 targetPas,
+                accountServiceRequestNumber,
                 policyNumbers,
                 OffsetDateTime.now()
         );

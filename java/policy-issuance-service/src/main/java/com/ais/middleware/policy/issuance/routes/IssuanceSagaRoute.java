@@ -1,15 +1,18 @@
 package com.ais.middleware.policy.issuance.routes;
 
+import com.ais.middleware.common.events.billing.BillingAssociationCreatedEvent;
 import com.ais.middleware.common.events.compliance.ComplianceBlockedEvent;
 import com.ais.middleware.common.events.compliance.ComplianceClearedEvent;
+import com.ais.middleware.common.events.customer.AccountLookupRequestedEvent;
 import com.ais.middleware.common.events.customer.AccountServiceRecordRetrievedEvent;
-import com.ais.middleware.common.events.customer.UpdateCustomerRecordCommand;
-import com.ais.middleware.common.events.billing.AssociateBillingAccountCommand;
-import com.ais.middleware.common.events.billing.BillingAssociationCreatedEvent;
 import com.ais.middleware.common.events.customer.CustomerUpdatedEvent;
-import com.ais.middleware.common.events.integration.PolicyAdminSystemResponseReceivedEvent;
 import com.ais.middleware.common.events.integration.PolicyAdminSystemCallFailedEvent;
-import com.ais.middleware.common.events.policy.*;
+import com.ais.middleware.common.events.integration.PolicyAdminSystemResponseReceivedEvent;
+import com.ais.middleware.common.events.policy.IssuePolicyCommand;
+import com.ais.middleware.common.events.policy.IssuePolicyRequestedEvent;
+import com.ais.middleware.common.events.policy.IssuanceFailedEvent;
+import com.ais.middleware.common.events.policy.PolicyIssuedEvent;
+import com.ais.middleware.common.events.policy.PolicyIssuanceInitiatedEvent;
 import com.ais.middleware.policy.issuance.domain.IssuanceSagaRecord;
 import com.ais.middleware.policy.issuance.domain.IssuanceSagaRepository;
 import com.ais.middleware.policy.issuance.persistence.IssuanceSagaDocument;
@@ -84,19 +87,17 @@ public class IssuanceSagaRoute extends RouteBuilder {
                 String issuanceId = cmd.issuanceId();
                 MDC.put("issuanceId", issuanceId);
 
-                // Idempotency: skip if saga already exists
                 if (repository.existsById(issuanceId)) {
                     log.warn("Duplicate IssuePolicy received — saga already exists, skipping");
                     exchange.setRouteStop(true);
                     return;
                 }
 
-                // Create and persist the saga record
                 IssuanceSagaRecord saga = new IssuanceSagaRecord();
                 saga.setIssuanceId(issuanceId);
                 saga.setAccountId(cmd.accountId());
                 saga.setSubmittingChannel(cmd.submittingChannel() != null ? cmd.submittingChannel().name() : "Unknown");
-                saga.setRequestedAt(cmd.requestedAt() != null ? cmd.requestedAt() : java.time.OffsetDateTime.now());
+                saga.setRequestedAt(cmd.requestedAt() != null ? cmd.requestedAt() : OffsetDateTime.now());
                 saga.setStatus(IssuanceSagaRecord.SagaStatus.Initiated);
 
                 if (cmd.policies() != null && !cmd.policies().isEmpty()) {
@@ -104,27 +105,23 @@ public class IssuanceSagaRoute extends RouteBuilder {
                     saga.setPolicyTypeSubCode(cmd.policies().get(0).policyTypeSubCode());
                 }
                 repository.save(saga);
-                log.info("IssuanceSaga created — status=Initiated");
 
-                // Send RequestComplianceCheck to Platform.Compliance
-                var checkCmd = new com.ais.middleware.common.events.compliance.RequestComplianceCheckCommand(
-                        java.util.UUID.randomUUID().toString(),
+                PolicyIssuanceInitiatedEvent event = new PolicyIssuanceInitiatedEvent(
                         issuanceId,
-                        "Policy",
-                        "EconomicSanctions",
-                        "CommercialAccount",
                         cmd.accountId(),
-                        objectMapper.writeValueAsString(cmd)
+                        saga.getPolicyTypeCode(),
+                        saga.getRequestedAt()
                 );
-                exchange.getIn().setBody(objectMapper.writeValueAsString(checkCmd));
+                exchange.getIn().setBody(objectMapper.writeValueAsString(event));
                 exchange.getIn().setHeader("issuanceId", issuanceId);
 
                 saga.setStatus(IssuanceSagaRecord.SagaStatus.AwaitingCompliance);
                 repository.save(saga);
-                log.info("IssuanceSaga transitioned — status=AwaitingCompliance");
+                log.info("[EDA publish] PolicyIssuanceAndLifecycleManagement publishing PolicyIssuanceInitiatedEvent — issuanceId={}", issuanceId);
+                log.info("IssuanceSaga INITIATED — publishing PolicyIssuanceInitiated (EDA: platform.compliance will subscribe and screen) — issuanceId={}", issuanceId);
                 MDC.clear();
             })
-            .to("kafka:compliance.commands.request-compliance-check");
+            .to("kafka:policy.events.policy-issuance-initiated");
 
         // ── Route 2: ComplianceCleared → request account record ──────────────────
         from("kafka:compliance.events.compliance-cleared?groupId=policy-issuance-saga")
@@ -134,22 +131,26 @@ public class IssuanceSagaRoute extends RouteBuilder {
                 ComplianceClearedEvent event = objectMapper.readValue(json, ComplianceClearedEvent.class);
                 String issuanceId = event.correlationId();
                 MDC.put("issuanceId", issuanceId);
+                log.info("[EDA subscriber] PolicyIssuanceAndLifecycleManagement received ComplianceClearedEvent — issuanceId={}", issuanceId);
 
                 IssuanceSagaRecord saga = repository.findById(issuanceId).orElse(null);
                 if (saga == null) { log.warn("No saga for issuanceId={}", issuanceId); return; }
 
                 saga.setStatus(IssuanceSagaRecord.SagaStatus.AwaitingAccountRecord);
                 repository.save(saga);
-                log.info("Compliance cleared — requesting account record");
 
-                var cmd = new com.ais.middleware.common.events.customer.GetOrCreateAccountServiceRecordCommand(
-                        issuanceId, saga.getAccountId(), saga.getAccountId()
+                AccountLookupRequestedEvent accountLookupRequestedEvent = new AccountLookupRequestedEvent(
+                        issuanceId,
+                        saga.getAccountId(),
+                        OffsetDateTime.now()
                 );
-                exchange.getIn().setBody(objectMapper.writeValueAsString(cmd));
+                exchange.getIn().setBody(objectMapper.writeValueAsString(accountLookupRequestedEvent));
                 exchange.getIn().setHeader("issuanceId", issuanceId);
+                log.info("[EDA publish] PolicyIssuanceAndLifecycleManagement publishing AccountLookupRequestedEvent — issuanceId={}", issuanceId);
+                log.info("ComplianceCleared — publishing AccountLookupRequested (EDA: customer-identity will subscribe and retrieve record) — issuanceId={}", issuanceId);
                 MDC.clear();
             })
-            .to("kafka:customer.commands.get-or-create-account-record");
+            .to("kafka:customer.events.account-lookup-requested");
 
         // ── Route 3: ComplianceBlocked → terminate saga ───────────────────────────
         from("kafka:compliance.events.compliance-blocked?groupId=policy-issuance-saga")
@@ -184,6 +185,7 @@ public class IssuanceSagaRoute extends RouteBuilder {
                 AccountServiceRecordRetrievedEvent event = objectMapper.readValue(json, AccountServiceRecordRetrievedEvent.class);
                 String issuanceId = event.correlationId();
                 MDC.put("issuanceId", issuanceId);
+                log.info("[EDA subscriber] PolicyIssuanceAndLifecycleManagement received AccountServiceRecordRetrievedEvent — issuanceId={}", issuanceId);
 
                 IssuanceSagaRecord saga = repository.findById(issuanceId).orElse(null);
                 if (saga == null) { log.warn("No saga for issuanceId={}", issuanceId); return; }
@@ -191,9 +193,7 @@ public class IssuanceSagaRoute extends RouteBuilder {
                 saga.setAccountServiceRequestNumber(event.accountServiceRequestNumber());
                 saga.setStatus(IssuanceSagaRecord.SagaStatus.AwaitingPAS);
                 repository.save(saga);
-                log.info("Account record retrieved — publishing IssuePolicyRequested to PAS gateway");
 
-                // This event is routed to the correct PAS via subscription filter in platform-integration-service
                 var pasEvent = new IssuePolicyRequestedEvent(
                         issuanceId,
                         saga.getAccountId(),
@@ -206,11 +206,12 @@ public class IssuanceSagaRoute extends RouteBuilder {
                 exchange.getIn().setBody(objectMapper.writeValueAsString(pasEvent));
                 exchange.getIn().setHeader("issuanceId", issuanceId);
                 exchange.getIn().setHeader("policyTypeCode", String.valueOf(saga.getPolicyTypeCode()));
+                log.info("[EDA publish] PolicyIssuanceAndLifecycleManagement publishing IssuePolicyRequestedEvent — issuanceId={}", issuanceId);
                 MDC.clear();
             })
             .to("kafka:policy.events.issue-policy-requested");
 
-        // ── Route 5: PolicyAdminSystemResponseReceived → fan-out parallel steps ──
+        // ── Route 5: PolicyAdminSystemResponseReceived → update saga state only ──
         from("kafka:integration.events.policy-admin-system-response-received?groupId=policy-issuance-saga")
             .routeId("saga-pas-response")
             .process(exchange -> {
@@ -218,45 +219,23 @@ public class IssuanceSagaRoute extends RouteBuilder {
                 PolicyAdminSystemResponseReceivedEvent event = objectMapper.readValue(json, PolicyAdminSystemResponseReceivedEvent.class);
                 String issuanceId = event.issuanceId();
                 MDC.put("issuanceId", issuanceId);
+                log.info("[EDA subscriber] PolicyIssuanceAndLifecycleManagement received PolicyAdminSystemResponseReceivedEvent — issuanceId={}", issuanceId);
 
                 IssuanceSagaRecord saga = repository.findById(issuanceId).orElse(null);
                 if (saga == null) { log.warn("No saga for issuanceId={}", issuanceId); return; }
 
                 saga.setTargetPas(event.targetPas());
                 saga.setPolicyNumbers(event.policyNumbers());
+                if (event.accountServiceRequestNumber() != null) {
+                    saga.setAccountServiceRequestNumber(event.accountServiceRequestNumber());
+                }
                 saga.setStatus(IssuanceSagaRecord.SagaStatus.PASConfirmed);
                 repository.save(saga);
-                log.info("PAS confirmed — targetPas={} policyNumbers={} — starting parallel billing + customer update",
-                        event.targetPas(), event.policyNumbers());
-
-                // Parallel step 1: Billing association
-                var billingCmd = new AssociateBillingAccountCommand(
-                        issuanceId,
-                        saga.getAccountServiceRequestNumber(),
-                        event.policyNumbers(),
-                        AssociateBillingAccountCommand.BillingChannel.DirectBill,
-                        saga.getPolicyTypeCode()
-                );
-                String billingJson = objectMapper.writeValueAsString(billingCmd);
-
-                // Parallel step 2: Customer record update (non-critical parallel path)
-                var customerCmd = new UpdateCustomerRecordCommand(
-                        issuanceId, saga.getAccountId(), null, null
-                );
-                String customerJson = objectMapper.writeValueAsString(customerCmd);
-
+                log.info("PASConfirmed — issuanceId={} targetPas={} policyNumbers={} (EDA fan-out: billing-finance and customer-identity subscribed to PolicyAdminSystemResponseReceived)",
+                        issuanceId, event.targetPas(), event.policyNumbers());
                 exchange.getIn().setHeader("issuanceId", issuanceId);
-                // Store command JSONs as exchange properties for sequential sends below
-                exchange.setProperty("billingCommandJson", billingJson);
-                exchange.setProperty("customerCommandJson", customerJson);
                 MDC.clear();
             })
-            // Send billing command with correct body, then customer command with correct body.
-            // Sequential is fine for the demo — true parallel can be added via Camel Parallelism EIP later.
-            .setBody(exchangeProperty("billingCommandJson"))
-            .to("kafka:billing.commands.associate-billing-account")
-            .setBody(exchangeProperty("customerCommandJson"))
-            .to("kafka:customer.commands.update-customer-record")
             .stop();
 
         // ── Route 6: BillingAssociationCreated → check join condition ─────────────
@@ -334,9 +313,11 @@ public class IssuanceSagaRoute extends RouteBuilder {
         if ("billing".equals(branch)) {
             BillingAssociationCreatedEvent event = objectMapper.readValue(json, BillingAssociationCreatedEvent.class);
             issuanceId = event.issuanceId();
+            log.info("[EDA subscriber] PolicyIssuanceAndLifecycleManagement received BillingAssociationCreatedEvent — issuanceId={}", issuanceId);
         } else {
             CustomerUpdatedEvent event = objectMapper.readValue(json, CustomerUpdatedEvent.class);
             issuanceId = event.correlationId();
+            log.info("[EDA subscriber] PolicyIssuanceAndLifecycleManagement received CustomerUpdatedEvent — issuanceId={}", issuanceId);
         }
         MDC.put("issuanceId", issuanceId);
 
@@ -380,7 +361,9 @@ public class IssuanceSagaRoute extends RouteBuilder {
                 log.debug("PolicyIssued already published by sibling branch — suppressing duplicate for issuanceId={}", issuanceId);
                 exchange.setRouteStop(true);
             } else {
-                log.info("Saga join complete — both branches done — publishing PolicyIssued for issuanceId={}", issuanceId);
+                log.info("[EDA join] IssuanceSaga — billingComplete={} customerUpdateComplete={} — both branches done → PolicyIssued",
+                        completed.isBillingComplete(), completed.isCustomerUpdateComplete());
+                log.info("[EDA publish] PolicyIssuanceAndLifecycleManagement publishing PolicyIssuedEvent — issuanceId={}", issuanceId);
                 var issued = new PolicyIssuedEvent(
                         issuanceId,
                         completed.getAccountServiceRequestNumber(),
@@ -397,3 +380,4 @@ public class IssuanceSagaRoute extends RouteBuilder {
         MDC.clear();
     }
 }
+

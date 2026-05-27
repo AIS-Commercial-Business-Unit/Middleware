@@ -11,6 +11,14 @@
 
 <!-- Append new learnings below. -->
 
+### 2026-05-27 — Java EDA events-vs-commands fix
+
+- **Sagas publish facts; subscribers act.** In UC1 issuance, the Java saga was improperly commanding Compliance, Customer Identity, Billing, and Customer update steps. Fixed by publishing `PolicyIssuanceInitiatedEvent` and `AccountLookupRequestedEvent`, and by letting Billing and Customer Identity subscribe directly to `PolicyAdminSystemResponseReceivedEvent` fan-out.
+
+- **Fan-out events must carry downstream data, not rely on saga state.** `PolicyAdminSystemResponseReceivedEvent` needed `accountServiceRequestNumber` so Billing and Customer Identity could complete their work independently without reaching back into Policy Issuance saga storage.
+
+- **EDA logging is easier to trace when publisher/subscriber intent is explicit.** Added `[EDA publish]`, `[EDA subscriber]`, and `[EDA join]` log patterns across the affected Java routes so message ownership and fan-out behavior are visible in service logs.
+
 ### 2026-05-25 — Backend Code Quality Sweep
 
 - **Domain isolation is solid.** All domain/*.java files (FileBatch, BatchRecord, IssuanceSagaRecord, ComplianceCheck) import only java.* — no Spring or MongoDB bleed. @Document/@Id annotations live exclusively in persistence/*.java documents. Pattern holds and should be enforced for all future entities.

@@ -11,6 +11,38 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### 2026-05-27: EDA Events vs Commands — Udi Dahan Principles
+
+**Directive from Steven Suing**: Udi Dahan is the authoritative source for EDA architectural guidance on this project. Consult his work for any event-driven architecture decisions.
+
+**Core rule (from NServiceBus docs + Udi Dahan)**:
+- Commands (`ICommand` / Kafka message to specific topic): Tell ONE service to do something. Have one logical owner. Are SENT directly. Cannot be published. Cannot have multiple handlers.
+- Events (`IEvent` / Kafka message to pub/sub topic): Communicate that something happened. Have one logical PUBLISHER. Are PUBLISHED. Any service can SUBSCRIBE. Never sent directly.
+
+**Pattern violated and fixed in UC1**:
+- WRONG: `Publish(PolicyIssuanceInitiated)` then `Send(RequestComplianceCheckCommand)` to force compliance to check
+- RIGHT: Publish `PolicyIssuanceInitiatedEvent` — Platform.Compliance subscribes autonomously
+- WRONG: After PAS response, `Send(AssociateBillingAccountCommand)` and `Send(UpdateCustomerRecordCommand)`
+- RIGHT: Platform.Integration publishes `PolicyAdminSystemResponseReceived` (fan-out) — Billing and Customer subscribe independently
+
+**Udi Dahan's key insight**: "Services are autonomous. A service never commands another service — it publishes what happened and other services decide what to do. This enables loose coupling, parallel processing, and independent deployability."
+
+**Kafka topic naming convention enforced**:
+- Command topics: `{domain}.commands.{verb-noun}` (e.g., `policy.commands.issue-policy`) — direct, one consumer
+- Event topics: `{domain}.events.{noun-verb-past-tense}` (e.g., `policy.events.policy-issuance-initiated`) — pub/sub, multiple consumers
+
+**New events added in UC1 fix**:
+- `PolicyIssuanceInitiatedEvent` — published by PolicyLifecycle, subscribed by Compliance
+- `AccountLookupRequestedEvent` — published by PolicyLifecycle, subscribed by CustomerIdentity
+- `PolicyAdminSystemResponseReceivedEvent` enriched with `accountServiceRequestNumber` for fan-out subscribers
+
+**Fan-out pattern (pub/sub)**:
+Platform.Integration publishes `PolicyAdminSystemResponseReceived` ONCE. THREE services subscribe independently:
+1. PolicyIssuanceAndLifecycleManagement — updates issuance state
+2. BillingAndFinanceManagement — associates billing account → publishes `BillingAssociationCreatedEvent`
+3. CustomerIdentityAndRelationshipManagement — links customer to policy → publishes `CustomerUpdatedEvent`
+PolicyLifecycle waits for both completion events (join pattern) before publishing `PolicyIssuedEvent`.
+
 ### 2026-05-26 — EIP Pattern Checklist Closes Technology Debate
 
 **Positioning Guidance:**

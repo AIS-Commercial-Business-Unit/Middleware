@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using NServiceBus;
 using Serilog.Context;
@@ -7,16 +6,19 @@ using dotnet_platform_integration.Infrastructure;
 
 namespace dotnet_platform_integration.Handlers;
 
-public sealed class PasGatewayHandler : IHandleMessages<IssueToAdminSystemCommand>
+public sealed class PasGatewayHandler : IHandleMessages<IssuePolicyRequestedEvent>
 {
-    public async Task Handle(IssueToAdminSystemCommand message, IMessageHandlerContext context)
+    public async Task Handle(IssuePolicyRequestedEvent message, IMessageHandlerContext context)
     {
         var (targetPas, url) = ResolveTarget(message.PolicyTypeCode);
 
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             PasGatewayRuntime.Logger?.LogInformation(
-                "PasGateway routing — issuanceId={IssuanceId} policyTypeCode={PolicyTypeCode} targetPas={TargetPas}",
+                "[EDA subscriber] dotnet-platform-integration received IssuePolicyRequestedEvent — issuanceId={IssuanceId}",
+                message.IssuanceId);
+            PasGatewayRuntime.Logger?.LogInformation(
+                "PasGateway routing [EDA subscriber to IssuePolicyRequestedEvent] — issuanceId={IssuanceId} policyTypeCode={PolicyTypeCode} targetPas={TargetPas}",
                 message.IssuanceId,
                 message.PolicyTypeCode,
                 targetPas);
@@ -46,6 +48,13 @@ public sealed class PasGatewayHandler : IHandleMessages<IssueToAdminSystemComman
                 FailedAt = DateTimeOffset.UtcNow
             };
 
+            using (LogContext.PushProperty("issuanceId", message.IssuanceId))
+            {
+                PasGatewayRuntime.Logger?.LogInformation(
+                    "[EDA publish] dotnet-platform-integration publishing PolicyAdminSystemCallFailedEvent — issuanceId={IssuanceId}",
+                    message.IssuanceId);
+            }
+
             await context.Publish(failedEvent).ConfigureAwait(false);
 
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))
@@ -71,6 +80,13 @@ public sealed class PasGatewayHandler : IHandleMessages<IssueToAdminSystemComman
                 Reason = $"{targetPas} call failed: {error}",
                 FailedAt = DateTimeOffset.UtcNow
             };
+
+            using (LogContext.PushProperty("issuanceId", message.IssuanceId))
+            {
+                PasGatewayRuntime.Logger?.LogInformation(
+                    "[EDA publish] dotnet-platform-integration publishing PolicyAdminSystemCallFailedEvent — issuanceId={IssuanceId}",
+                    message.IssuanceId);
+            }
 
             await context.Publish(failedEvent).ConfigureAwait(false);
 
@@ -98,20 +114,19 @@ public sealed class PasGatewayHandler : IHandleMessages<IssueToAdminSystemComman
             IssuanceId = message.IssuanceId,
             AccountId = message.AccountId,
             TargetPas = targetPas,
+            AccountServiceRequestNumber = message.AccountServiceRequestNumber,
             PolicyNumbers = [policyNumber],
             ReceivedAt = DateTimeOffset.UtcNow
         };
 
-        await context.Publish(responseReceivedEvent).ConfigureAwait(false);
-
         using (LogContext.PushProperty("issuanceId", message.IssuanceId))
         {
             PasGatewayRuntime.Logger?.LogInformation(
-                "PasGateway SUCCESS — issuanceId={IssuanceId} policyNumber={PolicyNumber} targetPas={TargetPas}",
-                responseReceivedEvent.IssuanceId,
-                policyNumber,
-                responseReceivedEvent.TargetPas);
+                "[EDA publish] dotnet-platform-integration publishing PolicyAdminSystemResponseReceivedEvent — issuanceId={IssuanceId}",
+                message.IssuanceId);
         }
+
+        await context.Publish(responseReceivedEvent).ConfigureAwait(false);
     }
 
     private static (string TargetPas, string Url) ResolveTarget(int policyTypeCode)

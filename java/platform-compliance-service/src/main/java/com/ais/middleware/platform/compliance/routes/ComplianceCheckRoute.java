@@ -1,7 +1,8 @@
 package com.ais.middleware.platform.compliance.routes;
 
+import com.ais.middleware.common.events.compliance.ComplianceBlockedEvent;
 import com.ais.middleware.common.events.compliance.ComplianceClearedEvent;
-import com.ais.middleware.common.events.compliance.RequestComplianceCheckCommand;
+import com.ais.middleware.common.events.policy.PolicyIssuanceInitiatedEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
@@ -12,10 +13,12 @@ import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
+import java.util.UUID;
 
 /**
- * Handles compliance check requests from PolicyIssuanceAndLifecycleManagement.
- * Calls RSK3X3 external sanctions screening service and publishes a proper ComplianceClearedEvent.
+ * Subscribes to PolicyIssuanceInitiatedEvent from PolicyIssuanceAndLifecycleManagement.
+ * Calls RSK3X3 external sanctions screening service and publishes ComplianceClearedEvent or ComplianceBlockedEvent.
  */
 @Component
 public class ComplianceCheckRoute extends RouteBuilder {
@@ -40,48 +43,66 @@ public class ComplianceCheckRoute extends RouteBuilder {
             .handled(true)
             .process(exchange -> {
                 Exception cause = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class);
-                String correlationId = exchange.getProperty("correlationId", String.class);
-                log.error("Unhandled exception in compliance-check route — routing to DLQ. correlationId={} error={}",
-                        correlationId, cause != null ? cause.getMessage() : "unknown", cause);
+                String issuanceId = exchange.getProperty("issuanceId", String.class);
+                log.error("Unhandled exception in compliance-check route — routing to DLQ. issuanceId={} error={}",
+                        issuanceId, cause != null ? cause.getMessage() : "unknown", cause);
                 exchange.getIn().setHeader("X-DLQ-Error", cause != null ? cause.getMessage() : "unknown");
                 exchange.getIn().setHeader("X-DLQ-RouteId", exchange.getFromRouteId());
             })
             .to("kafka:compliance.dlq.compliance-check");
 
-        from("kafka:compliance.commands.request-compliance-check?groupId=platform-compliance-service")
+        from("kafka:policy.events.policy-issuance-initiated?groupId=platform-compliance-service")
             .routeId("compliance-check")
             .process(exchange -> {
                 String json = exchange.getIn().getBody(String.class);
-                RequestComplianceCheckCommand cmd = objectMapper.readValue(json, RequestComplianceCheckCommand.class);
-                MDC.put("issuanceId", cmd.correlationId());
-                log.info("ComplianceCheck received — correlationId={} checkType={}", cmd.correlationId(), cmd.checkType());
-                exchange.setProperty("correlationId", cmd.correlationId());
-                exchange.setProperty("checkId", cmd.checkId());
-                // Forward the original body as HTTP POST payload
-                exchange.getIn().setBody(json);
+                PolicyIssuanceInitiatedEvent evt = objectMapper.readValue(json, PolicyIssuanceInitiatedEvent.class);
+                MDC.put("issuanceId", evt.issuanceId());
+                log.info("[EDA subscriber] PlatformCompliance received PolicyIssuanceInitiatedEvent — issuanceId={}", evt.issuanceId());
+                log.info("ComplianceCheck triggered by PolicyIssuanceInitiated [EDA subscriber] — issuanceId={}", evt.issuanceId());
+                exchange.setProperty("issuanceId", evt.issuanceId());
+                exchange.setProperty("checkId", UUID.randomUUID().toString());
+                exchange.getIn().setBody(objectMapper.writeValueAsString(Map.of(
+                        "issuanceId", evt.issuanceId(),
+                        "accountId", evt.accountId(),
+                        "policyTypeCode", evt.policyTypeCode()
+                )));
             })
-            .to("http://{{rsk3x3.url}}/screen?bridgeEndpoint=true")
+            .to("http://{{rsk3x3.url}}/screen?bridgeEndpoint=true&httpMethod=POST")
             .process(exchange -> {
                 String responseBody = exchange.getIn().getBody(String.class);
                 JsonNode resp = objectMapper.readTree(responseBody);
-                String correlationId = exchange.getProperty("correlationId", String.class);
+                String issuanceId = exchange.getProperty("issuanceId", String.class);
                 String checkId = exchange.getProperty("checkId", String.class);
+                String status = resp.path("status").asText("Clear");
 
-                // Build a proper ComplianceClearedEvent from the RSK3X3 response
-                ComplianceClearedEvent event = new ComplianceClearedEvent(
-                        checkId,
-                        correlationId,
-                        "PolicyIssuance",
-                        "EconomicSanctions",
-                        resp.path("referenceId").asText("unknown"),
-                        OffsetDateTime.now()
-                );
-                exchange.getIn().setBody(objectMapper.writeValueAsString(event));
-                exchange.getIn().setHeader("issuanceId", correlationId);
-                log.info("RSK3X3 response received — publishing ComplianceCleared correlationId={}", correlationId);
+                if ("Clear".equalsIgnoreCase(status)) {
+                    ComplianceClearedEvent event = new ComplianceClearedEvent(
+                            checkId,
+                            issuanceId,
+                            "PolicyIssuance",
+                            "EconomicSanctions",
+                            resp.path("referenceId").asText("unknown"),
+                            OffsetDateTime.now()
+                    );
+                    exchange.getIn().setBody(objectMapper.writeValueAsString(event));
+                    exchange.setProperty("complianceTopic", "kafka:compliance.events.compliance-cleared");
+                    log.info("[EDA publish] PlatformCompliance publishing ComplianceClearedEvent — issuanceId={}", issuanceId);
+                } else {
+                    ComplianceBlockedEvent event = new ComplianceBlockedEvent(
+                            checkId,
+                            issuanceId,
+                            "PolicyIssuance",
+                            resp.path("reason").asText(status),
+                            OffsetDateTime.now()
+                    );
+                    exchange.getIn().setBody(objectMapper.writeValueAsString(event));
+                    exchange.setProperty("complianceTopic", "kafka:compliance.events.compliance-blocked");
+                    log.info("[EDA publish] PlatformCompliance publishing ComplianceBlockedEvent — issuanceId={}", issuanceId);
+                }
+                exchange.getIn().setHeader("issuanceId", issuanceId);
                 MDC.clear();
             })
-            .to("kafka:compliance.events.compliance-cleared");
+            .toD("${exchangeProperty.complianceTopic}");
     }
 }
 

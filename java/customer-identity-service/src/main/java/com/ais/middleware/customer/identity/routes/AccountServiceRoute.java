@@ -1,9 +1,9 @@
 package com.ais.middleware.customer.identity.routes;
 
+import com.ais.middleware.common.events.customer.AccountLookupRequestedEvent;
 import com.ais.middleware.common.events.customer.AccountServiceRecordRetrievedEvent;
 import com.ais.middleware.common.events.customer.CustomerUpdatedEvent;
-import com.ais.middleware.common.events.customer.GetOrCreateAccountServiceRecordCommand;
-import com.ais.middleware.common.events.customer.UpdateCustomerRecordCommand;
+import com.ais.middleware.common.events.integration.PolicyAdminSystemResponseReceivedEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
@@ -17,9 +17,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
- * Handles account service record requests.
- * Looks up or creates AccountServiceRequestNumber via ERM7X1 and publishes the result.
- * Also handles CRM40X1 customer updates after PAS confirms policy.
+ * Subscribes to AccountLookupRequestedEvent to retrieve an AccountServiceRequestNumber via ERM7X1.
+ * Also subscribes directly to PolicyAdminSystemResponseReceivedEvent to update CRM40X1 after PAS confirms policy.
  */
 @Component
 public class AccountServiceRoute extends RouteBuilder {
@@ -53,15 +52,16 @@ public class AccountServiceRoute extends RouteBuilder {
             .to("kafka:customer.dlq.account-service");
 
         // ── Get-or-create account service record ─────────────────────────────
-        from("kafka:customer.commands.get-or-create-account-record?groupId=customer-identity-service")
+        from("kafka:customer.events.account-lookup-requested?groupId=customer-identity-service")
             .routeId("account-lookup")
             .process(exchange -> {
                 String json = exchange.getIn().getBody(String.class);
-                GetOrCreateAccountServiceRecordCommand cmd = objectMapper.readValue(json, GetOrCreateAccountServiceRecordCommand.class);
-                MDC.put("issuanceId", cmd.correlationId());
-                log.info("GetOrCreateAccountServiceRecord received — correlationId={}", cmd.correlationId());
-                exchange.setProperty("correlationId", cmd.correlationId());
-                exchange.setProperty("externalAccountId", cmd.externalAccountId());
+                AccountLookupRequestedEvent evt = objectMapper.readValue(json, AccountLookupRequestedEvent.class);
+                MDC.put("issuanceId", evt.issuanceId());
+                log.info("[EDA subscriber] CustomerIdentityAndRelationshipManagement received AccountLookupRequestedEvent — issuanceId={}", evt.issuanceId());
+                log.info("AccountLookup triggered by AccountLookupRequested [EDA subscriber] — issuanceId={}", evt.issuanceId());
+                exchange.setProperty("correlationId", evt.issuanceId());
+                exchange.setProperty("externalAccountId", evt.accountId());
                 exchange.getIn().setBody(json);
             })
             .to("http://{{erm7x1.url}}/account-service?bridgeEndpoint=true&httpMethod=GET")
@@ -79,22 +79,31 @@ public class AccountServiceRoute extends RouteBuilder {
                 );
                 exchange.getIn().setBody(objectMapper.writeValueAsString(event));
                 exchange.getIn().setHeader("issuanceId", correlationId);
-                log.info("ERM7X1 response received — publishing AccountServiceRecordRetrieved correlationId={}", correlationId);
+                log.info("[EDA publish] CustomerIdentityAndRelationshipManagement publishing AccountServiceRecordRetrievedEvent — issuanceId={}", correlationId);
                 MDC.clear();
             })
             .to("kafka:customer.events.account-service-record-retrieved");
 
         // ── Update customer record after PAS confirmation ─────────────────────
-        from("kafka:customer.commands.update-customer-record?groupId=customer-identity-service")
+        from("kafka:integration.events.policy-admin-system-response-received?groupId=customer-identity-service-customer-update")
             .routeId("customer-update")
             .process(exchange -> {
                 String json = exchange.getIn().getBody(String.class);
-                UpdateCustomerRecordCommand cmd = objectMapper.readValue(json, UpdateCustomerRecordCommand.class);
-                MDC.put("issuanceId", cmd.correlationId());
-                log.info("UpdateCustomerRecord received — correlationId={}", cmd.correlationId());
-                exchange.setProperty("correlationId", cmd.correlationId());
-                exchange.setProperty("externalAccountId", cmd.externalAccountId());
-                exchange.getIn().setBody(json);
+                PolicyAdminSystemResponseReceivedEvent evt = objectMapper.readValue(json, PolicyAdminSystemResponseReceivedEvent.class);
+                String targetPolicyNumber = evt.policyNumbers() != null && !evt.policyNumbers().isEmpty()
+                        ? evt.policyNumbers().get(0) : "";
+                MDC.put("issuanceId", evt.issuanceId());
+                log.info("[EDA subscriber] CustomerIdentityAndRelationshipManagement received PolicyAdminSystemResponseReceivedEvent — issuanceId={}", evt.issuanceId());
+                log.info("CustomerUpdate triggered by PolicyAdminSystemResponseReceived [EDA fan-out subscriber] — issuanceId={}", evt.issuanceId());
+                exchange.setProperty("correlationId", evt.issuanceId());
+                exchange.setProperty("externalAccountId", targetPolicyNumber);
+                exchange.getIn().setBody(objectMapper.writeValueAsString(java.util.Map.of(
+                        "issuanceId", evt.issuanceId(),
+                        "policyNumber", targetPolicyNumber,
+                        "policyNumbers", evt.policyNumbers() != null ? evt.policyNumbers() : List.of(),
+                        "targetPas", evt.targetPas() != null ? evt.targetPas() : "",
+                        "accountServiceRequestNumber", evt.accountServiceRequestNumber() != null ? evt.accountServiceRequestNumber() : ""
+                )));
             })
             .to("http://{{crm40x1.url}}/customer/update?bridgeEndpoint=true")
             .process(exchange -> {
@@ -104,12 +113,12 @@ public class AccountServiceRoute extends RouteBuilder {
                 CustomerUpdatedEvent event = new CustomerUpdatedEvent(
                         correlationId,
                         externalAccountId,
-                        List.of("billingAddress", "policyNumbers"),
+                        List.of("policyNumbers"),
                         OffsetDateTime.now()
                 );
                 exchange.getIn().setBody(objectMapper.writeValueAsString(event));
                 exchange.getIn().setHeader("issuanceId", correlationId);
-                log.info("CRM40X1 updated — publishing CustomerUpdated correlationId={}", correlationId);
+                log.info("[EDA publish] CustomerIdentityAndRelationshipManagement publishing CustomerUpdatedEvent — issuanceId={}", correlationId);
                 MDC.clear();
             })
             .to("kafka:customer.events.customer-updated");

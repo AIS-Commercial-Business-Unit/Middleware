@@ -13,7 +13,7 @@ namespace Middleware.Tests;
 public sealed class IssuanceSagaTests
 {
     [Test]
-    public async Task WhenIssuePolicyReceived_SagaAdvancesToAwaitingCompliance()
+    public async Task WhenIssuePolicyReceived_SagaPublishesPolicyIssuanceInitiated()
     {
         var saga = new IssuanceSaga(new InMemoryIssuanceSagaRecordRepository());
         var context = new TestableMessageHandlerContext();
@@ -22,12 +22,12 @@ public sealed class IssuanceSagaTests
         await saga.Handle(command, context);
 
         Assert.That(saga.Data.Status, Is.EqualTo("AwaitingCompliance"));
-        Assert.That(context.SentMessages.Length, Is.EqualTo(1));
-        Assert.That(context.SentMessages[0].Message<RequestComplianceCheckCommand>(), Is.Not.Null);
+        Assert.That(context.PublishedMessages.Any(message => message.Message<PolicyIssuanceInitiatedEvent>() is not null), Is.True);
+        Assert.That(context.SentMessages.Any(message => message.Message<RequestComplianceCheckCommand>() is not null), Is.False);
     }
 
     [Test]
-    public async Task WhenComplianceCleared_SagaAdvancesToAwaitingAccountRecord()
+    public async Task WhenComplianceCleared_SagaPublishesAccountLookupRequested()
     {
         var saga = new IssuanceSaga(new InMemoryIssuanceSagaRecordRepository());
         var context = new TestableMessageHandlerContext();
@@ -43,7 +43,63 @@ public sealed class IssuanceSagaTests
         }, context);
 
         Assert.That(saga.Data.Status, Is.EqualTo("AwaitingAccountRecord"));
-        Assert.That(context.SentMessages.Any(message => message.Message<GetOrCreateAccountServiceRecordCommand>() is not null), Is.True);
+        Assert.That(context.PublishedMessages.Any(message => message.Message<AccountLookupRequestedEvent>() is not null), Is.True);
+        Assert.That(context.SentMessages.Any(message => message.Message<GetOrCreateAccountServiceRecordCommand>() is not null), Is.False);
+    }
+
+    [Test]
+    public async Task WhenAccountRecordRetrieved_SagaPublishesIssuePolicyRequestedWithoutPasCommand()
+    {
+        var saga = new IssuanceSaga(new InMemoryIssuanceSagaRecordRepository());
+        var context = new TestableMessageHandlerContext();
+        var command = CreateCommand();
+
+        await saga.Handle(command, context);
+        await saga.Handle(new AccountServiceRecordRetrievedEvent
+        {
+            IssuanceId = command.IssuanceId,
+            AccountId = command.AccountId,
+            AccountServiceRequestNumber = "ASR-123",
+            RetrievedAt = DateTimeOffset.UtcNow
+        }, context);
+
+        Assert.That(saga.Data.Status, Is.EqualTo("AwaitingPAS"));
+        var issuePolicyRequested = context.PublishedMessages
+            .Select(message => message.Message<IssuePolicyRequestedEvent>())
+            .LastOrDefault(message => message is not null);
+        Assert.That(issuePolicyRequested, Is.Not.Null);
+        Assert.That(issuePolicyRequested!.AccountServiceRequestNumber, Is.EqualTo("ASR-123"));
+        Assert.That(context.SentMessages.Any(message => message.Message<IssueToAdminSystemCommand>() is not null), Is.False);
+    }
+
+    [Test]
+    public async Task WhenPasResponseReceived_SagaWaitsForFanOutSubscribersWithoutCommands()
+    {
+        var saga = new IssuanceSaga(new InMemoryIssuanceSagaRecordRepository());
+        var context = new TestableMessageHandlerContext();
+        var command = CreateCommand();
+
+        await saga.Handle(command, context);
+        await saga.Handle(new AccountServiceRecordRetrievedEvent
+        {
+            IssuanceId = command.IssuanceId,
+            AccountId = command.AccountId,
+            AccountServiceRequestNumber = "ASR-123",
+            RetrievedAt = DateTimeOffset.UtcNow
+        }, context);
+        await saga.Handle(new PolicyAdminSystemResponseReceivedEvent
+        {
+            IssuanceId = command.IssuanceId,
+            AccountId = command.AccountId,
+            TargetPas = "DuckCreek-Commercial",
+            AccountServiceRequestNumber = "ASR-123",
+            PolicyNumbers = ["POL-1001"],
+            ReceivedAt = DateTimeOffset.UtcNow
+        }, context);
+
+        Assert.That(saga.Data.Status, Is.EqualTo("PASConfirmed"));
+        Assert.That(context.SentMessages.Any(message => message.Message<AssociateBillingAccountCommand>() is not null), Is.False);
+        Assert.That(context.SentMessages.Any(message => message.Message<UpdateCustomerRecordCommand>() is not null), Is.False);
     }
 
     [Test]
@@ -94,6 +150,7 @@ public sealed class IssuanceSagaTests
             IssuanceId = command.IssuanceId,
             AccountId = command.AccountId,
             TargetPas = "DuckCreek-Commercial",
+            AccountServiceRequestNumber = "ASR-123",
             PolicyNumbers = ["POL-1001"],
             ReceivedAt = DateTimeOffset.UtcNow
         }, context);

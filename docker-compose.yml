@@ -89,6 +89,8 @@ services:
       - |
         echo "Creating Kafka topics..."
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic policy.commands.issue-policy --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic policy.events.policy-issuance-initiated --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic customer.events.account-lookup-requested --partitions 3 --replication-factor 1
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic compliance.commands.request-compliance-check --partitions 3 --replication-factor 1
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic compliance.events.compliance-cleared --partitions 3 --replication-factor 1
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic compliance.events.compliance-blocked --partitions 3 --replication-factor 1
