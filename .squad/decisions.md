@@ -136,6 +136,30 @@
 - Follow Udi Dahan principles as guiding authority for EDA design decisions on this project
 - Reference: https://docs.particular.net/nservicebus/messaging/messages-events-commands
 
+### 24. Backend EDA flow logging in all Java services (2026-05-27)
+- Extend Java `EDA_FLOW` observability beyond `policy-issuance-service` to all satellite services
+- Add `EDAFlowProcessor` to each service: `platform-compliance-service`, `customer-identity-service`, `platform-integration-service`, `billing-finance-service`, `platform-notification-service`
+- Wire `interceptFrom("kafka:*")` and `interceptSendToEndpoint("kafka:*")` at route builder level
+- Keep observability at Camel route boundary, out of domain processors
+- **Verification:** All five services instrumented, containers rebuilt and deployed, verified complete EDA_FLOW entries for policy issuance end-to-end
+
+### 25. DotNet UC1 flow parity (2026-05-27)
+- Use `.docs/req/use-cases.html` as source of truth for UC1 participant/message ordering
+- Treat `.NET saga as event-driven, render canonical flow through `EDA_FLOW` labels
+- Map UC1 edges explicitly in `EDAFlowBehavior`: IssuePolicyCommand, PolicyIssuanceInitiatedEvent, AccountLookupRequestedEvent, IssuePolicyRequestedEvent, PolicyIssuedEvent
+- Preserve canonical publish/subscribe semantics + add SQL transport reliability fallbacks
+- Seed `dbo.SubscriptionRouting` deterministically, start Integration after main .NET subscribers are healthy
+- Publish `PolicyAdminSystemResponseReceivedEvent` then direct-send to policy-issuance, billing, customer
+- **Verification:** Build passed, all 6 tests passed, live issuance 232eb4f4 reached Completed with canonical flow
+
+### 26. Frontend Hover Tooltips for Ops Sequence Diagram (2026-05-27)
+- Add hover tooltips to sequence diagram arrows with event metadata
+- Extend `FlowEvent` with typed `details` object: `topic`, `direction`, `stack`, `timestamp`, `description`
+- Render HTML overlay anchored to SVG mouse coordinates, not inside SVG
+- Derive descriptions from frontend-owned `EVENT_DESCRIPTIONS` map, not Loki payload bodies
+- Preserve static-tooltip fallback for `UC1_STEPS` before live logs arrive
+- **Verification:** TypeScript clean, build passed, platform-ui restarted, tooltips functional
+
 ## Governance
 
 - All meaningful changes require team consensus

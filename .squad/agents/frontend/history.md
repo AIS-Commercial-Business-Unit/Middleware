@@ -11,6 +11,12 @@
 
 <!-- Append new learnings below. -->
 
+### 2026-05-27 — Sequence diagram hover tooltips
+
+- **Sequence-diagram hover UX works best when the SVG stays purely for shapes and the tooltip is rendered as an absolutely positioned HTML overlay inside a relatively positioned wrapper.** This keeps the arrow hit area simple, allows Tailwind styling, and avoids SVG text layout constraints for multi-line event details.
+
+- **Live `FlowEvent` records should preserve a richer `details` object from the Loki proxy instead of forcing the UI to re-derive context client-side.** That keeps tooltip copy centralized, typed, and consistent between static fallback steps and real cross-stack `EDA_FLOW` events.
+
 ### 2026-05-27 — Dynamic sequence diagram from Loki EDA_FLOW
 
 - **The ops sequence diagram can switch to true live mode by polling a small Next.js proxy route and treating `events.length > 0` as the feature toggle.** When Loki has no `EDA_FLOW` events yet, keep the static topology as the fallback. This allows operators to see the actual message flow topology in real time once backend instrumentation is rolled out.
@@ -36,4 +42,10 @@
 - Inline TypeScript types per page (not shared type files) keeps each page self-contained and avoids import overhead — matches the existing codebase style.
 - When proxying to upstream services, use `next: { revalidate: 0 }` on GET fetches to prevent Next.js from caching live status data.
 - Progress bar color should reflect the batch outcome: blue=Processing, green=Completed, orange=PartialFailure, red=Failed.
+### 2026-05-27 — Hover tooltips for sequence diagram arrows (frontend-2 complete)
 
+- **Sequence diagram tooltip UX renders as HTML overlay, not SVG text.** The absolutely positioned HTML wrapper with Tailwind styling keeps hit areas clean, allows multi-line event metadata, and separates concerns between SVG rendering (shapes/arrows) and interaction (tooltips/hover). The tooltip displays event description, topic, direction, stack, and timestamp pulled from the flow endpoint's details object.
+
+- **FlowEventDetails type centralized in Loki proxy response.** Rather than deriving descriptions on the frontend, the /api/policies/[issuanceId]/flow route enriches each FlowEvent with a typed details object including human-readable description, topic, direction, stack, and ISO timestamp. This keeps copy centralized and consistent with the backend observability contract.
+
+- **Verification:** TypeScript clean, build passed, platform-ui container restarted. Live tooltips show EDA_FLOW event metadata on ops page hover. Static UC1_STEPS fallback displays when no live events available yet.
