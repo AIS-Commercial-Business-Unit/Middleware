@@ -43,6 +43,8 @@ Platform.Integration publishes `PolicyAdminSystemResponseReceived` ONCE. THREE s
 3. CustomerIdentityAndRelationshipManagement — links customer to policy → publishes `CustomerUpdatedEvent`
 PolicyLifecycle waits for both completion events (join pattern) before publishing `PolicyIssuedEvent`.
 
+**2026-05-27 Extension**: EDA_FLOW observability now instruments both Java Camel and .NET NServiceBus stacks with structured logs (EDA_*MDC keys) to enable live sequence diagram visualization in the ops page. This creates an observable feedback loop where the diagram reflects actual message flow topology, reinforcing Udi Dahan's publish/subscribe semantics across both backends.
+
 ### 2026-05-26 — EIP Pattern Checklist Closes Technology Debate
 
 **Positioning Guidance:**

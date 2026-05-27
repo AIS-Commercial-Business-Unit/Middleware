@@ -11,6 +11,16 @@
 
 <!-- Append new learnings below. -->
 
+### 2026-05-27 — Policy issuance EDA flow logging
+
+- **Camel Kafka flow logging should sit at the route boundary, not in domain processors.** `interceptFrom("kafka:*")` + `interceptSendToEndpoint("kafka:*")` lets policy-issuance-service emit one structured `EDA_FLOW` record per consumed/published Kafka message without leaking observability code into saga business logic.
+
+- **Kafka endpoint URIs may arrive as `kafka://topic` during send interception.** Topic extraction for outbound Camel intercepts must normalize both `kafka:topic` and `kafka://topic`; otherwise MDC ends up with malformed topics like `//policy.events...` and participant/message-type lookups fail.
+
+- **Current logback JSON config was allow-listing MDC keys.** Because `logback-spring.xml` explicitly listed MDC fields, the new `EDA_*` keys had to be added there for Loki queries to see them.
+
+- **Cross-stack observability contract enables live sequence diagrams in frontend.** Once Java EDAFlowProcessor and .NET EDAFlowBehavior both emit `EDA_*` structured logs to Loki, the frontend Loki proxy can query and parse them into a true live topology diagram that validates actual message flow against the publish/subscribe architecture. This creates a feedback loop where operational visibility reinforces Udi Dahan's EDA rules.
+
 ### 2026-05-27 — Java EDA events-vs-commands fix
 
 - **Sagas publish facts; subscribers act.** In UC1 issuance, the Java saga was improperly commanding Compliance, Customer Identity, Billing, and Customer update steps. Fixed by publishing `PolicyIssuanceInitiatedEvent` and `AccountLookupRequestedEvent`, and by letting Billing and Customer Identity subscribe directly to `PolicyAdminSystemResponseReceivedEvent` fan-out.

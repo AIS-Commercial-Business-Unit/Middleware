@@ -81,6 +81,61 @@
 - Clarification: Both Camel and NServiceBus stacks use MongoDB for saga/domain persistence
 - **Decision drivers:** Unified persistence model across tech stacks, SQL Server relegated to transport
 
+### 16. EDA Events vs Commands Discipline (2026-05-27)
+- A service NEVER commands another service to do what it should subscribe to. Use Publish → Subscribe, not Send → Handle.
+- Commands are for entry points only: user-facing API → first domain service. Never between domain services.
+- Events communicate state changes. Domain services subscribe to events and act autonomously.
+- **Reference:** Udi Dahan principle; https://docs.particular.net/nservicebus/messaging/messages-events-commands
+- **Applied to:** Java UC1 Policy Issuance flow and .NET UC1 Policy Issuance flow (reworked both stacks)
+
+### 17. Java UC1 EDA events-vs-commands fix (2026-05-27)
+- `IssuanceSagaRoute` now publishes `PolicyIssuanceInitiatedEvent` and `AccountLookupRequestedEvent` instead of commanding downstream services
+- BillingAndFinance and CustomerIdentity now subscribe directly to `integration.events.policy-admin-system-response-received` (fan-out event carries `accountServiceRequestNumber`)
+- Restores Udi Dahan / NServiceBus EDA semantics across Java stack
+
+### 18. DotNet UC1 EDA command-to-event correction (2026-05-27)
+- `IssuanceSaga` now publishes `PolicyIssuanceInitiatedEvent` instead of sending `RequestComplianceCheckCommand`
+- `IssuanceSaga` now publishes `AccountLookupRequestedEvent` instead of sending `GetOrCreateAccountServiceRecordCommand`
+- `IssuePolicyRequestedEvent` remains PAS trigger and carries `AccountServiceRequestNumber`
+- `PasGatewayHandler` subscribes to `IssuePolicyRequestedEvent`, republishes `PolicyAdminSystemResponseReceivedEvent` with `AccountServiceRequestNumber`
+- Saga records progress and waits for completion events instead of commanding external side effects
+
+### 19. Backend EDA flow logging for policy-issuance-service (2026-05-27)
+- Add `EDAFlowProcessor` in `com.ais.middleware.policy.issuance.observability` (Java)
+- Wire into `IssuanceSagaRoute` with `interceptFrom("kafka:*")` for consumes and `interceptSendToEndpoint("kafka:*")` for publishes
+- Enrich MDC with: `EDA_Event`, `EDA_IssuanceId`, `EDA_MessageType`, `EDA_From`, `EDA_To`, `EDA_Topic`, `EDA_Direction`, `EDA_Stack`
+- Guarantees consistent logging for every route-level Kafka hop in the orchestrator
+- Keeps observability concerns out of saga/domain processors
+
+### 20. DotNet EDA_FLOW NServiceBus pipeline logging (2026-05-27)
+- Emit structured `EDA_FLOW` Serilog entries from `dotnet-policy-issuance` NServiceBus pipeline behaviors
+- Added `EDAFlowIncomingBehavior` for consumed messages, `EDAFlowOutgoingBehavior` for published/sent messages
+- Same `EDA_*` property contract across stacks (event, issuanceId, messageType, from, to, direction, stack, topic)
+- Registered in `Program.cs` before `NServiceBus.Endpoint.Start()` using Serilog-backed `LoggerFactory`
+- Endpoint-to-participant mapping provides stable labels for Loki queries (e.g., `PolicyIssuance`, `Compliance`, `CustomerIdentity`)
+
+### 21. Frontend runtime backend switcher + UC1 diagram correction (2026-05-27)
+- Platform UI chooses active Java/.NET backend at request time via `active-backend` cookie
+- Added `platform-ui/src/app/api/backend/route.ts` to read/write backend cookie
+- Updated proxy routes to resolve backend targets from request cookie, not build-time env only
+- Added `BackendSwitcher` client island in top nav for runtime stack flipping
+- Corrected ops sequence diagram to mark all steps on `Completed`, replaced command arrows with event-only UC1 topology
+- PAS fan-out and parallel completion events now reflected in diagram
+
+### 22. Dynamic sequence diagram from Loki EDA_FLOW (2026-05-27)
+- UC1 ops page prefers live `EDA_FLOW` events from Loki for sequence diagram
+- Falls back to curated static topology when no flow events available yet
+- Added `platform-ui/src/types/eda-flow.ts` for typed `FlowEvent` contract
+- Added `platform-ui/src/app/api/policies/[issuanceId]/flow/route.ts` Loki proxy route
+- Loki proxy parses structured `EDA_FLOW` JSON, normalizes Java/.NET payloads, deduplicates edges, returns sorted events
+- Updated `platform-ui/src/app/ops/[issuanceId]/page.tsx` to poll flow endpoint with live/static badge
+- Reuses existing participant columns and SVG renderer for consistency
+
+### 23. Udi Dahan as EDA authority (2026-05-27)
+- Whenever architectural questions about event-driven architecture arise, research Udi Dahan's opinion
+- Follow Udi Dahan principles as guiding authority for EDA design decisions on this project
+- Reference: https://docs.particular.net/nservicebus/messaging/messages-events-commands
+
 ## Governance
 
 - All meaningful changes require team consensus
