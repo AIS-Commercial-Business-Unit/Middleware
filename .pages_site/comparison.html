@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stack Comparison | Middleware POC</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="brand">Middleware Modernization POC</a>
+  <a href="index.html">Home</a>
+  <a href="comparison.html" class="active">Stack Comparison</a>
+  <a href="azure-services.html">Azure Services</a>
+  <a href="patterns-scope.html">Pattern Scope</a>
+  <a href="patterns-detail.html">Pattern Detail</a>
+  <a href="decisions.html">5 Questions</a>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>Stack Comparison</h1>
+    <p>Two integration approaches evaluated against the same criteria. Criteria are weighted by relevance to this migration.</p>
+  </div>
+
+  <!-- Stack summaries -->
+  <div class="two-col">
+    <div class="card stack-java">
+      <div class="stack-label-java">Java / Apache Camel Solution</div>
+      <p style="margin-top:10px">
+        A Spring Boot application using Apache Camel with YAML DSL for route definitions and Groovy for bean and validation logic.
+        Routes, REST endpoints, and EIP patterns can be defined in YAML configuration files.
+        Confluent Kafka serves as the event streaming backbone. The stack runs in containers on Azure Kubernetes Service.
+      </p>
+      <p>
+        Apache Camel provides native connectors for IBM MQ, DB2, and MSMQ through its JMS and JDBC components,
+        using IBM's own client libraries. Integration with legacy systems is handled at the application layer.
+      </p>
+      <p>
+        The stack does not include a built-in mechanism for durable long-running workflow state.
+        The Saga EIP is available in Camel but its default implementation (in-memory) is
+        explicitly not recommended for production by the Apache Camel project.
+        A production-grade implementation requires an external LRA (Long Running Action) coordinator.
+      </p>
+    </div>
+    <div class="card stack-ais">
+      <div class="stack-label-ais">AIS+ (.NET / NServiceBus)</div>
+      <p style="margin-top:10px">
+        A .NET 8 application using NServiceBus on Azure Service Bus as the messaging backbone.
+        Domain services run as containers on Azure Kubernetes Service.
+        NServiceBus provides Saga support with SQL Server-backed durable state persistence — state survives JVM/process crashes by design.
+      </p>
+      <p>
+        IBM MQ is supported as a first-class NServiceBus transport (from Particular Software).
+        MSMQ is also a supported transport. DB2 connectivity uses IBM's <code>Net.IBM.Data.Db2</code> NuGet package,
+        which targets .NET 6 through .NET 10 and runs on Linux containers.
+        Azure Logic Apps provides an additional optional path for IBM MQ and DB2 where a connector is preferred over a custom adapter.
+      </p>
+      <p>
+        NServiceBus adds a licensing cost (~$1K/year) and requires approximately 2 FTE-years of adoption investment.
+        It has a narrower developer community than Apache Camel but deeper enterprise messaging capabilities.
+      </p>
+    </div>
+  </div>
+
+  <!-- Score summary -->
+  <h2>Weighted Score Summary</h2>
+  <p class="muted">Weights: Long-running state = 3×. Monitoring/observability = 3×. Legacy adapter connectivity = 2×. Organizational readiness = 2×. Developer familiarity = 2×. All other criteria = 1×. Scores 0–4 per criterion.</p>
+  <div class="score-summary">
+    <div class="score-box score-java-box">
+      <div class="big" id="java-total">—</div>
+      <div class="lbl">Java / Apache Camel</div>
+    </div>
+    <div class="score-box score-ais-box">
+      <div class="big" id="ais-total">—</div>
+      <div class="lbl">AIS+ (.NET / NServiceBus)</div>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    The single largest weighted gap is durable long-running workflow state. Every other criterion is within one point.
+    If the Java solution has implemented production-grade Saga state persistence (LRA or equivalent),
+    the gap narrows. <a href="decisions.html#q2">See Question 2.</a>
+  </div>
+
+  <!-- Criteria groups -->
+  <h2>Criteria by Group</h2>
+  <p class="muted">Click any group to expand. Weight multiplier shown in brackets. Scores are 0 = not supported, 1 = limited, 2 = partial, 3 = good, 4 = full support.</p>
+
+  <div id="criteria-groups"></div>
+
+</div>
+
+<script>
+// ── Data ─────────────────────────────────────────────────────────────────
+// [criterion, weight, java-score, ais-score, java-note, ais-note]
+const groups = [
+  {
+    name: "Messaging Patterns",
+    rows: [
+      ["Long-running processes / Saga state", 3, 1, 4,
+        "In-memory Saga only. Not recommended for production (per Apache Camel docs). Production use requires external LRA coordinator.",
+        "Built-in SQL-backed durable Saga. Survives process failure. Core feature, not an add-on."],
+      ["Publish-Subscribe", 1, 4, 4, "Native via Kafka topics.", "Native via Service Bus topics."],
+      ["Competing Consumers", 1, 4, 4, "Native via Kafka consumer groups.", "Native via Service Bus queues."],
+      ["Request-Reply (correlated)", 1, 4, 4, "Supported.", "Supported with built-in correlation."],
+      ["Async fire-and-forget", 1, 4, 4, "Supported.", "Supported."],
+      ["Content-Based Routing", 1, 4, 3, "Native Camel EIP. One-liner in YAML.", "Implemented in code. Slightly more verbose but testable."],
+      ["Message Sequencing / Ordering", 1, 3, 3, "Kafka partition ordering.", "Service Bus sessions."],
+      ["Guaranteed Delivery", 1, 4, 4, "Kafka durability.", "Service Bus with NServiceBus outbox pattern."],
+      ["Idempotency / Duplicate Detection", 1, 3, 4, "Kafka at-least-once; idempotency requires custom implementation.", "Built-in NServiceBus outbox pattern."],
+      ["Message Aggregation", 1, 4, 3, "Native Camel Aggregator EIP.", "Requires implementation; documented approach exists."],
+      ["Scatter-Gather (parallel fan-out)", 1, 4, 4, "Native Camel EIP.", "Saga fan-out with Task.WhenAll equivalent."],
+      ["Poison message handling", 1, 3, 4, "Kafka dead-letter topic; requires configuration.", "Built-in NServiceBus error queue management."],
+    ]
+  },
+  {
+    name: "Monitoring & Observability",
+    rows: [
+      ["Application Insights integration", 3, 3, 4, "Available via OpenTelemetry export. Requires configuration.", "Built-in NServiceBus + App Insights integration."],
+      ["SLA breach notifications", 3, 2, 4, "Possible via custom metrics; not built-in.", "Built-in NServiceBus critical time monitoring."],
+      ["Error queue management and alerting", 3, 2, 4, "Kafka dead-letter requires custom tooling.", "NServiceBus ServiceControl provides error queue management UI."],
+      ["Message conversation tracing", 3, 2, 4, "Possible with custom correlation headers.", "Built-in NServiceBus conversation/causation ID propagation."],
+      ["Endpoint health checks", 3, 2, 4, "Spring Boot Actuator provides health endpoints.", "Built-in NServiceBus heartbeat monitoring."],
+      ["Message audit support", 3, 1, 4, "Not built-in; requires custom implementation.", "Built-in NServiceBus audit queue."],
+      ["Processing time tracking", 3, 2, 4, "Possible via Micrometer metrics.", "Built-in NServiceBus processing time metrics."],
+    ]
+  },
+  {
+    name: "Legacy Adapter Connectivity",
+    rows: [
+      ["IBM MQ", 2, 4, 4,
+        "Native via camel-jms component with IBM JMS client. Production-ready. Included in base Camel component library.",
+        "NServiceBus IBM MQ transport (Particular Software, officially supported). Also available via Logic Apps Standard built-in connector."],
+      ["IBM DB2", 2, 4, 4,
+        "Native via camel-jdbc/camel-sql with IBM JDBC driver. Standard Java database connectivity.",
+        "Net.IBM.Data.Db2 NuGet (IBM-published, updated Dec 2024, supports .NET 6–10, runs on Linux containers). Requires Db2Connect license (~$1K–$36K depending on edition)."],
+      ["MSMQ", 2, 3, 4,
+        "camel-msmq component available. Windows-only; containerization requires Windows containers.",
+        "NServiceBus MSMQ transport (first-class, well-documented). Windows-only; same containerization constraint applies to both stacks."],
+      ["SFTP / File", 2, 4, 4, "Native camel-ftp/camel-file components.", "Azure Blob Storage trigger + Logic Apps SFTP connector."],
+      ["SOAP / WCF endpoints", 2, 4, 3, "camel-cxf component for SOAP. Mature.", "Custom adapter or Logic Apps Standard connector. More effort than Camel."],
+    ]
+  },
+  {
+    name: "Developer Experience",
+    rows: [
+      ["Learning curve", 2, 3, 3, "Java devs: short. .NET devs: moderate. YAML DSL lowers barrier for simple routes.", ".NET devs: short. Java devs: moderate. NServiceBus conventions are consistent."],
+      ["Testability (unit)", 2, 3, 4, "Camel test utilities exist. Groovy inline scripts are harder to unit test.", "NServiceBus TestableMessageHandlerContext makes unit testing straightforward."],
+      ["Testability (integration)", 2, 3, 3, "Camel test framework. Requires Kafka/MQ running.", "Requires Service Bus or local transport."],
+      ["Cross-process tracing", 2, 2, 4, "OpenTelemetry available but requires configuration.", "Built-in NServiceBus correlation propagation."],
+      ["Multi-language support", 1, 4, 2, "Java/Kotlin/Groovy native. Other languages via REST bridge.", ".NET/C# primary. Other languages can participate via Service Bus SDK directly."],
+      ["Debuggability", 2, 3, 4, "Standard Java tooling. In-flight message inspection limited.", "ServicePulse UI for message inspection and retry."],
+    ]
+  },
+  {
+    name: "Organizational Readiness",
+    rows: [
+      ["Active development / vendor support", 2, 4, 4, "Apache Foundation + Red Hat commercial support. Actively developed.", "Particular Software. LTS releases. Commercial support available."],
+      ["Product maturity", 2, 4, 4, "Apache Camel: 18 years. Production use at UPS (tens of billions of messages/day).", "NServiceBus: 15+ years. Widely used in enterprise .NET environments."],
+      ["Team familiarity (current org)", 2, 3, 2, "Java teams exist. Spring Boot is widely known.", ".NET integration teams exist. NServiceBus is less common than Spring Boot globally."],
+      ["Operational tooling", 2, 2, 4, "Kafka/Confluent tooling. No native integration message management UI.", "ServicePulse + ServiceControl provide operational message management UI."],
+      ["Licensing cost", 1, 4, 3, "Apache License — no cost beyond infrastructure.", "NServiceBus: ~$1K/year. Db2Connect license if DB2 used (~$1K–$36K)."],
+    ]
+  },
+  {
+    name: "Testability",
+    rows: [
+      ["Performance testing", 1, 4, 4, "Standard load testing tools apply.", "Azure Load Testing + Application Insights."],
+      ["Unit testability", 2, 3, 4, "Camel test utilities. Groovy scripts require extra care.", "NServiceBus TestableMessageHandlerContext."],
+      ["In-process traceability", 2, 2, 4, "Limited without custom instrumentation.", "Built-in NServiceBus."],
+      ["Cross-process traceability", 2, 2, 4, "OpenTelemetry with configuration.", "Built-in via correlation IDs."],
+    ]
+  },
+];
+
+// ── Scoring ───────────────────────────────────────────────────────────────
+function buildGroups() {
+  const container = document.getElementById('criteria-groups');
+  let javaTot = 0, aisTot = 0;
+
+  groups.forEach(g => {
+    let jGrp = 0, aGrp = 0, maxGrp = 0;
+    const rows = g.rows.map(([name, w, j, a, jNote, aNote]) => {
+      jGrp += j * w; aGrp += a * w; maxGrp += 4 * w;
+      javaTot += j * w; aisTot += a * w;
+      const bg = (i) => i % 2 === 0 ? '' : 'background:#F5F8FF';
+      return `
+        <tr>
+          <td class="label">${name}</td>
+          <td style="text-align:center;font-size:12px;color:#888">${w}×</td>
+          <td>
+            <div class="score-bar">
+              <div class="bar bar-java" style="width:${j/4*80}px"></div>
+              <span class="score-label" style="color:var(--orange)">${j}/4</span>
+            </div>
+            <div class="muted" style="margin-top:3px;font-size:12px">${jNote}</div>
+          </td>
+          <td>
+            <div class="score-bar">
+              <div class="bar bar-ais" style="width:${a/4*80}px"></div>
+              <span class="score-label" style="color:var(--blue)">${a}/4</span>
+            </div>
+            <div class="muted" style="margin-top:3px;font-size:12px">${aNote}</div>
+          </td>
+        </tr>`;
+    }).join('');
+
+    const jPct = Math.round(jGrp/maxGrp*100);
+    const aPct = Math.round(aGrp/maxGrp*100);
+
+    container.innerHTML += `
+      <details>
+        <summary>
+          ${g.name}
+          <span style="margin-left:auto;display:flex;gap:12px;font-size:12px;font-weight:normal">
+            <span style="color:var(--orange)">Java: ${jGrp}/${maxGrp}</span>
+            <span style="color:var(--blue)">AIS+: ${aGrp}/${maxGrp}</span>
+          </span>
+        </summary>
+        <div class="details-body">
+          <table>
+            <thead><tr>
+              <th style="width:30%">Criterion</th>
+              <th style="width:5%">Wt</th>
+              <th style="width:32%">Java / Apache Camel</th>
+              <th style="width:32%">AIS+ (.NET / NServiceBus)</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </details>`;
+  });
+
+  document.getElementById('java-total').textContent = javaTot;
+  document.getElementById('ais-total').textContent = aisTot;
+}
+
+buildGroups();
+</script>
+
+</body>
+</html>

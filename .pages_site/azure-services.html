@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Azure Services | Middleware POC</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="brand">Middleware Modernization POC</a>
+  <a href="index.html">Home</a>
+  <a href="comparison.html">Stack Comparison</a>
+  <a href="azure-services.html" class="active">Azure Services</a>
+  <a href="patterns-scope.html">Pattern Scope</a>
+  <a href="patterns-detail.html">Pattern Detail</a>
+  <a href="decisions.html">5 Questions</a>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>What Runs in Azure</h1>
+    <p>Both stacks are Azure workloads. This page documents which services each uses.</p>
+  </div>
+
+  <div class="card">
+    <p>
+      Both integration approaches run on Azure. Azure Kubernetes Service is the primary cost driver for either approach.
+      The differences are in which managed services are used alongside AKS — not whether the workload is in Azure.
+      All integration processing, message brokering, state management, security, and observability run in Azure for both stacks.
+    </p>
+  </div>
+
+  <h2>Service Comparison</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%">Azure Service</th>
+        <th style="width:8%">Java / Camel</th>
+        <th style="width:8%">AIS+</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Compute -->
+      <tr><td colspan="4" style="background:var(--navy);color:#fff;font-weight:600;padding:8px 12px;font-size:13px">Compute</td></tr>
+      <tr>
+        <td class="label">Azure Kubernetes Service (AKS)</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Primary runtime for all service containers. <strong>Dominant cost driver for both stacks.</strong> Node pool sizing drives overall Azure spend.</td>
+      </tr>
+      <tr>
+        <td class="label">Azure Container Registry</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Container image storage for CI/CD pipelines.</td>
+      </tr>
+      <tr>
+        <td class="label">Azure Logic Apps Standard</td>
+        <td class="dash">—</td><td class="check">Optional</td>
+        <td>AIS+ stack can use Logic Apps built-in connectors for IBM MQ, DB2, and SFTP where a managed connector is preferred over a custom adapter. Not required — NServiceBus handles these natively.</td>
+      </tr>
+
+      <!-- Messaging -->
+      <tr><td colspan="4" style="background:var(--navy);color:#fff;font-weight:600;padding:8px 12px;font-size:13px">Messaging &amp; Events</td></tr>
+      <tr>
+        <td class="label">Azure Service Bus (Premium)</td>
+        <td class="dash">—</td><td class="check">✓</td>
+        <td>Primary message broker. Sagas, commands, events, dead-letter queues. Premium tier required for virtual network integration.</td>
+      </tr>
+      <tr>
+        <td class="label">Azure Event Hubs / Confluent Kafka</td>
+        <td class="check">✓</td><td class="dash">—</td>
+        <td>Java/Camel stack uses Confluent Kafka (available on Azure Marketplace) as the event streaming backbone. Azure Event Hubs provides a Kafka-compatible surface as an alternative.</td>
+      </tr>
+      <tr>
+        <td class="label">Azure Event Grid</td>
+        <td class="check">Optional</td><td class="check">Optional</td>
+        <td>Used for Blob Storage trigger events (file batch processing) in both stacks.</td>
+      </tr>
+
+      <!-- Storage & State -->
+      <tr><td colspan="4" style="background:var(--navy);color:#fff;font-weight:600;padding:8px 12px;font-size:13px">Storage &amp; State</td></tr>
+      <tr>
+        <td class="label">Azure SQL Database</td>
+        <td class="dash">—</td><td class="check">✓</td>
+        <td>Saga state persistence in AIS+. NServiceBus writes durable workflow state to SQL. Serverless tier available for dev/test.</td>
+      </tr>
+      <tr>
+        <td class="label">Azure Cosmos DB (MongoDB API)</td>
+        <td class="check">Optional</td><td class="dash">—</td>
+        <td>Java/Camel stack may use MongoDB for integration state or document storage. Cosmos DB for MongoDB API provides a managed service option.</td>
+      </tr>
+      <tr>
+        <td class="label">Azure Blob Storage</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>File drop zones for batch processing. File trigger source for Platform.FileProcessing pattern.</td>
+      </tr>
+
+      <!-- API & Network -->
+      <tr><td colspan="4" style="background:var(--navy);color:#fff;font-weight:600;padding:8px 12px;font-size:13px">API &amp; Network</td></tr>
+      <tr>
+        <td class="label">Azure API Management (APIM)</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>API gateway for all inbound HTTP/REST requests. Policy enforcement, rate limiting, authentication.</td>
+      </tr>
+      <tr>
+        <td class="label">Azure Virtual Network</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Private networking for AKS, Service Bus Premium, SQL, and Key Vault. Required for enterprise security posture.</td>
+      </tr>
+      <tr>
+        <td class="label">Private Endpoints</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Used across all PaaS services to prevent public internet exposure.</td>
+      </tr>
+
+      <!-- Security -->
+      <tr><td colspan="4" style="background:var(--navy);color:#fff;font-weight:600;padding:8px 12px;font-size:13px">Security &amp; Identity</td></tr>
+      <tr>
+        <td class="label">Azure Key Vault</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Secrets, connection strings, certificates. Replaces BizTalk SSO as runtime configuration store.</td>
+      </tr>
+      <tr>
+        <td class="label">Azure App Configuration</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Feature flags, runtime configuration values. Replaces BizTalk SSO config store pattern.</td>
+      </tr>
+      <tr>
+        <td class="label">Entra ID Managed Identities</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Workload identity for service-to-service authentication. No stored credentials.</td>
+      </tr>
+      <tr>
+        <td class="label">Microsoft Defender for Cloud</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Security posture baseline. Applies to the Azure subscription regardless of application stack.</td>
+      </tr>
+
+      <!-- Observability -->
+      <tr><td colspan="4" style="background:var(--navy);color:#fff;font-weight:600;padding:8px 12px;font-size:13px">Observability</td></tr>
+      <tr>
+        <td class="label">Application Insights</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Distributed tracing, performance metrics, failure analysis. Both stacks instrument via OpenTelemetry or direct SDK.</td>
+      </tr>
+      <tr>
+        <td class="label">Azure Monitor + Log Analytics</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Centralized log aggregation, alerting, dashboards. Infrastructure metrics from AKS and all PaaS services.</td>
+      </tr>
+      <tr>
+        <td class="label">NServiceBus ServiceControl / ServicePulse</td>
+        <td class="dash">—</td><td class="check">✓</td>
+        <td>AIS+ only. Provides message-level monitoring: error queue management, SLA breach alerts, message audit, conversation tracing, endpoint health. Runs as a container in AKS. No equivalent in the Java/Camel stack without custom implementation.</td>
+      </tr>
+
+      <!-- CI/CD -->
+      <tr><td colspan="4" style="background:var(--navy);color:#fff;font-weight:600;padding:8px 12px;font-size:13px">CI/CD &amp; IaC</td></tr>
+      <tr>
+        <td class="label">GitHub Actions</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Build, test, deploy pipelines. Both stacks use GitHub Actions.</td>
+      </tr>
+      <tr>
+        <td class="label">Bicep / Terraform (IaC)</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Infrastructure as code. Environment provisioning from a single pipeline run.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Cost range -->
+  <h2>Cost Range Estimate</h2>
+  <p class="muted">
+    Estimates are annual Azure list price ranges for a production environment. They exclude licensing, support contracts,
+    and professional services. Actual costs depend on message volume, AKS node counts, and regional pricing.
+    Both estimates assume the same AKS cluster size — this is the dominant variable for both stacks.
+  </p>
+
+  <div class="two-col" style="margin-top:16px">
+    <div class="card stack-java">
+      <div class="stack-label-java">Java / Apache Camel</div>
+      <table style="margin-top:12px">
+        <thead><tr><th>Service</th><th>Est. Annual</th></tr></thead>
+        <tbody>
+          <tr><td>AKS (3–6 node cluster)</td><td>$18K–$45K</td></tr>
+          <tr><td>Confluent Kafka (Azure Marketplace)</td><td>$12K–$36K</td></tr>
+          <tr><td>Azure Cosmos DB or MongoDB Atlas</td><td>$3K–$12K</td></tr>
+          <tr><td>APIM (Developer/Standard)</td><td>$1.8K–$18K</td></tr>
+          <tr><td>Key Vault, App Config, Blob, Monitor</td><td>$2K–$5K</td></tr>
+          <tr><td>Container Registry, Event Grid</td><td>&lt;$1K</td></tr>
+          <tr style="font-weight:700;background:var(--ltblue)"><td>Estimated Range</td><td>$37K–$117K/yr</td></tr>
+        </tbody>
+      </table>
+      <p class="muted" style="margin-top:10px">Note: Confluent Kafka is the second-largest cost driver after AKS. Azure Event Hubs (Kafka-compatible) is a lower-cost alternative at $0.03–$0.06/million events.</p>
+    </div>
+    <div class="card stack-ais">
+      <div class="stack-label-ais">AIS+ (.NET / NServiceBus)</div>
+      <table style="margin-top:12px">
+        <thead><tr><th>Service</th><th>Est. Annual</th></tr></thead>
+        <tbody>
+          <tr><td>AKS (3–6 node cluster)</td><td>$18K–$45K</td></tr>
+          <tr><td>Azure Service Bus (Premium)</td><td>$10K–$20K</td></tr>
+          <tr><td>Azure SQL (Saga state)</td><td>$1.5K–$6K</td></tr>
+          <tr><td>APIM (Developer/Standard)</td><td>$1.8K–$18K</td></tr>
+          <tr><td>Logic Apps Standard (optional)</td><td>$0–$6K</td></tr>
+          <tr><td>Key Vault, App Config, Blob, Monitor</td><td>$2K–$5K</td></tr>
+          <tr><td>NServiceBus license (non-Azure)</td><td>~$1K/yr</td></tr>
+          <tr style="font-weight:700;background:var(--ltblue)"><td>Estimated Range</td><td>$33K–$101K/yr</td></tr>
+        </tbody>
+      </table>
+      <p class="muted" style="margin-top:10px">Note: Service Bus Premium (~$10/namespace/hr) is the second-largest cost driver. Serverless tier reduces SQL cost significantly in non-production environments.</p>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:20px">
+    Both stacks land in a similar cost range at this scale. The ranges overlap significantly.
+    AKS node count is the variable that moves both numbers most. Message volume is the secondary variable.
+    A more precise estimate requires baseline transaction volume from the production BizTalk environment.
+  </div>
+
+</div>
+</body>
+</html>

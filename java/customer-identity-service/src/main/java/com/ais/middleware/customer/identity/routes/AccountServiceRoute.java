@@ -4,10 +4,12 @@ import com.ais.middleware.common.events.customer.AccountLookupRequestedEvent;
 import com.ais.middleware.common.events.customer.AccountServiceRecordRetrievedEvent;
 import com.ais.middleware.common.events.customer.CustomerUpdatedEvent;
 import com.ais.middleware.common.events.integration.PolicyAdminSystemResponseReceivedEvent;
+import com.ais.middleware.customer.identity.observability.EDAFlowProcessor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.kafka.KafkaConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -26,13 +28,43 @@ public class AccountServiceRoute extends RouteBuilder {
     private static final Logger log = LoggerFactory.getLogger(AccountServiceRoute.class);
 
     private final ObjectMapper objectMapper;
+    private final EDAFlowProcessor edaFlowProcessor;
 
-    public AccountServiceRoute(ObjectMapper objectMapper) {
+    public AccountServiceRoute(ObjectMapper objectMapper, EDAFlowProcessor edaFlowProcessor) {
         this.objectMapper = objectMapper;
+        this.edaFlowProcessor = edaFlowProcessor;
     }
 
     @Override
     public void configure() throws Exception {
+
+        interceptFrom("kafka:*")
+            .process(exchange -> exchange.setProperty("EDA_FLOW_DIRECTION", "consumed"))
+            .process(edaFlowProcessor);
+
+        interceptSendToEndpoint("kafka:*")
+            .process(exchange -> {
+                String uri = exchange.getProperty(Exchange.INTERCEPTED_ENDPOINT, String.class);
+                if (uri == null) {
+                    uri = exchange.getProperty(Exchange.TO_ENDPOINT, String.class);
+                }
+                if (uri == null) {
+                    uri = exchange.getIn().getHeader(Exchange.TO_ENDPOINT, String.class);
+                }
+                if (uri == null || !uri.startsWith("kafka:")) {
+                    return;
+                }
+
+                String topic = uri.replaceFirst("^kafka:(//)?", "");
+                int optionsSeparator = topic.indexOf('?');
+                if (optionsSeparator >= 0) {
+                    topic = topic.substring(0, optionsSeparator);
+                }
+
+                exchange.getIn().setHeader(KafkaConstants.TOPIC, topic);
+                exchange.setProperty("EDA_FLOW_DIRECTION", "published");
+            })
+            .process(edaFlowProcessor);
 
         // Global DLQ handler: 2 retries with exponential backoff, then dead-letter.
         onException(Exception.class)

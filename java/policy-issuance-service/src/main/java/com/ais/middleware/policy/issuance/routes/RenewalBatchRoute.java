@@ -1,10 +1,10 @@
 package com.ais.middleware.policy.issuance.routes;
 
-import com.ais.middleware.common.events.compliance.RequestComplianceCheckCommand;
 import com.ais.middleware.common.events.fileprocessing.RenewalRecordFailedEvent;
 import com.ais.middleware.common.events.fileprocessing.RenewalRecordProcessedEvent;
 import com.ais.middleware.common.events.fileprocessing.RenewalRecordReadyForIssuanceEvent;
 import com.ais.middleware.common.events.policy.IssuanceFailedEvent;
+import com.ais.middleware.common.events.policy.PolicyIssuanceInitiatedEvent;
 import com.ais.middleware.common.events.policy.PolicyIssuedEvent;
 import com.ais.middleware.policy.issuance.domain.IssuanceSagaRecord;
 import com.ais.middleware.policy.issuance.domain.IssuanceSagaRepository;
@@ -17,7 +17,6 @@ import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
-import java.util.UUID;
 
 /**
  * Camel routes that handle the AutomatedRenewal batch path.
@@ -96,12 +95,16 @@ public class RenewalBatchRoute extends RouteBuilder {
                 log.info("RenewalBatch IssuanceSaga created — status=Initiated batchId={} recordId={}",
                         event.batchId(), event.recordId());
 
-                var checkCmd = new RequestComplianceCheckCommand(
-                        UUID.randomUUID().toString(),
-                        issuanceId, "Policy", "EconomicSanctions", "CommercialAccount",
-                        event.accountId(), objectMapper.writeValueAsString(event)
+                // Publish PolicyIssuanceInitiatedEvent so the compliance service (which subscribes
+                // to policy.events.policy-issuance-initiated) can run the sanctions screening.
+                // This mirrors the direct-issuance path in IssuanceSagaRoute.
+                var initiatedEvent = new PolicyIssuanceInitiatedEvent(
+                        issuanceId,
+                        event.accountId(),
+                        event.policyTypeCode(),
+                        OffsetDateTime.now()
                 );
-                exchange.getIn().setBody(objectMapper.writeValueAsString(checkCmd));
+                exchange.getIn().setBody(objectMapper.writeValueAsString(initiatedEvent));
                 exchange.getIn().setHeader("issuanceId", issuanceId);
 
                 saga.setStatus(IssuanceSagaRecord.SagaStatus.AwaitingCompliance);
@@ -109,7 +112,7 @@ public class RenewalBatchRoute extends RouteBuilder {
                 log.info("RenewalBatch IssuanceSaga transitioned — status=AwaitingCompliance");
                 MDC.clear();
             })
-            .to("kafka:compliance.commands.request-compliance-check");
+            .to("kafka:policy.events.policy-issuance-initiated");
 
         // ── Route 2: PolicyIssued → publish RenewalRecordProcessed (AutomatedRenewal only) ──
         from("kafka:policy.events.policy-issued?groupId=policy-issuance-saga-renewal-outcome")

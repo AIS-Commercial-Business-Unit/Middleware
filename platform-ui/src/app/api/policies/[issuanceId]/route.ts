@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPolicyIssuanceServiceUrl } from "@/lib/backend";
+import { getActiveBackendFromRequest, getPolicyIssuanceServiceUrl } from "@/lib/backend";
 
 export async function GET(
   _req: NextRequest,
@@ -7,7 +7,8 @@ export async function GET(
 ) {
   const { issuanceId } = await params;
   try {
-    const policyIssuanceUrl = getPolicyIssuanceServiceUrl();
+    const backend = getActiveBackendFromRequest(_req);
+    const policyIssuanceUrl = getPolicyIssuanceServiceUrl(backend);
     const res = await fetch(
       `${policyIssuanceUrl}/api/v1/policies/issue/${issuanceId}`,
       { cache: "no-store" }

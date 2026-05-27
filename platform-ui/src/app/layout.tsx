@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Link from "next/link";
+import { BackendSwitcher } from "@/components/BackendSwitcher";
 
 export const metadata: Metadata = {
   title: "AIS Middleware Platform",
@@ -30,15 +31,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/batches" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
             Batches
           </Link>
-          <a
-            href={process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001"}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm hover:text-white transition-colors ml-auto"
-            style={{ color: "var(--muted)" }}
-          >
-            Grafana ↗
-          </a>
+          <div className="ml-auto flex items-center gap-4">
+            <a
+              href={process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm hover:text-white transition-colors"
+              style={{ color: "var(--muted)" }}
+            >
+              Grafana ↗
+            </a>
+            <BackendSwitcher />
+          </div>
         </nav>
         <main className="px-6 py-8 max-w-7xl mx-auto">{children}</main>
       </body>

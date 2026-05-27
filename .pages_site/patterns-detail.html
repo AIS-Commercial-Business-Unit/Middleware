@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pattern Detail | Middleware POC</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="brand">Middleware Modernization POC</a>
+  <a href="index.html">Home</a>
+  <a href="comparison.html">Stack Comparison</a>
+  <a href="azure-services.html">Azure Services</a>
+  <a href="patterns-scope.html">Pattern Scope</a>
+  <a href="patterns-detail.html" class="active">Pattern Detail</a>
+  <a href="decisions.html">5 Questions</a>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>Pattern Detail — Full Inventory</h1>
+    <p>All patterns from all four estates. Criticality, POC coverage, and AIS+ implementation approach for each.</p>
+  </div>
+
+  <div class="card">
+    <p>
+      Each estate is listed below. Expand to see the full pattern table.
+      Criticality reflects architectural migration risk, not business priority.
+      <strong>High</strong> = the pattern has no trivial equivalent in the target platform and requires deliberate design.
+      <strong>Medium</strong> = well-understood; implementation is straightforward but must be done.
+      <strong>Low</strong> = direct mapping; essentially a configuration change.
+    </p>
+    <p style="margin-top:8px">
+      <span class="badge badge-green">POC Built</span>&nbsp;
+      <span class="badge badge-amber">Documented</span>&nbsp;
+      <span class="badge badge-gray">Not Required</span>
+    </p>
+  </div>
+
+  <!-- ── SCI ── -->
+  <details open>
+    <summary>SCI — Small Commercial Insurance &nbsp;<span class="muted" style="font-weight:normal;font-size:12px">18 apps · 167 orchestrations · 309 maps</span></summary>
+    <div class="details-body">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:22%">Pattern</th>
+            <th style="width:10%">Criticality</th>
+            <th style="width:24%">BizTalk Implementation</th>
+            <th style="width:10%">POC</th>
+            <th>AIS+ Implementation Approach</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label">Long-running stateful orchestration (Issuance)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>CommercialPolicyIssuanceEPL39X1 orchestration. 25 sub-orchestrations. Suspended on sanctions hold, resumed on RSK4X1 clearance message.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td><strong>IssuanceSaga</strong> in the Policy domain. NServiceBus Saga with SQL persistence. Saga state survives process failure. Compliance hold/resume via <code>ComplianceClearanceSaga</code> in Platform.Compliance. <a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">.NET →</a>&nbsp;<a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">Java →</a></td>
+          </tr>
+          <tr>
+            <td class="label">Decentralized PAS routing (replacing BRE)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>DecidePolicy BRE v1.6 — 20+ rules matching PolicyTypeCode/SubCode to PAS endpoints. Central routing table owned by BizTalk team.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td>Azure Service Bus topic subscriptions with SQL filter expressions per gateway. Each PAS gateway owns its own filter. Adding a new PAS = adding a subscription. Policy domain publishes; gateways self-select. No routing table. <a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">.NET →</a>&nbsp;<a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">Java →</a></td>
+          </tr>
+          <tr>
+            <td class="label">Compliance hold and resume (RSK3X3 / RSK4X1)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>IssuanceSaga suspended on RSK3X3 PendingReview result. Inbound RSK4X1 MQSC message resumes orchestration via AccountServiceRequestNumber correlation.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td><code>ComplianceClearanceSaga</code> holds CorrelationId. On <code>SanctionsClearanceReceived</code> event (from IBM MQ via Platform.Integration), publishes <code>ComplianceCleared</code>. IssuanceSaga subscribes and resumes. 72-hour timeout auto-blocks. <a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">.NET →</a>&nbsp;<a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">Java →</a></td>
+          </tr>
+          <tr>
+            <td class="label">File-triggered batch (AutomatedRenewal, CRN pipeline)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>BizTalk FILE receive location polling UNC share (\\ussbyfsv823\SCI_BizTalk\...). AutoSys schedules 5am daily trigger.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td>Azure Blob Storage drop zone. Blob trigger fires Platform.FileProcessing domain. Timer Function replaces AutoSys. Per-record isolation — one failure does not stop the batch. <a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">.NET →</a>&nbsp;<a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">Java →</a></td>
+          </tr>
+          <tr>
+            <td class="label">Multi-system parallel fan-out with aggregation (QuoteProposal)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>QuoteProposalSaga fans out to DuckCreek CI/ELPL/Auto, ForeFront, Insurity simultaneously. Aggregates all quote responses before triggering document generation.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td><strong>QuoteProposalSaga</strong>: publishes <code>QuoteDataRequested</code> to Service Bus topic. Each PAS gateway responds with <code>QuoteDataReceived</code>. Saga counts responses against expected count (or 10-min timeout). When complete, publishes <code>QuoteReadyForDocumentation</code> to Platform.DocumentGeneration.</td>
+          </tr>
+          <tr>
+            <td class="label">Dual-channel notification (Kafka + MQ simultaneously)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>QuoteProposal sends EVN12X1 event to both Kafka HTTP gateway and MQSC queue. Two different consumer systems receive the same event.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>Platform.Notification domain dispatches to multiple channels from a single <code>PublishNotificationIntent</code> command. Kafka consumers receive via Service Bus Kafka surface. Legacy MQ consumers receive via IBM MQ transport. Channel disabled per-consumer when migration is complete — configuration change, no code change.</td>
+          </tr>
+          <tr>
+            <td class="label">Dead-letter and correlated retry (BTMS)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>Failures route to BTMS via MQSC. BTMS creates work item for manual review. Resume by replaying original request using AccountServiceRequestNumber.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td>NServiceBus dead-letter queue. ServicePulse UI shows failed messages with full context. Operator replays from portal. IssuanceSaga resumes from last confirmed step. <a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">.NET →</a>&nbsp;<a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">Java →</a></td>
+          </tr>
+          <tr>
+            <td class="label">IBM MQ inbound (MQSC receive port)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>RcvQueue MQSC receive port on EPL39X1. Primary inbound transport for IssuePolicyRequest.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>NServiceBus IBM MQ transport (Particular Software, officially supported). Receives from MQ queue, publishes to Service Bus. Coexistence: MQ remains active; new consumers subscribe to Service Bus. Legacy senders require no change.</td>
+          </tr>
+          <tr>
+            <td class="label">Simple API-to-API (WCF endpoints)</td>
+            <td><span class="badge badge-gray">Low</span></td>
+            <td>WCF-WebHttp and WCF-BasicHttp adapters calling ERM7X1, CRM19X1, CRM40X1, xPression, PRT1X3.</td>
+            <td><span class="badge badge-gray">Not Required</span></td>
+            <td>HTTP client in .NET calls the same endpoints. APIM provides authentication, rate limiting, and retry policy. No adapter layer needed.</td>
+          </tr>
+          <tr>
+            <td class="label">SSO runtime configuration</td>
+            <td><span class="badge badge-gray">Low</span></td>
+            <td>BizTalk Enterprise SSO stores log categories, timeout values, debug flags, error codes per application.</td>
+            <td><span class="badge badge-gray">Not Required</span></td>
+            <td>Azure App Configuration stores all runtime configuration. Azure Key Vault stores credentials. Applications read at startup via .NET configuration provider — no code change required from SSO to App Configuration.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <!-- ── PRS ── -->
+  <details>
+    <summary>PRS — Personal Risk Services &nbsp;<span class="muted" style="font-weight:normal;font-size:12px">49 apps · RiskID: 19 · Claim Care: 30 · 34 vendor integrations</span></summary>
+    <div class="details-body">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:22%">Pattern</th>
+            <th style="width:10%">Criticality</th>
+            <th style="width:24%">BizTalk Implementation</th>
+            <th style="width:10%">POC</th>
+            <th>AIS+ Implementation Approach</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label">Appraisal lifecycle Saga (UpdateStatus from RiskID)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>Inbound MQSC from RiskID (StatusCode 6 = UW determination, StatusCode 15 = complete). StatusCode 6: parallel PLUW calls, creates suspense items, updates @Work/PLAPR/PLUW databases. Most complex flow in PRS.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td><strong>UpdateStatusSaga</strong> in Appraisal domain. Starts on <code>RiskIDStatusUpdateReceived</code> event. Branches on StatusCode. StatusCode 6: sends <code>GetProducerCrossReference</code> to Customer domain, then parallel PLUW calls (Task.WhenAll equivalent). Updates three databases via adapter microservices. Same Saga pattern as UC-1 — proven architecture, different business rules.</td>
+          </tr>
+          <tr>
+            <td class="label">Scatter-gather (GetAppraisalList)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>Fan-out to @Work SQL SP and DEIPDE07 simultaneously using MQSC correlation sets (MQMD_CorrelId / MQMD_MsgId). Merge both responses.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>Platform.Integration dispatches <code>GetAppraisalData</code> to @Work SQL adapter and DEIPDE07 adapter simultaneously. Service Bus session-based correlation replaces MQMD correlation. Aggregates both responses; returns partial result with <code>PartialResult=true</code> if one backend times out. Identical pattern to NServiceBus scatter-gather.</td>
+          </tr>
+          <tr>
+            <td class="label">Content-based routing (GetAppraisalDocument)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>Routes on DocumentKey format: RiskID-format → RiskID system; ACE-format → RSVP; other → DEIPDE08. Decision in BizTalk orchestration code.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>C# switch statement on DocumentKey format in the Appraisal domain message handler. Routes to RiskID adapter, RSVP adapter, or DEIPDE08 adapter in Platform.Integration. Readable, testable code — not a BizTalk decision shape.</td>
+          </tr>
+          <tr>
+            <td class="label">DB2-triggered integration (AtWorkImport, PlusNotes)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>BizTalk DB2 adapter polls DB2 database for change events. Triggers @Work import and PLUS Notes sync.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>Azure Function with DB2 polling using <code>Net.IBM.Data.Db2</code> NuGet (IBM-published, supports .NET 6–10, Linux containers). Publishes events to Service Bus on change detection. Db2Connect license required (~$1K–$36K depending on edition).</td>
+          </tr>
+          <tr>
+            <td class="label">15-minute polling batch (@Work update)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>BizTalk orchestration polls PLAPR DB every 15 minutes. Deduplication by timestamp. Updates @Work, marks processed.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td>Timer-triggered Azure Function (15-min interval). Queries PLAPR via Azure SQL adapter. Per-record deduplication preserved. Same batch isolation pattern as UC-3. <a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">.NET →</a></td>
+          </tr>
+          <tr>
+            <td class="label">Real-time address verification (Claim Care)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>WCF-Service endpoint. ACC calls synchronously on address entry. User waits for response. Target: sub-500ms.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>APIM endpoint in Claims domain. Calls Zip+4 validation service via HTTP. Graceful degradation: if service unavailable, returns input address with <code>IsVerified=false</code> — user workflow is never blocked. Load tested at 50 concurrent requests.</td>
+          </tr>
+          <tr>
+            <td class="label">SFTP bulk invoice processing (Tymetrix, Sterling)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>BizTalk SFTP receive port. Processes daily invoice files. Sends reverse status feeds back.</td>
+            <td><span class="badge badge-gray">Not Required</span></td>
+            <td>Azure Logic Apps Standard built-in SFTP connector triggers on file arrival. Publishes to Service Bus. Claims domain processes and sends reverse feed. Direct connector — no custom code.</td>
+          </tr>
+          <tr>
+            <td class="label">Safelite FNOL (synchronous, returns ClaimNumber)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>WCF-Service synchronous call from HSG. Creates claim in ACC. Returns ClaimNumber and adjuster in same response. Zero async.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>APIM endpoint in Claims domain. Synchronous: HTTP POST → ACC integration → return ClaimNumber. No Saga needed. APIM handles retry, timeout, and authentication. Standard request-reply.</td>
+          </tr>
+          <tr>
+            <td class="label">OFAC payment screening (Claim Care)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>Two trigger paths: WCF-Service (direct) and WCF-SQL time-based polling. Routes to CLink compliance service.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>Claims domain delegates to Platform.Compliance (same domain used by SCI Issuance). <code>OFACClaimsCheck</code> aggregate tracks the check. <code>ComplianceClearanceSaga</code> holds payment pending result. Billing domain releases payment on <code>ComplianceCleared</code>.</td>
+          </tr>
+          <tr>
+            <td class="label">Simple WCF API-to-API (majority of Claim Care)</td>
+            <td><span class="badge badge-gray">Low</span></td>
+            <td>22 of 30 Claim Care apps are synchronous WCF-Service endpoints. Standard request-reply with no state.</td>
+            <td><span class="badge badge-gray">Not Required</span></td>
+            <td>APIM endpoint + HTTP client. No integration framework needed. Claims domain exposes REST API; ACC calls it directly.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <!-- ── ECOS ── -->
+  <details>
+    <summary>ECOS — Accenture Claims Platform &nbsp;<span class="muted" style="font-weight:normal;font-size:12px">4 apps · 10–12K transactions/hour · SQL + MSMQ + DB2 triggers</span></summary>
+    <div class="details-body">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:22%">Pattern</th>
+            <th style="width:10%">Criticality</th>
+            <th style="width:24%">BizTalk Implementation</th>
+            <th style="width:10%">POC</th>
+            <th>AIS+ Implementation Approach</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label">High-volume SQL polling batch (TX_ACTIVITY)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>BizTalk WCF-SQL polls TX_ACTIVITY for N/R/H records. Updates status to I (In Progress). Returns activity ID list. Runs continuously. 10–12K tx/hour.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td>Azure Function with timer trigger. Queries TX_ACTIVITY via Azure SQL using same stored procedure logic. Updates status to I atomically. Publishes activity IDs to Service Bus. Same per-record isolation as UC-3. <a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">.NET →</a></td>
+          </tr>
+          <tr>
+            <td class="label">Activity/staging DB pattern (TX_ACTIVITY → TX_MESSAGE_OUTBOUND)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>Three-table staging chain: TX_ACTIVITY (RunDB) → TX_MESSAGE_OUTBOUND (Integration DB) → TX_PROCESS_OUTBOUND (tracking). CycleID-based batch coordination. BizTalk writes to Integration DB after enrichment.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>Service Bus outbox pattern replaces the three-table chain. Message handler reads TX_ACTIVITY, calls PullDataService to enrich, publishes to Service Bus (writes to TX_MESSAGE_OUTBOUND equivalent atomically). TX_PROCESS_OUTBOUND replaced by Service Bus delivery tracking per subscription. Azure SQL retains the tables for audit if required.</td>
+          </tr>
+          <tr>
+            <td class="label">Factory-pattern data enrichment (PullDataService)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>PullDataServiceProvider uses Factory pattern. GetInstance(transactionType) creates concrete IPullDataServiceiCGBC per tx type (RegisterClaim, UpdateClaim, PostPayment, etc.). WCF call to ussbyintvt2040.aceins.com:8071/PullDataService.svc.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>C# factory or strategy pattern in the ECOS integration domain. Each transaction type has a concrete <code>ITransactionProcessor</code> implementation. HTTP client calls PullDataService with activity ID. Response dispatched to the appropriate handler by C_TXTYPE. Same pattern as PRS content-based router — proven approach.</td>
+          </tr>
+          <tr>
+            <td class="label">MSMQ polling batch trigger</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>BizTalk MSMQ adapter polls for batch trigger messages. Used to coordinate between BizTalk orchestrations.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>Service Bus queue replaces MSMQ. NServiceBus MSMQ transport provides a bridge during coexistence period — existing MSMQ senders require no change. When MSMQ is decommissioned, the bridge is removed.</td>
+          </tr>
+          <tr>
+            <td class="label">SSIS/ETL export pipeline (AutoSys + SSIS)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>AutoSys schedules SSIS Master Package per interface. Master → ET child (extract/transform from Integration DB) → L child (load to file/FTP/DB). Updates TX_PROCESS_OUTBOUND on completion.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>Azure Data Factory pipeline replaces SSIS. Timer trigger (Azure Function or ADF schedule) replaces AutoSys. ADF reads TX_MESSAGE_OUTBOUND, applies transformation activity, writes to Blob/FTP/downstream DB. Updates processing status on completion. Existing SSIS packages can be lifted into ADF SSIS Integration Runtime as a migration phase if full rewrite is not immediate.</td>
+          </tr>
+          <tr>
+            <td class="label">DB2 integration triggers</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>DB2 adapter in BizTalk ECOS estate. Specific integration types triggered by DB2 change events.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>Same approach as PRS DB2: Azure Function with <code>Net.IBM.Data.Db2</code> NuGet. Polls DB2 for change events, publishes to Service Bus. Db2Connect license required.</td>
+          </tr>
+          <tr>
+            <td class="label">FTP outbound delivery</td>
+            <td><span class="badge badge-gray">Low</span></td>
+            <td>SSIS L child package FTPs output files to external endpoints.</td>
+            <td><span class="badge badge-gray">Not Required</span></td>
+            <td>Azure Logic Apps Standard built-in FTP connector sends files after ADF processing. Or direct FTP client in Azure Function. Either is straightforward.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <!-- ── Sanctions ── -->
+  <details>
+    <summary>Sanctions — EMEA / APAC / LATAM &nbsp;<span class="muted" style="font-weight:normal;font-size:12px">5 apps · 3 regional deployments · ~18K tx/day/region · 24×7 SLA</span></summary>
+    <div class="details-body">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:22%">Pattern</th>
+            <th style="width:10%">Criticality</th>
+            <th style="width:24%">BizTalk Implementation</th>
+            <th style="width:10%">POC</th>
+            <th>AIS+ Implementation Approach</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label">Compliance hold Saga (ClearanceProcessor)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>BizTalk orchestration suspended on RSK3X3 PendingReview. Inbound RSK4X1 MQSC message (from CAHSEMEA) delivers clearance. BRE routes to Cadence or UWP. MaxWait: 72 hours.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td><strong>ComplianceClearanceSaga</strong> in Platform.Compliance — same Saga proven in UC-1 for SCI. Holds CorrelationId on PendingReview. IBM MQ polling via NServiceBus MQ transport receives RSK4X1 clearance. Saga publishes <code>ComplianceCleared</code> or auto-blocks after 72-hour timeout. BRE routing replaced by conditional dispatch in C# based on clearance attributes.</td>
+          </tr>
+          <tr>
+            <td class="label">Synchronous compliance search (ScreenProcessor)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>WCF-Service endpoint. WorkView calls sync. CAHSEMEA calls async with callback. Transforms to RSK3X3 SearchAndUpdateForClaim. Calls CLink. Returns StatusCode to caller. ~18K/day/region.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>APIM endpoint in Platform.Compliance. Synchronous path: HTTP → CLink call → return result. Async path: HTTP → publish to Service Bus → callback when complete. Same endpoint, two response modes based on caller preference. APIM handles authentication, rate limiting, and regional routing.</td>
+          </tr>
+          <tr>
+            <td class="label">Multi-subject payment screening (TraxScreenProcessor)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>TRAX payment → canonical map produces 4 subjects (Individual payee, Org payee, Bank BIC, Bank name) → single CLink call with all 4 as EconomicSanctionRisk entities. ASPAC only.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>Platform.Compliance accepts <code>TraxScreenRequest</code>. Transformer maps TRAX payment to canonical with 4 subjects. Single CLink call. Response mapped back to TRAX format. Azure Function or AKS container — same pattern as ScreenProcessor.</td>
+          </tr>
+          <tr>
+            <td class="label">IBM MQ inbound polling (ClearanceProcessor)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>BizTalk MQSC receive port polls IBM MQ queue for RSK4X1 inbound clearance notifications from CAHSEMEA.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>NServiceBus IBM MQ transport polls the same MQ queue. On message arrival, deserializes RSK4X1 payload, publishes <code>SanctionsClearanceReceived</code> event to Service Bus. <code>ComplianceClearanceSaga</code> correlates by SourceSystemTransactionId. During migration: both BizTalk and NServiceBus can poll the same queue using different consumer group IDs.</td>
+          </tr>
+          <tr>
+            <td class="label">BRE-driven routing (Clearance BRE)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>CHUBB.Sanctions.Clearance.BRE determines target system (Cadence or UWP) based on clearance notification attributes.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>BRE rules translated to C# conditional logic in the clearance message handler. Rules are few and stable — a code-based implementation is more transparent and testable than an external rules engine for this use case. If rules complexity grows, Azure Logic Apps Decision Tables or a custom rule service can replace the C# conditions.</td>
+          </tr>
+          <tr>
+            <td class="label">Multi-region deployment (EMEA / APAC / LATAM)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>Three separate BizTalk deployments, one per region. Regional configuration via SSO (ESRFileSearchCode, ESRResolutionTeamName, BranchCode).</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>Azure Service Bus geo-redundancy + regional AKS node pools. Regional configuration stored in Azure App Configuration with environment-specific labels (EMEA, APAC, LATAM). Same container image deployed to each region; configuration differs. IaC (Bicep) provisions all three regions from a single template.</td>
+          </tr>
+          <tr>
+            <td class="label">Message transformation (canonical maps)</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>BizTalk maps in CHUBB.Sanctions.Compliance, CHUBB.Sanctions.Compliance.Trax, CHUBB.Sanctions.Clearance.Transforms. NtificationRq_To_CadenceRq, TraxSanctions_Canonical_To_CLink maps.</td>
+            <td><span class="badge badge-amber">Documented</span></td>
+            <td>C# model classes with explicit mapping logic. Canonical domain model as the pivot. Source-to-canonical and canonical-to-target mappers are plain classes — unit testable, version-controllable, readable. No BizTalk XSLT or BTM map required.</td>
+          </tr>
+          <tr>
+            <td class="label">SSO runtime configuration (regional)</td>
+            <td><span class="badge badge-gray">Low</span></td>
+            <td>BizTalk SSO stores ESRFileSearchCode, ESRResolutionTeamName, BranchCode per application. Read at orchestration startup.</td>
+            <td><span class="badge badge-gray">Not Required</span></td>
+            <td>Azure App Configuration with environment labels. All regional values stored as key-value pairs. Applications read at startup via .NET configuration provider. No code change required.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+</div>
+</body>
+</html>

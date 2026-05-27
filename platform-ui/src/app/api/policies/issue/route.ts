@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPolicyIssuanceServiceUrl } from "@/lib/backend";
+import { getActiveBackendFromRequest, getPolicyIssuanceServiceUrl } from "@/lib/backend";
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
   try {
-    const policyIssuanceUrl = getPolicyIssuanceServiceUrl();
+    const backend = getActiveBackendFromRequest(req);
+    const policyIssuanceUrl = getPolicyIssuanceServiceUrl(backend);
     const res = await fetch(`${policyIssuanceUrl}/api/v1/policies/issue`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>5 Questions | Middleware POC</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="brand">Middleware Modernization POC</a>
+  <a href="index.html">Home</a>
+  <a href="comparison.html">Stack Comparison</a>
+  <a href="azure-services.html">Azure Services</a>
+  <a href="patterns-scope.html">Pattern Scope</a>
+  <a href="patterns-detail.html">Pattern Detail</a>
+  <a href="decisions.html" class="active">5 Questions</a>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>5 Questions Before Committing to a Direction</h1>
+    <p>These questions do not have obvious answers. Each one materially affects the platform decision and the migration timeline.</p>
+  </div>
+
+  <div class="card">
+    <p>
+      A platform decision at this scale — replacing 400 BizTalk integrations — is not primarily a technology question.
+      The technology works in both cases. The decision turns on operational readiness, team capability, and whether the
+      critical gaps in either stack have been addressed. The five questions below are the ones that need factual answers,
+      not positions.
+    </p>
+  </div>
+
+  <div id="q1" class="question-block">
+    <div class="question-head">
+      <div class="qnum">1</div>
+      What is the team's current proficiency in the proposed stack, and what is the realistic onboarding plan?
+    </div>
+    <div class="question-body">
+      <p>
+        The existing BizTalk estate is operated by a team that knows BizTalk. That team will migrate to one of these two stacks.
+        Neither stack is BizTalk. Both require learning new patterns: event-driven architecture, message-based sagas,
+        distributed observability, and cloud-native deployment.
+      </p>
+      <p>
+        The question is not whether the team <em>can</em> learn the new stack — it is how long that takes, who carries the
+        migration work during the learning period, and what the error rate looks like in the first six months of production
+        operation.
+      </p>
+      <p>
+        A realistic answer includes: current Java vs. .NET distribution on the team, which domains own which integrations
+        post-migration, training timeline, and whether there is a defined ramp period before the BizTalk estate is decommissioned.
+      </p>
+      <div class="why">
+        <strong>Why this matters:</strong> An experienced team with the wrong stack will outperform an inexperienced team
+        with the right stack for at least 12–18 months. Proficiency is not a footnote — it is a primary variable.
+      </div>
+    </div>
+  </div>
+
+  <div id="q2" class="question-block">
+    <div class="question-head">
+      <div class="qnum">2</div>
+      Does the current Java/Apache Camel solution have durable long-running workflow state implemented?
+    </div>
+    <div class="question-body">
+      <p>
+        This is a binary question with a specific answer. It is not about capability — Apache Camel supports the Saga
+        pattern. It is about whether durable state persistence has been implemented in the current solution.
+      </p>
+      <p>
+        The Apache Camel documentation states explicitly:
+        <em>"The in-memory Saga service is not recommended for production environments as it does not support persistence
+        of the Saga status. It cannot guarantee consistency of Sagas in case of application failure (e.g., JVM crash)."</em>
+      </p>
+      <p>
+        Production-grade Saga persistence in the Java/Camel stack requires an external LRA (Long Running Action) coordinator.
+        This is a separate infrastructure component — not included by default in a Spring Boot + Camel deployment.
+      </p>
+      <p>
+        The integrations that require durable workflow state in this estate include:
+      </p>
+      <ul class="plain">
+        <li>Policy Issuance — compliance hold can last up to 72 hours. A JVM restart loses the hold state.</li>
+        <li>Quote Proposal — fan-out to 5 PAS systems. A crash mid-aggregation loses all collected quote data.</li>
+        <li>Sanctions Clearance — workflow suspended on human review. Duration is indefinite.</li>
+        <li>Appraisal UpdateStatus — parallel UW determination calls must both complete before downstream updates.</li>
+      </ul>
+      <div class="why">
+        <strong>Why this matters:</strong> If the Java solution is using in-memory Saga, it is not production-ready for
+        these flows. If LRA is implemented, that should be demonstrated. This is the largest technical gap identified
+        in the evaluation.
+      </div>
+    </div>
+  </div>
+
+  <div id="q3" class="question-block">
+    <div class="question-head">
+      <div class="qnum">3</div>
+      How enabled are the domain application teams to adopt the proposed stack today?
+    </div>
+    <div class="question-body">
+      <p>
+        BizTalk operates as a centralized integration platform. One team owns it, operates it, and manages all integrations.
+        Event-driven architecture distributes that ownership: each domain team owns its own message handlers, schemas,
+        and deployment pipeline.
+      </p>
+      <p>
+        The question is whether the SCI, PRS, ECOS, and Sanctions application teams — the teams who own the business
+        logic and the downstream systems — are staffed and trained to take on that ownership.
+        If they are not, the integration team becomes a bottleneck regardless of which platform is chosen.
+      </p>
+      <p>
+        Specific things to assess per domain team:
+      </p>
+      <ul class="plain">
+        <li>Is the team Java or .NET? Does that match the proposed stack?</li>
+        <li>Does the team currently own any microservice-based integrations, or only BizTalk?</li>
+        <li>Is there a plan to transfer integration ownership, or will a central team continue to own all 400 integrations?</li>
+      </ul>
+      <div class="why">
+        <strong>Why this matters:</strong> A distributed ownership model only works if the teams it distributes to are
+        ready to receive it. If they are not, the migration creates new dependencies rather than removing old ones.
+      </div>
+    </div>
+  </div>
+
+  <div id="q4" class="question-block">
+    <div class="question-head">
+      <div class="qnum">4</div>
+      What is the operational model for 400 integrations post-migration?
+    </div>
+    <div class="question-body">
+      <p>
+        BizTalk has an admin console. Operations teams know how to find a failed message, understand why it failed,
+        and retry it. That workflow is well-understood after years of operation.
+      </p>
+      <p>
+        Post-migration, that workflow needs a replacement. Both stacks provide different answers:
+      </p>
+      <ul class="plain">
+        <li>
+          <strong>AIS+ (.NET/NServiceBus):</strong> ServicePulse provides a message-level operations UI — failed message
+          inspection, retry, SLA breach alerts, endpoint health, conversation tracing. This is the closest functional
+          replacement for the BizTalk admin console.
+        </li>
+        <li>
+          <strong>Java/Apache Camel:</strong> No equivalent out of the box. Operations would use Confluent Control Center
+          for Kafka, plus custom Application Insights dashboards and Azure Monitor alerts.
+          Message-level retry requires direct access to the dead-letter topic.
+        </li>
+      </ul>
+      <p>
+        The question is: who monitors, who retries at 2am, and what does their tooling look like on day one of production?
+        This is not a reason to choose one stack over the other — it is a requirement that must be scoped and built
+        regardless of which stack is chosen.
+      </p>
+      <div class="why">
+        <strong>Why this matters:</strong> Operations teams evaluate platforms by what happens when things go wrong.
+        A platform that is hard to operate in failure scenarios will not earn trust, regardless of how well it performs
+        in normal operation.
+      </div>
+    </div>
+  </div>
+
+  <div id="q5" class="question-block">
+    <div class="question-head">
+      <div class="qnum">5</div>
+      What is the migration plan for legacy adapters (IBM MQ, DB2, MSMQ) during the transition period?
+    </div>
+    <div class="question-body">
+      <p>
+        IBM MQ, DB2, and MSMQ will not be decommissioned on day one of migration. They will coexist with the new
+        platform for a period — likely months to years — while integrations migrate in waves.
+      </p>
+      <p>
+        Both stacks can connect to all three systems. The question is how the coexistence period is managed:
+      </p>
+      <ul class="plain">
+        <li>
+          <strong>IBM MQ:</strong> Both stacks support native IBM MQ connectivity.
+          AIS+ uses the NServiceBus IBM MQ transport (Particular Software).
+          Java/Camel uses the <code>camel-jms</code> component with IBM JMS client.
+          During migration, new consumers can subscribe to the same MQ queue as BizTalk — both receive messages
+          until BizTalk is decommissioned from that queue.
+        </li>
+        <li>
+          <strong>DB2:</strong> Both stacks support DB2 natively.
+          AIS+ uses IBM's <code>Net.IBM.Data.Db2</code> NuGet (supports .NET 6–10, Linux containers, updated December 2024).
+          Java/Camel uses IBM JDBC driver via <code>camel-jdbc</code>.
+          A Db2Connect license is required in both cases for production use.
+        </li>
+        <li>
+          <strong>MSMQ:</strong> Both stacks have MSMQ support.
+          MSMQ is Windows-only; containerizing MSMQ-dependent services requires Windows container nodes in AKS.
+          This constraint applies equally to both stacks. During migration, MSMQ is bridged to Service Bus (AIS+)
+          or Kafka (Java/Camel) — existing MSMQ senders require no change.
+        </li>
+      </ul>
+      <p>
+        The key planning question is: what is the coexistence strategy, and is there a defined end-state for each legacy
+        system? A migration without decommission dates is not a migration — it is adding a new system alongside the old ones.
+      </p>
+      <div class="why">
+        <strong>Why this matters:</strong> Legacy adapter management is not a technical blocker for either stack.
+        It is an operational and licensing cost that must be accounted for in the migration plan.
+        The Db2Connect license cost alone can be significant — this should be confirmed with IBM before finalizing
+        the migration approach.
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

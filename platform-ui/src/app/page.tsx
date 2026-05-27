@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import Link from "next/link";
@@ -20,12 +20,36 @@ const CHANNELS = ["DirectRequest", "AutomatedRenewal", "LegacyQueue"];
 
 export default function HomePage() {
   const router = useRouter();
-  const activeBackendLabel = getClientActiveBackendLabel();
+  const [activeBackendLabel, setActiveBackendLabel] = useState(getClientActiveBackendLabel());
   const [accountId, setAccountId] = useState("ACC-" + Math.random().toString(36).slice(2, 10).toUpperCase());
   const [selectedType, setSelectedType] = useState(POLICY_TYPES[0]);
   const [channel, setChannel] = useState("DirectRequest");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadBackend = () => {
+      fetch("/api/backend")
+        .then((r) => r.json())
+        .then((data) => {
+          if (typeof data?.label === "string") {
+            setActiveBackendLabel(data.label);
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    const handleBackendChanged = (event: Event) => {
+      const label = (event as CustomEvent<{ backend: "java" | "dotnet" }>).detail?.backend === "dotnet"
+        ? ".NET Stack"
+        : "Java Stack";
+      setActiveBackendLabel(label);
+    };
+
+    loadBackend();
+    window.addEventListener("backend-changed", handleBackendChanged);
+    return () => window.removeEventListener("backend-changed", handleBackendChanged);
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,7 +137,7 @@ export default function HomePage() {
             Active backend: {activeBackendLabel}
           </span>
           <span className="text-xs" style={{ color: "var(--muted)" }}>
-            Toggle with <code>ACTIVE_BACKEND</code>
+            Toggle from the navbar switcher
           </span>
         </div>
         <button type="submit" disabled={loading}

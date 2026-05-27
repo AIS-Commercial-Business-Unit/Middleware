@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pattern Scope | Middleware POC</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="brand">Middleware Modernization POC</a>
+  <a href="index.html">Home</a>
+  <a href="comparison.html">Stack Comparison</a>
+  <a href="azure-services.html">Azure Services</a>
+  <a href="patterns-scope.html" class="active">Pattern Scope</a>
+  <a href="patterns-detail.html">Pattern Detail</a>
+  <a href="decisions.html">5 Questions</a>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>Pattern Scope — What Was Reviewed</h1>
+    <p>All four BizTalk estates were reviewed. This page explains what was found, what was prioritized, and why.</p>
+  </div>
+
+  <div class="card">
+    <p>
+      The BizTalk documentation covered four business areas: SCI (Small Commercial Insurance), PRS (Personal Risk Services),
+      ECOS (Accenture Claims), and Sanctions (EMEA/APAC/LATAM). Every application in each estate was reviewed.
+      Patterns were classified by architectural risk — not by business priority.
+    </p>
+    <p>
+      Two use cases were selected for implementation. These were chosen because together they cover the patterns that
+      represent the highest migration risk across all four estates. They are not the most common pattern —
+      API-to-API request/reply is far more common. They are the <em>hardest</em> pattern, and proving the hard
+      patterns work demonstrates that the straightforward ones will too.
+    </p>
+  </div>
+
+  <h2>Estate Summary</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Estate</th>
+        <th>Applications</th>
+        <th>Pattern Types Present</th>
+        <th>Highest-Risk Pattern</th>
+        <th>Covered by POC</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="label">SCI<br><span class="muted">Small Commercial Insurance</span></td>
+        <td>18 apps<br>167 orchestrations<br>309 maps</td>
+        <td>Long-running orchestration, batch/file, MQ messaging, scatter-gather, content routing, BRE, multi-system fan-out</td>
+        <td>Long-running stateful workflow across 10+ downstream systems (IssuanceSaga) with compliance hold/resume</td>
+        <td><span class="badge badge-green">UC-1 + UC-3</span></td>
+      </tr>
+      <tr>
+        <td class="label">PRS<br><span class="muted">Personal Risk Services</span></td>
+        <td>49 apps<br>RiskID: 19<br>Claim Care: 30</td>
+        <td>Scatter-gather, content-based routing, DB2 triggers, MQ polling, batch lifecycle, WCF service, SFTP/file</td>
+        <td>Appraisal lifecycle Saga with parallel underwriter determination (parallel calls, multi-DB state, status-driven branching)</td>
+        <td><span class="badge badge-amber">Partially — UC-1 covers the Saga pattern. Scatter-gather and content router are documented.</span></td>
+      </tr>
+      <tr>
+        <td class="label">ECOS<br><span class="muted">Accenture Claims Platform</span></td>
+        <td>4 apps<br>10–12K tx/hour</td>
+        <td>SQL polling batch, MSMQ polling, WCF service, DB2 trigger, activity/staging DB pattern, SSIS/ETL pipeline</td>
+        <td>High-volume polling batch with activity table state (TX_ACTIVITY → TX_MESSAGE_OUTBOUND chain)</td>
+        <td><span class="badge badge-amber">UC-3 covers the polling batch pattern. Activity table state approach is documented.</span></td>
+      </tr>
+      <tr>
+        <td class="label">Sanctions<br><span class="muted">EMEA / APAC / LATAM</span></td>
+        <td>5 apps<br>3 regional deployments<br>~18K tx/day/region</td>
+        <td>Synchronous WCF compliance search, async MQ polling clearance, BRE-driven routing, multi-region deployment</td>
+        <td>Compliance clearance Saga: workflow suspended on MQ event, resumes after human review (72-hour hold window)</td>
+        <td><span class="badge badge-amber">UC-1 covers the compliance hold/resume Saga pattern. MQ clearance polling is documented.</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Why These Two Use Cases</h2>
+  <div class="card">
+    <p><strong>UC-1 — Policy Issuance</strong> demonstrates:</p>
+    <ul class="plain">
+      <li>Durable long-running workflow state (Saga survives process failure)</li>
+      <li>Compliance hold and resume — workflow suspended for up to 72 hours, automatically resumed on external event</li>
+      <li>Decentralized message routing — each downstream system self-selects via subscription filter, no central routing table</li>
+      <li>Multi-system parallel fan-out with aggregation</li>
+      <li>Dead-letter recovery — failed messages routable and replayable from the portal</li>
+      <li>End-to-end distributed tracing through all systems</li>
+    </ul>
+    <p style="margin-top:12px">
+      These capabilities apply to SCI Issuance, SCI Quote Proposal, PRS Appraisal UpdateStatus, and Sanctions Clearance —
+      all share the same architectural pattern: a workflow that must survive interruption and resume from external state.
+    </p>
+
+    <p style="margin-top:16px"><strong>UC-3 — Automated Renewal Batch</strong> demonstrates:</p>
+    <ul class="plain">
+      <li>File-triggered batch processing — Blob Storage arrival triggers chunked processing</li>
+      <li>Per-record failure isolation — one bad record does not stop the batch</li>
+      <li>Horizontal scale-out under load — Container Apps replicas increase automatically under queue pressure</li>
+      <li>Timer-based scheduling — replaces AutoSys and BizTalk scheduled receive locations</li>
+      <li>Batch Saga state tracking — batch progress recorded across potentially 50,000+ individual records</li>
+    </ul>
+    <p style="margin-top:12px">
+      These capabilities apply to SCI AutomatedRenewal, ECOS Outbound Transaction Workflow, PRS PLUS Notes batch,
+      and PRS @Work 15-minute polling cycle — all share the same architectural pattern: scheduled polling,
+      per-record isolation, and exactly-once delivery tracking.
+    </p>
+  </div>
+
+  <h2>What Was Not Built and Why</h2>
+  <table>
+    <thead>
+      <tr><th>Pattern Type</th><th>Present In</th><th>Not Built Because</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="label">Simple API-to-API (WCF/REST request-reply)</td>
+        <td>All four estates — majority of interfaces</td>
+        <td>The lowest architectural risk. Any integration framework handles synchronous request-reply. There is nothing to prove here beyond what UC-1 already demonstrates.</td>
+      </tr>
+      <tr>
+        <td class="label">Document generation (PRT1X3, xPression, FileNet)</td>
+        <td>SCI QuoteProposal</td>
+        <td>External vendor dependency. The platform pattern (async Saga triggering an external document service and storing the result) is demonstrated in UC-1. The vendor-specific endpoint is a configuration detail.</td>
+      </tr>
+      <tr>
+        <td class="label">SFTP file exchange</td>
+        <td>PRS Claim Care (Tymetrix, Sterling), PRS PMSI Medicare</td>
+        <td>Azure Logic Apps Standard provides a built-in SFTP connector. This is a solved problem. Not architecturally interesting.</td>
+      </tr>
+      <tr>
+        <td class="label">BRE (Business Rules Engine)</td>
+        <td>SCI (DecidePolicy), Sanctions (Clearance BRE)</td>
+        <td>The DecidePolicy routing table is replaced entirely by Service Bus subscription filters in the AIS+ architecture — the BRE is eliminated, not migrated. The Sanctions BRE becomes a rule service on AKS. Both approaches are documented in Pattern Detail.</td>
+      </tr>
+      <tr>
+        <td class="label">Full PRS Appraisal lifecycle (UpdateStatusSaga)</td>
+        <td>PRS RiskID</td>
+        <td>The most complex flow in PRS. The Saga pattern it uses is identical to UC-1. The additional complexity is in the business rules (UW determination branching) and multi-database state, not in the integration platform. A production implementation would follow the same Saga structure proven in UC-1.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout" style="margin-top:20px">
+    For full pattern inventory with criticality ratings and implementation notes per estate, see <a href="patterns-detail.html">Pattern Detail →</a>
+  </div>
+
+</div>
+</body>
+</html>

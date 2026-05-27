@@ -56,6 +56,7 @@ public sealed class PasGatewayHandler : IHandleMessages<IssuePolicyRequestedEven
             }
 
             await context.Publish(failedEvent).ConfigureAwait(false);
+            await ForwardToEndpointAsync(context, failedEvent, "dotnet-policy-issuance").ConfigureAwait(false);
 
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))
             {
@@ -89,6 +90,7 @@ public sealed class PasGatewayHandler : IHandleMessages<IssuePolicyRequestedEven
             }
 
             await context.Publish(failedEvent).ConfigureAwait(false);
+            await ForwardToEndpointAsync(context, failedEvent, "dotnet-policy-issuance").ConfigureAwait(false);
 
             using (LogContext.PushProperty("issuanceId", message.IssuanceId))
             {
@@ -127,6 +129,17 @@ public sealed class PasGatewayHandler : IHandleMessages<IssuePolicyRequestedEven
         }
 
         await context.Publish(responseReceivedEvent).ConfigureAwait(false);
+        await ForwardToEndpointAsync(context, responseReceivedEvent, "dotnet-policy-issuance").ConfigureAwait(false);
+        await ForwardToEndpointAsync(context, responseReceivedEvent, "dotnet-billing-finance").ConfigureAwait(false);
+        await ForwardToEndpointAsync(context, responseReceivedEvent, "dotnet-customer-identity").ConfigureAwait(false);
+    }
+
+    private static Task ForwardToEndpointAsync(IMessageHandlerContext context, object message, string destination)
+    {
+        var options = new SendOptions();
+        options.SetDestination(destination);
+        options.DoNotEnforceBestPractices();
+        return context.Send(message, options);
     }
 
     private static (string TargetPas, string Url) ResolveTarget(int policyTypeCode)

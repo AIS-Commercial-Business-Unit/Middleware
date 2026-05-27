@@ -68,5 +68,10 @@ public sealed class UpdateCustomerRecordHandler : IHandleMessages<PolicyAdminSys
         }
 
         await context.Publish(updatedEvent).ConfigureAwait(false);
+
+        var options = new SendOptions();
+        options.SetDestination("dotnet-policy-issuance");
+        options.DoNotEnforceBestPractices();
+        await context.Send(updatedEvent, options).ConfigureAwait(false);
     }
 }

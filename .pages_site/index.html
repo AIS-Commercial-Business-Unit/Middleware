@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Middleware Modernization POC</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="brand">Middleware Modernization POC</a>
+  <a href="index.html" class="active">Home</a>
+  <a href="comparison.html">Stack Comparison</a>
+  <a href="azure-services.html">Azure Services</a>
+  <a href="patterns-scope.html">Pattern Scope</a>
+  <a href="patterns-detail.html">Pattern Detail</a>
+  <a href="decisions.html">5 Questions</a>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>Middleware Modernization — Proof of Concept</h1>
+    <p>What was built, how it was evaluated, and what the results show.</p>
+  </div>
+
+  <div class="card">
+    <p>
+      This proof of concept evaluates whether a modern, cloud-native integration platform can replace a production BizTalk estate.
+      Two use cases were implemented against representative integration patterns drawn from a documented BizTalk environment.
+      Results are reported against four criteria: functional correctness, throughput and latency, observability, and security posture.
+      The goal is to give the technical team and stakeholders the information needed to evaluate platform options without relying on vendor claims.
+    </p>
+    <p>
+      The POC also exists in the context of a platform decision: the organization is evaluating two integration approaches.
+      This site documents both stacks, compares them against objective criteria, and identifies the questions that must be answered
+      before a direction is chosen.
+    </p>
+  </div>
+
+  <h2>POC Success Criteria</h2>
+  <div class="card-grid">
+    <div class="card-sm">
+      <h3>Functional Correctness</h3>
+      <p>End-to-end execution against a representative dataset, with outputs reconciled against the BizTalk baseline.</p>
+    </div>
+    <div class="card-sm">
+      <h3>Throughput &amp; Latency</h3>
+      <p>Target non-functional profiles sustained under representative load, measured and reported through Application Insights.</p>
+    </div>
+    <div class="card-sm">
+      <h3>Observability</h3>
+      <p>Telemetry, dashboards, and alerting wired through Azure Monitor, Log Analytics, and Application Insights, reviewed by operations representatives.</p>
+    </div>
+    <div class="card-sm">
+      <h3>Security Posture</h3>
+      <p>Baseline scan through Microsoft Defender for Cloud, secrets managed through Key Vault, workload identity through Entra ID Managed Identities.</p>
+    </div>
+  </div>
+
+  <h2>What Was Built</h2>
+  <div class="card">
+    <p>
+      The BizTalk estate spans four business areas with a combined 76 BizTalk applications, 167+ orchestrations, and 309 maps.
+      All patterns were reviewed. Two use cases were selected that cover the highest-risk architectural concerns across the full estate.
+    </p>
+    <table style="margin-top:14px">
+      <thead><tr><th>Use Case</th><th>Estate</th><th>What It Demonstrates</th><th>Code</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="label">UC-1: Policy Issuance</td>
+          <td>SCI</td>
+          <td>Long-running stateful workflow (Saga), decentralized message routing, compliance hold/resume, dead-letter recovery, parallel downstream fan-out.</td>
+          <td><a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">.NET →</a>&nbsp;<a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">Java →</a></td>
+        </tr>
+        <tr>
+          <td class="label">UC-3: Automated Renewal Batch</td>
+          <td>SCI</td>
+          <td>File-triggered batch processing, per-record failure isolation, horizontal scale-out, timer scheduling, batch Saga state tracking.</td>
+          <td><a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">.NET →</a>&nbsp;<a href="https://github.com/AIS-Commercial-Business-Unit/Middleware" target="_blank">Java →</a></td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin-top:12px" class="muted">
+      Patterns that were reviewed but not built — such as simple API-to-API integrations — are documented in the
+      <a href="patterns-scope.html">Pattern Scope</a> and <a href="patterns-detail.html">Pattern Detail</a> pages
+      with implementation notes for each.
+    </p>
+  </div>
+
+  <h2>Guide to This Site</h2>
+  <div class="nav-cards">
+    <a href="comparison.html" class="nav-card">
+      <div class="nav-num">Page 1</div>
+      <h3>Stack Comparison</h3>
+      <p>Side-by-side evaluation of the two integration approaches against weighted criteria. Includes the legacy adapter question.</p>
+    </a>
+    <a href="azure-services.html" class="nav-card">
+      <div class="nav-num">Page 2</div>
+      <h3>Azure Services</h3>
+      <p>Which Azure services each stack uses and a cost range estimate for each. Both stacks are Azure workloads.</p>
+    </a>
+    <a href="patterns-scope.html" class="nav-card">
+      <div class="nav-num">Page 3</div>
+      <h3>Pattern Scope</h3>
+      <p>All four BizTalk estates reviewed. What was found, what was prioritized, and why the two selected use cases cover the critical risks.</p>
+    </a>
+    <a href="patterns-detail.html" class="nav-card">
+      <div class="nav-num">Page 4</div>
+      <h3>Pattern Detail</h3>
+      <p>Full pattern inventory per estate with criticality ratings, POC coverage status, and implementation notes for patterns not yet built.</p>
+    </a>
+    <a href="decisions.html" class="nav-card">
+      <div class="nav-num">Page 5</div>
+      <h3>5 Questions</h3>
+      <p>The questions that need factual answers before a platform direction is committed. Not recommendations — just the questions.</p>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

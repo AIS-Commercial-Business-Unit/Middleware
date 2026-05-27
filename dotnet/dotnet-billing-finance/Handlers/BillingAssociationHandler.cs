@@ -69,5 +69,10 @@ public sealed class BillingAssociationHandler : IHandleMessages<PolicyAdminSyste
         }
 
         await context.Publish(createdEvent).ConfigureAwait(false);
+
+        var options = new SendOptions();
+        options.SetDestination("dotnet-policy-issuance");
+        options.DoNotEnforceBestPractices();
+        await context.Send(createdEvent, options).ConfigureAwait(false);
     }
 }

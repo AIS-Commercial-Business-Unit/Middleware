@@ -15,10 +15,12 @@ import com.ais.middleware.common.events.policy.PolicyIssuedEvent;
 import com.ais.middleware.common.events.policy.PolicyIssuanceInitiatedEvent;
 import com.ais.middleware.policy.issuance.domain.IssuanceSagaRecord;
 import com.ais.middleware.policy.issuance.domain.IssuanceSagaRepository;
+import com.ais.middleware.policy.issuance.observability.EDAFlowProcessor;
 import com.ais.middleware.policy.issuance.persistence.IssuanceSagaDocument;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.kafka.KafkaConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -47,16 +49,46 @@ public class IssuanceSagaRoute extends RouteBuilder {
     private final IssuanceSagaRepository repository;
     private final ObjectMapper objectMapper;
     private final MongoTemplate mongoTemplate;
+    private final EDAFlowProcessor edaFlowProcessor;
 
     public IssuanceSagaRoute(IssuanceSagaRepository repository, ObjectMapper objectMapper,
-                             MongoTemplate mongoTemplate) {
+                             MongoTemplate mongoTemplate, EDAFlowProcessor edaFlowProcessor) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.mongoTemplate = mongoTemplate;
+        this.edaFlowProcessor = edaFlowProcessor;
     }
 
     @Override
     public void configure() throws Exception {
+
+        interceptFrom("kafka:*")
+            .process(exchange -> exchange.setProperty("EDA_FLOW_DIRECTION", "consumed"))
+            .process(edaFlowProcessor);
+
+        interceptSendToEndpoint("kafka:*")
+            .process(exchange -> {
+                String uri = exchange.getProperty(Exchange.INTERCEPTED_ENDPOINT, String.class);
+                if (uri == null) {
+                    uri = exchange.getProperty(Exchange.TO_ENDPOINT, String.class);
+                }
+                if (uri == null) {
+                    uri = exchange.getIn().getHeader(Exchange.TO_ENDPOINT, String.class);
+                }
+                if (uri == null || !uri.startsWith("kafka:")) {
+                    return;
+                }
+
+                String topic = uri.replaceFirst("^kafka:(//)?", "");
+                int optionsSeparator = topic.indexOf('?');
+                if (optionsSeparator >= 0) {
+                    topic = topic.substring(0, optionsSeparator);
+                }
+
+                exchange.getIn().setHeader(KafkaConstants.TOPIC, topic);
+                exchange.setProperty("EDA_FLOW_DIRECTION", "published");
+            })
+            .process(edaFlowProcessor);
 
         // Global DLQ handler: 2 retries with exponential backoff, then dead-letter.
         // handled(true) commits the Kafka offset so the poison message is not redelivered indefinitely.

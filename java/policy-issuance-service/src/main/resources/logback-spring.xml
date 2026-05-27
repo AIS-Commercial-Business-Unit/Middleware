@@ -3,9 +3,17 @@
     <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <includeContext>true</includeContext>
-            <!-- Include MDC fields: issuanceId, correlationId, traceId, spanId -->
+            <!-- Include MDC fields used for distributed tracing and EDA flow logs -->
             <includeMdcKeyName>issuanceId</includeMdcKeyName>
             <includeMdcKeyName>correlationId</includeMdcKeyName>
+            <includeMdcKeyName>EDA_Event</includeMdcKeyName>
+            <includeMdcKeyName>EDA_IssuanceId</includeMdcKeyName>
+            <includeMdcKeyName>EDA_MessageType</includeMdcKeyName>
+            <includeMdcKeyName>EDA_From</includeMdcKeyName>
+            <includeMdcKeyName>EDA_To</includeMdcKeyName>
+            <includeMdcKeyName>EDA_Topic</includeMdcKeyName>
+            <includeMdcKeyName>EDA_Direction</includeMdcKeyName>
+            <includeMdcKeyName>EDA_Stack</includeMdcKeyName>
         </encoder>
     </appender>
     <root level="INFO">

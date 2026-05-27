@@ -1,10 +1,12 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import clsx from "clsx";
 import Link from "next/link";
 import type { LogEntry } from "@/app/api/loki/route";
+import type { FlowEvent } from "@/types/eda-flow";
 
 // ─── Participants ──────────────────────────────────────────────────────────
 
@@ -56,27 +58,56 @@ interface Step {
   note?: string;
 }
 
+const LABEL_TO_ID: Record<string, ParticipantId> = {
+  API: "API",
+  PolicyIssuance: "PolicyIssuance",
+  Compliance: "Compliance",
+  CustomerIdentity: "CustomerIdentity",
+  Integration: "Integration",
+  Billing: "Billing",
+  Notification: "Notification",
+};
+
 const UC1_STEPS: Step[] = [
-  { id: "s01", from: "API",              to: "PolicyIssuance",    msg: "IssuePolicyCommand",                        isEvent: false, topic: "policy.commands.issue-policy",                                doneAtLevel: 0 },
-  { id: "s02", from: "PolicyIssuance",   to: "Compliance",        msg: "RequestComplianceCheckCommand",             isEvent: false, topic: "compliance.commands.request-compliance-check",                doneAtLevel: 1 },
-  { id: "s03", from: "Compliance",       to: "PolicyIssuance",    msg: "ComplianceClearedEvent",                    isEvent: true,  topic: "compliance.events.compliance-cleared",                        doneAtLevel: 2 },
-  { id: "s04", from: "PolicyIssuance",   to: "CustomerIdentity",  msg: "GetOrCreateAccountServiceRecordCommand",    isEvent: false, topic: "customer.commands.get-or-create-account-record",              doneAtLevel: 2 },
-  { id: "s05", from: "CustomerIdentity", to: "PolicyIssuance",    msg: "AccountServiceRecordRetrievedEvent",        isEvent: true,  topic: "customer.events.account-service-record-retrieved",            doneAtLevel: 3 },
-  { id: "s06", from: "PolicyIssuance",   to: "Integration",       msg: "IssuePolicyRequestedEvent",                 isEvent: true,  topic: "policy.events.issue-policy-requested",                        doneAtLevel: 3 },
-  { id: "s07", from: "Integration",      to: "PolicyIssuance",    msg: "PolicyAdminSystemResponseReceivedEvent",    isEvent: true,  topic: "integration.events.policy-admin-system-response-received",    doneAtLevel: 4 },
-  { id: "s08", from: "PolicyIssuance",   to: "Billing",           msg: "AssociateBillingAccountCommand",            isEvent: false, topic: "billing.commands.associate-billing-account",                  doneAtLevel: 4 },
-  { id: "s09", from: "PolicyIssuance",   to: "CustomerIdentity",  msg: "UpdateCustomerRecordCommand",               isEvent: false, topic: "customer.commands.update-customer-record",                    doneAtLevel: 4, parallel: true, note: "∥ parallel" },
-  { id: "s10", from: "Billing",          to: "PolicyIssuance",    msg: "BillingAssociationCreatedEvent",            isEvent: true,  topic: "billing.events.billing-association-created",                  doneAtLevel: 5 },
-  { id: "s11", from: "CustomerIdentity", to: "PolicyIssuance",    msg: "CustomerUpdatedEvent",                      isEvent: true,  topic: "customer.events.customer-updated",                            doneAtLevel: 5 },
-  { id: "s12", from: "PolicyIssuance",   to: "Notification",      msg: "PolicyIssuedEvent",                         isEvent: true,  topic: "policy.events.policy-issued",                                 doneAtLevel: 5 },
+  { id: "s01", from: "API",              to: "PolicyIssuance",    msg: "IssuePolicyCommand",                     isEvent: false, topic: "policy.commands.issue-policy",                             doneAtLevel: 0 },
+  { id: "s02", from: "PolicyIssuance",   to: "Compliance",        msg: "PolicyIssuanceInitiatedEvent",           isEvent: true,  topic: "policy.events.policy-issuance-initiated",                   doneAtLevel: 1 },
+  { id: "s03", from: "Compliance",       to: "PolicyIssuance",    msg: "ComplianceClearedEvent",                 isEvent: true,  topic: "compliance.events.compliance-cleared",                     doneAtLevel: 2 },
+  { id: "s04", from: "PolicyIssuance",   to: "CustomerIdentity",  msg: "AccountLookupRequestedEvent",            isEvent: true,  topic: "customer.events.account-lookup-requested",                 doneAtLevel: 2 },
+  { id: "s05", from: "CustomerIdentity", to: "PolicyIssuance",    msg: "AccountServiceRecordRetrievedEvent",     isEvent: true,  topic: "customer.events.account-service-record-retrieved",         doneAtLevel: 3 },
+  { id: "s06", from: "PolicyIssuance",   to: "Integration",       msg: "IssuePolicyRequestedEvent",              isEvent: true,  topic: "policy.events.issue-policy-requested",                     doneAtLevel: 3 },
+  { id: "s07", from: "Integration",      to: "PolicyIssuance",    msg: "PolicyAdminSystemResponseReceivedEvent", isEvent: true,  topic: "integration.events.policy-admin-system-response-received", doneAtLevel: 4, note: "fan-out ↓" },
+  { id: "s08", from: "Billing",          to: "PolicyIssuance",    msg: "BillingAssociationCreatedEvent",         isEvent: true,  topic: "billing.events.billing-association-created",               doneAtLevel: 5 },
+  { id: "s09", from: "CustomerIdentity", to: "PolicyIssuance",    msg: "CustomerUpdatedEvent",                   isEvent: true,  topic: "customer.events.customer-updated",                         doneAtLevel: 5, parallel: true, note: "∥ parallel" },
+  { id: "s10", from: "PolicyIssuance",   to: "Notification",      msg: "PolicyIssuedEvent",                      isEvent: true,  topic: "policy.events.policy-issued",                              doneAtLevel: 5 },
 ];
 
-function computeStepStatus(step: Step, sagaStatus: SagaStatus): StepStatus {
+function computeStepStatus(step: Step, sagaStatus: SagaStatus, isLive = false): StepStatus {
+  if (isLive) return "done";
+  if (sagaStatus === "Completed") return "done";
   const current = statusLevel(sagaStatus);
   if (current < 0) return "pending"; // Failed / ComplianceBlocked
   if (current > step.doneAtLevel) return "done";
   if (current === step.doneAtLevel) return "active";
   return "pending";
+}
+
+function flowEventsToSteps(events: FlowEvent[]): Step[] {
+  return events.map((event, index) => ({
+    id: `live-${index}`,
+    from: LABEL_TO_ID[event.from] ?? "API",
+    to: LABEL_TO_ID[event.to] ?? "Notification",
+    msg: event.messageType,
+    isEvent: true,
+    topic: event.topic,
+    doneAtLevel: 5,
+    note: event.stack === "dotnet" ? "⬡ .NET" : undefined,
+  }));
+}
+
+interface SequenceDiagramProps {
+  sagaStatus: SagaStatus;
+  liveSteps?: FlowEvent[];
+  isLiveMode?: boolean;
 }
 
 // ─── SVG layout constants ─────────────────────────────────────────────────
@@ -103,121 +134,220 @@ function formatTime(iso: string) {
 
 // ─── Sequence Diagram ────────────────────────────────────────────────────
 
-function SequenceDiagram({ sagaStatus }: { sagaStatus: SagaStatus }) {
-  const participantIndex = new Map(PARTICIPANTS.map((p, i) => [p.id, i]));
-  const svgWidth  = LEFT_MARGIN + PARTICIPANTS.length * COL_WIDTH + 20;
-  const svgHeight = HEADER_HEIGHT + UC1_STEPS.length * ROW_HEIGHT + BOTTOM_PAD;
+function SequenceDiagram({ sagaStatus, liveSteps = [], isLiveMode = false }: SequenceDiagramProps) {
+  const participantIndex = new Map<ParticipantId, number>(PARTICIPANTS.map((p, i) => [p.id, i]));
+  const stepsToRender = isLiveMode && liveSteps.length > 0 ? flowEventsToSteps(liveSteps) : UC1_STEPS;
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [tooltip, setTooltip] = useState<{
+    step: Step | FlowEvent | null;
+    x: number;
+    y: number;
+  } | null>(null);
+  const svgWidth = LEFT_MARGIN + PARTICIPANTS.length * COL_WIDTH + 20;
+  const svgHeight = HEADER_HEIGHT + stepsToRender.length * ROW_HEIGHT + BOTTOM_PAD;
   const lifelineBottom = svgHeight - BOTTOM_PAD;
 
   return (
-    <svg
-      width={svgWidth}
-      height={svgHeight}
-      viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-      style={{ fontFamily: "ui-sans-serif, system-ui, sans-serif", display: "block" }}
-    >
-      <defs>
-        {PARTICIPANTS.map((p) => (
-          <marker
-            key={`arrow-${p.id}`}
-            id={`arrow-${p.id}`}
-            markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"
-          >
-            <path d="M0,0 L0,6 L8,3 z" fill={p.color} />
-          </marker>
-        ))}
-        <marker id="arrow-pending" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L8,3 z" fill="#4b5563" />
-        </marker>
-      </defs>
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <span
+          className="text-xs px-2 py-0.5 rounded-full font-semibold"
+          style={{
+            background: isLiveMode ? "#16a34a22" : "#6366f122",
+            color: isLiveMode ? "#4ade80" : "#818cf8",
+            border: `1px solid ${isLiveMode ? "#16a34a" : "#6366f1"}`,
+          }}
+        >
+          {isLiveMode ? "📡 Live — from Loki" : "📋 Static topology"}
+        </span>
+      </div>
 
-      {/* Row stripes */}
-      {UC1_STEPS.map((_, i) =>
-        i % 2 === 0 ? (
-          <rect key={`stripe-${i}`} x={0} y={HEADER_HEIGHT + i * ROW_HEIGHT} width={svgWidth} height={ROW_HEIGHT} fill="rgba(255,255,255,0.018)" />
-        ) : null
-      )}
+      <div style={{ position: "relative", width: svgWidth }}>
+        <svg
+          ref={svgRef}
+          width={svgWidth}
+          height={svgHeight}
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          style={{ fontFamily: "ui-sans-serif, system-ui, sans-serif", display: "block" }}
+        >
+          <defs>
+            {PARTICIPANTS.map((p) => (
+              <marker
+                key={`arrow-${p.id}`}
+                id={`arrow-${p.id}`}
+                markerWidth="9"
+                markerHeight="9"
+                refX="8"
+                refY="3"
+                orient="auto"
+              >
+                <path d="M0,0 L0,6 L8,3 z" fill={p.color} />
+              </marker>
+            ))}
+            <marker id="arrow-pending" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#4b5563" />
+            </marker>
+          </defs>
 
-      {/* Participant headers */}
-      {PARTICIPANTS.map((p, i) => {
-        const cx = colX(i);
-        return (
-          <g key={`hdr-${p.id}`}>
-            <rect x={cx - BOX_WIDTH / 2} y={10} width={BOX_WIDTH} height={BOX_HEIGHT} rx={6} fill={p.color} />
-            <text x={cx} y={30} textAnchor="middle" fill="white" fontSize={12} fontWeight="700">{p.id}</text>
-            <text x={cx} y={46} textAnchor="middle" fill="rgba(255,255,255,0.72)" fontSize={9}>{p.label}</text>
-          </g>
-        );
-      })}
+          {/* Row stripes */}
+          {stepsToRender.map((_, i) =>
+            i % 2 === 0 ? (
+              <rect
+                key={`stripe-${i}`}
+                x={0}
+                y={HEADER_HEIGHT + i * ROW_HEIGHT}
+                width={svgWidth}
+                height={ROW_HEIGHT}
+                fill="rgba(255,255,255,0.018)"
+              />
+            ) : null
+          )}
 
-      {/* Lifelines */}
-      {PARTICIPANTS.map((p, i) => (
-        <line key={`ll-${p.id}`}
-          x1={colX(i)} y1={HEADER_HEIGHT} x2={colX(i)} y2={lifelineBottom}
-          stroke="#2d3148" strokeWidth={1} strokeDasharray="4 4"
-        />
-      ))}
+          {/* Participant headers */}
+          {PARTICIPANTS.map((p, i) => {
+            const cx = colX(i);
+            return (
+              <g key={`hdr-${p.id}`}>
+                <rect x={cx - BOX_WIDTH / 2} y={10} width={BOX_WIDTH} height={BOX_HEIGHT} rx={6} fill={p.color} />
+                <text x={cx} y={30} textAnchor="middle" fill="white" fontSize={12} fontWeight="700">{p.id}</text>
+                <text x={cx} y={46} textAnchor="middle" fill="rgba(255,255,255,0.72)" fontSize={9}>{p.label}</text>
+              </g>
+            );
+          })}
 
-      {/* Messages */}
-      {UC1_STEPS.map((step, i) => {
-        const rowY   = HEADER_HEIGHT + i * ROW_HEIGHT + ROW_HEIGHT / 2;
-        const fromIdx = participantIndex.get(step.from)!;
-        const toIdx   = participantIndex.get(step.to)!;
-        const fromX   = colX(fromIdx);
-        const toX     = colX(toIdx);
-        const status  = computeStepStatus(step, sagaStatus);
-        const p       = PARTICIPANTS.find((x) => x.id === step.from)!;
-        const color   = status === "pending" ? "#374151" : p.color;
-        const opacity = status === "pending" ? 0.42 : 1;
-        const direction = toX > fromX ? 1 : -1;
-        const lineEnd   = toX - direction * 1;
-        const markerId  = status === "pending" ? "arrow-pending" : `arrow-${step.from}`;
-        const dash      = step.isEvent ? "6 3" : undefined;
-
-        // Status dot color
-        const dotFill   = status === "done" ? "#22c55e22" : status === "active" ? "#f59e0b22" : "#1f2937";
-        const dotStroke = status === "done" ? "#22c55e"   : status === "active" ? "#f59e0b"   : "#374151";
-
-        return (
-          <g key={step.id} opacity={opacity}>
-            {/* Status dot */}
-            <circle cx={LEFT_MARGIN - 24} cy={rowY} r={6} fill={dotFill} stroke={dotStroke} strokeWidth={1.5} />
-            {status === "done" && (
-              <text x={LEFT_MARGIN - 24} y={rowY + 4} textAnchor="middle" fontSize={8} fill="#22c55e">✓</text>
-            )}
-
-            {/* Step index */}
-            <text x={LEFT_MARGIN - 10} y={rowY + 4} textAnchor="end" fontSize={10} fill="#6b7280">{i + 1}</text>
-
-            {/* Arrow line */}
+          {/* Lifelines */}
+          {PARTICIPANTS.map((p, i) => (
             <line
-              x1={fromX} y1={rowY} x2={lineEnd} y2={rowY}
-              stroke={color} strokeWidth={status === "active" ? 2.5 : 1.8}
-              strokeDasharray={dash}
-              markerEnd={`url(#${markerId})`}
+              key={`ll-${p.id}`}
+              x1={colX(i)}
+              y1={HEADER_HEIGHT}
+              x2={colX(i)}
+              y2={lifelineBottom}
+              stroke="#2d3148"
+              strokeWidth={1}
+              strokeDasharray="4 4"
             />
+          ))}
 
-            {/* Message label */}
-            <text
-              x={(fromX + toX) / 2} y={rowY - 8}
-              textAnchor="middle" fontSize={10}
-              fontWeight={step.isEvent ? "400" : "600"}
-              fontStyle={step.isEvent ? "italic" : "normal"}
-              fill={color}
-            >
-              {step.msg}
-            </text>
+          {/* Messages */}
+          {stepsToRender.map((step, i) => {
+            const rowY = HEADER_HEIGHT + i * ROW_HEIGHT + ROW_HEIGHT / 2;
+            const fromIdx = participantIndex.get(step.from)!;
+            const toIdx = participantIndex.get(step.to)!;
+            const fromX = colX(fromIdx);
+            const toX = colX(toIdx);
+            const status = computeStepStatus(step, sagaStatus, isLiveMode);
+            const participant = PARTICIPANTS.find((x) => x.id === step.from)!;
+            const color = status === "pending" ? "#374151" : participant.color;
+            const opacity = status === "pending" ? 0.42 : 1;
+            const direction = toX > fromX ? 1 : -1;
+            const lineEnd = toX - direction * 1;
+            const markerId = status === "pending" ? "arrow-pending" : `arrow-${step.from}`;
+            const dash = step.isEvent ? "6 3" : undefined;
+            const dotFill = status === "done" ? "#22c55e22" : status === "active" ? "#f59e0b22" : "#1f2937";
+            const dotStroke = status === "done" ? "#22c55e" : status === "active" ? "#f59e0b" : "#374151";
+            const hoverStep = isLiveMode ? liveSteps[i] ?? step : step;
 
-            {/* Parallel note */}
-            {step.note && (
-              <text x={(fromX + toX) / 2} y={rowY + 13} textAnchor="middle" fontSize={8} fill="#94a3b8">
-                {step.note}
-              </text>
+            return (
+              <g
+                key={step.id}
+                opacity={opacity}
+                onMouseEnter={(e) => {
+                  const svgRect = svgRef.current?.getBoundingClientRect();
+                  setTooltip({
+                    step: hoverStep,
+                    x: e.clientX - (svgRect?.left ?? 0),
+                    y: e.clientY - (svgRect?.top ?? 0),
+                  });
+                }}
+                onMouseMove={(e) => {
+                  const svgRect = svgRef.current?.getBoundingClientRect();
+                  setTooltip({
+                    step: hoverStep,
+                    x: e.clientX - (svgRect?.left ?? 0),
+                    y: e.clientY - (svgRect?.top ?? 0),
+                  });
+                }}
+                onMouseLeave={() => setTooltip(null)}
+                style={{ cursor: "pointer" }}
+              >
+                <circle cx={LEFT_MARGIN - 24} cy={rowY} r={6} fill={dotFill} stroke={dotStroke} strokeWidth={1.5} />
+                {status === "done" && (
+                  <text x={LEFT_MARGIN - 24} y={rowY + 4} textAnchor="middle" fontSize={8} fill="#22c55e">✓</text>
+                )}
+
+                <text x={LEFT_MARGIN - 10} y={rowY + 4} textAnchor="end" fontSize={10} fill="#6b7280">{i + 1}</text>
+
+                <line x1={fromX} y1={rowY} x2={lineEnd} y2={rowY} stroke="transparent" strokeWidth={14} />
+                <line
+                  x1={fromX}
+                  y1={rowY}
+                  x2={lineEnd}
+                  y2={rowY}
+                  stroke={color}
+                  strokeWidth={status === "active" ? 2.5 : 1.8}
+                  strokeDasharray={dash}
+                  markerEnd={`url(#${markerId})`}
+                />
+
+                <text
+                  x={(fromX + toX) / 2}
+                  y={rowY - 8}
+                  textAnchor="middle"
+                  fontSize={10}
+                  fontWeight={step.isEvent ? "400" : "600"}
+                  fontStyle={step.isEvent ? "italic" : "normal"}
+                  fill={color}
+                >
+                  {step.msg}
+                </text>
+
+                {step.note && (
+                  <text x={(fromX + toX) / 2} y={rowY + 13} textAnchor="middle" fontSize={8} fill="#94a3b8">
+                    {step.note}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+
+        {tooltip?.step && (
+          <div
+            style={{
+              position: "absolute",
+              left: Math.min(tooltip.x + 12, svgWidth - 260),
+              top: Math.max(tooltip.y - 8, 8),
+              zIndex: 50,
+              pointerEvents: "none",
+            }}
+            className="bg-gray-900 border border-gray-600 rounded-lg shadow-xl p-3 max-w-xs text-xs"
+          >
+            <div className="font-semibold text-white mb-1">
+              {"messageType" in tooltip.step ? tooltip.step.messageType : tooltip.step.msg}
+            </div>
+            {"details" in tooltip.step && tooltip.step.details ? (
+              <>
+                <div className="text-gray-300 mb-2 leading-relaxed">
+                  {tooltip.step.details.description}
+                </div>
+                <div className="space-y-0.5 text-gray-400 font-mono text-[10px]">
+                  <div>📡 topic: {tooltip.step.details.topic || tooltip.step.topic || "—"}</div>
+                  <div>↕ {tooltip.step.details.direction}</div>
+                  <div>⚙ {tooltip.step.details.stack}</div>
+                  <div>🕐 {new Date(tooltip.step.details.timestamp).toLocaleTimeString()}</div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-0.5 text-gray-400 font-mono text-[10px]">
+                <div>📡 {tooltip.step.topic || "—"}</div>
+                <div>🔀 {"msg" in tooltip.step ? (tooltip.step.isEvent ? "event" : "command") : "event"}</div>
+              </div>
             )}
-          </g>
-        );
-      })}
-    </svg>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -284,12 +414,21 @@ export default function OpsPage() {
     { refreshInterval: 3000 }
   );
 
+  const { data: flowData } = useSWR<{ events: FlowEvent[] }>(
+    issuanceId ? `/api/policies/${issuanceId}/flow` : null,
+    fetcher,
+    { refreshInterval: 2000 }
+  );
+  const liveSteps = flowData?.events ?? [];
+  const isLiveMode = liveSteps.length > 0;
+
   const sagaStatus: SagaStatus = saga?.status ?? "Initiated";
   const statusColor = STATUS_COLOR[sagaStatus] ?? "#94a3b8";
   const isRunning = saga && !["Completed", "Failed", "ComplianceBlocked"].includes(saga.status);
+  const stepsToRender = isLiveMode ? flowEventsToSteps(liveSteps) : UC1_STEPS;
 
-  const completedSteps = UC1_STEPS.filter(
-    (s) => computeStepStatus(s, sagaStatus) === "done"
+  const completedSteps = stepsToRender.filter(
+    (step) => computeStepStatus(step, sagaStatus, isLiveMode) === "done"
   ).length;
 
   return (
@@ -320,7 +459,7 @@ export default function OpsPage() {
             </div>
             <div className="text-right">
               <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>Progress</p>
-              <span className="text-sm font-mono">{completedSteps}/{UC1_STEPS.length} steps</span>
+              <span className="text-sm font-mono">{completedSteps}/{stepsToRender.length} steps</span>
             </div>
             {saga.completedAt && (
               <div className="text-right">
@@ -358,7 +497,7 @@ export default function OpsPage() {
             </p>
           </div>
           <div className="px-2 pb-4">
-            <SequenceDiagram sagaStatus={sagaStatus} />
+            <SequenceDiagram sagaStatus={sagaStatus} liveSteps={liveSteps} isLiveMode={isLiveMode} />
           </div>
           {/* Topic legend — shown for active steps */}
           <div className="border-t px-4 py-3 space-y-1" style={{ borderColor: "var(--border)" }}>
@@ -366,23 +505,26 @@ export default function OpsPage() {
               Kafka Topics
             </p>
             <div className="flex flex-wrap gap-2">
-              {UC1_STEPS.map((s) => (
-                <a
-                  key={s.id}
-                  href={`http://localhost:9000/topic/${s.topic}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-mono px-2 py-0.5 rounded hover:opacity-100 transition-opacity"
-                  style={{
-                    background: "var(--bg)",
-                    border: "1px solid var(--border)",
-                    color: computeStepStatus(s, sagaStatus) === "done" ? "#22c55e" : "var(--muted)",
-                    opacity: computeStepStatus(s, sagaStatus) === "pending" ? 0.4 : 1,
-                  }}
-                >
-                  {s.topic}
-                </a>
-              ))}
+              {stepsToRender.map((step) => {
+                const stepStatus = computeStepStatus(step, sagaStatus, isLiveMode);
+                return (
+                  <a
+                    key={step.id}
+                    href={`http://localhost:9000/topic/${step.topic}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-mono px-2 py-0.5 rounded hover:opacity-100 transition-opacity"
+                    style={{
+                      background: "var(--bg)",
+                      border: "1px solid var(--border)",
+                      color: stepStatus === "done" ? "#22c55e" : "var(--muted)",
+                      opacity: stepStatus === "pending" ? 0.4 : 1,
+                    }}
+                  >
+                    {step.topic}
+                  </a>
+                );
+              })}
             </div>
           </div>
         </div>

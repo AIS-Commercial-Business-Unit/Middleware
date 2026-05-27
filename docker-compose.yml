@@ -209,7 +209,16 @@ services:
       sqlserver:
         condition: service_healthy
     restart: "no"
-    entrypoint: ["/bin/bash", "-c", "for i in 1 2 3 4 5; do /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P 'AIS_Middleware_2024!' -No -l 15 -Q \"IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'middleware_nsb') CREATE DATABASE middleware_nsb; PRINT 'middleware_nsb ready'\" && exit 0; echo Retry $i; sleep 5; done; echo 'DB init gave up (may already exist)'; exit 0"]
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        for i in 1 2 3 4 5; do
+          /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P 'AIS_Middleware_2024!' -No -l 15 -Q "IF DB_ID('middleware_nsb') IS NULL CREATE DATABASE middleware_nsb; USE middleware_nsb; IF OBJECT_ID('dbo.SubscriptionRouting', 'U') IS NULL BEGIN CREATE TABLE dbo.SubscriptionRouting (QueueAddress NVARCHAR(200) NOT NULL, Endpoint NVARCHAR(200) NOT NULL, Topic NVARCHAR(200) NOT NULL, CONSTRAINT PK_SubscriptionRouting PRIMARY KEY CLUSTERED (Endpoint, Topic)); END; MERGE dbo.SubscriptionRouting AS target USING (VALUES ('dotnet-platform-compliance@[dbo]@[middleware_nsb]', 'dotnet-platform-compliance', 'Middleware.Contracts.Events.PolicyIssuanceInitiatedEvent'), ('dotnet-customer-identity@[dbo]@[middleware_nsb]', 'dotnet-customer-identity', 'Middleware.Contracts.Events.AccountLookupRequestedEvent'), ('dotnet-platform-integration@[dbo]@[middleware_nsb]', 'dotnet-platform-integration', 'Middleware.Contracts.Events.IssuePolicyRequestedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.AccountServiceRecordRetrievedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.BillingAssociationCreatedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.ComplianceBlockedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.ComplianceClearedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.CustomerUpdatedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.PolicyAdminSystemCallFailedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.PolicyAdminSystemResponseReceivedEvent'), ('dotnet-billing-finance@[dbo]@[middleware_nsb]', 'dotnet-billing-finance', 'Middleware.Contracts.Events.PolicyAdminSystemResponseReceivedEvent'), ('dotnet-customer-identity@[dbo]@[middleware_nsb]', 'dotnet-customer-identity', 'Middleware.Contracts.Events.PolicyAdminSystemResponseReceivedEvent')) AS source (QueueAddress, Endpoint, Topic) ON target.Endpoint = source.Endpoint AND target.Topic = source.Topic WHEN MATCHED AND target.QueueAddress <> source.QueueAddress THEN UPDATE SET QueueAddress = source.QueueAddress WHEN NOT MATCHED BY TARGET THEN INSERT (QueueAddress, Endpoint, Topic) VALUES (source.QueueAddress, source.Endpoint, source.Topic); PRINT 'middleware_nsb ready';" && exit 0
+          echo Retry $i
+          sleep 5
+        done
+        echo 'DB init gave up (may already exist)'
+        exit 0
 
 
 
@@ -339,7 +348,9 @@ services:
   # ──────────────────────────────────────────────────────────
 
   duckcreek-commercial-stub:
-    build: ./java/stubs/duckcreek-commercial-stub
+    build:
+      context: ./java
+      dockerfile: stubs/duckcreek-commercial-stub/Dockerfile
     container_name: duckcreek-commercial-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -356,7 +367,9 @@ services:
     mem_limit: 256m
 
   duckcreek-personal-stub:
-    build: ./java/stubs/duckcreek-personal-stub
+    build:
+      context: ./java
+      dockerfile: stubs/duckcreek-personal-stub/Dockerfile
     container_name: duckcreek-personal-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -373,7 +386,9 @@ services:
     mem_limit: 256m
 
   forefront-stub:
-    build: ./java/stubs/forefront-stub
+    build:
+      context: ./java
+      dockerfile: stubs/forefront-stub/Dockerfile
     container_name: forefront-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -390,7 +405,9 @@ services:
     mem_limit: 256m
 
   rsk3x3-compliance-stub:
-    build: ./java/stubs/rsk3x3-compliance-stub
+    build:
+      context: ./java
+      dockerfile: stubs/rsk3x3-compliance-stub/Dockerfile
     container_name: rsk3x3-compliance-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -407,7 +424,9 @@ services:
     mem_limit: 256m
 
   erm7x1-account-stub:
-    build: ./java/stubs/erm7x1-account-stub
+    build:
+      context: ./java
+      dockerfile: stubs/erm7x1-account-stub/Dockerfile
     container_name: erm7x1-account-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -424,7 +443,9 @@ services:
     mem_limit: 256m
 
   crm40x1-customer-stub:
-    build: ./java/stubs/crm40x1-customer-stub
+    build:
+      context: ./java
+      dockerfile: stubs/crm40x1-customer-stub/Dockerfile
     container_name: crm40x1-customer-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -441,7 +462,9 @@ services:
     mem_limit: 256m
 
   crm19x1-billing-stub:
-    build: ./java/stubs/crm19x1-billing-stub
+    build:
+      context: ./java
+      dockerfile: stubs/crm19x1-billing-stub/Dockerfile
     container_name: crm19x1-billing-stub
     networks: [middleware-net]
     restart: unless-stopped
@@ -462,7 +485,9 @@ services:
   # ──────────────────────────────────────────────────────────
 
   policy-issuance-service:
-    build: ./java/policy-issuance-service
+    build:
+      context: ./java
+      dockerfile: policy-issuance-service/Dockerfile
     container_name: policy-issuance-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -493,7 +518,9 @@ services:
     mem_limit: 512m
 
   platform-compliance-service:
-    build: ./java/platform-compliance-service
+    build:
+      context: ./java
+      dockerfile: platform-compliance-service/Dockerfile
     container_name: platform-compliance-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -526,7 +553,9 @@ services:
     mem_limit: 512m
 
   customer-identity-service:
-    build: ./java/customer-identity-service
+    build:
+      context: ./java
+      dockerfile: customer-identity-service/Dockerfile
     container_name: customer-identity-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -562,7 +591,9 @@ services:
     mem_limit: 512m
 
   platform-integration-service:
-    build: ./java/platform-integration-service
+    build:
+      context: ./java
+      dockerfile: platform-integration-service/Dockerfile
     container_name: platform-integration-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -601,7 +632,9 @@ services:
     mem_limit: 512m
 
   billing-finance-service:
-    build: ./java/billing-finance-service
+    build:
+      context: ./java
+      dockerfile: billing-finance-service/Dockerfile
     container_name: billing-finance-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -634,7 +667,9 @@ services:
     mem_limit: 512m
 
   platform-notification-service:
-    build: ./java/platform-notification-service
+    build:
+      context: ./java
+      dockerfile: platform-notification-service/Dockerfile
     container_name: platform-notification-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -664,7 +699,9 @@ services:
     mem_limit: 512m
 
   platform-file-processing-service:
-    build: ./java/platform-file-processing-service
+    build:
+      context: ./java
+      dockerfile: platform-file-processing-service/Dockerfile
     container_name: platform-file-processing-service
     networks: [middleware-net]
     restart: unless-stopped
@@ -838,6 +875,12 @@ services:
         condition: service_healthy
       otel-collector:
         condition: service_started
+      dotnet-policy-issuance:
+        condition: service_healthy
+      dotnet-billing-finance:
+        condition: service_healthy
+      dotnet-customer-identity:
+        condition: service_healthy
       duckcreek-commercial-stub:
         condition: service_healthy
       duckcreek-personal-stub:
@@ -1050,8 +1093,10 @@ services:
       FILE_PROCESSING_SERVICE_URL: http://platform-file-processing-service:8087
       DOTNET_FILE_PROCESSING_URL: http://dotnet-file-processing:8187
       NEXT_PUBLIC_DOTNET_FILE_PROCESSING_URL: http://localhost:8187
+      # Next.js standalone binds to HOSTNAME; override to 0.0.0.0 so the health check works
+      HOSTNAME: "0.0.0.0"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ > /dev/null 2>&1"]
       interval: 30s
       timeout: 10s
       retries: 3
