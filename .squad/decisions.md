@@ -160,6 +160,14 @@
 - Preserve static-tooltip fallback for `UC1_STEPS` before live logs arrive
 - **Verification:** TypeScript clean, build passed, platform-ui restarted, tooltips functional
 
+### 27. Platform-UI Startup Decoupling from Backend Services (2026-05-27)
+- `platform-ui` no longer hard-depends on Java or .NET backend service health in `docker-compose.yml`
+- One-shot init containers that gate application startup must fail non-zero when provisioning fails
+- SQL Server init for `middleware_nsb` is split into two steps: create the database first, then connect to that database to seed `dbo.SubscriptionRouting`
+- Keeps frontend available during partial backend outages; hard `depends_on` made UI disappear from `docker ps` when optional backends were warming up
+- Real blocker was `sqlserver-init` falsely succeeding while `middleware_nsb` did not exist, cascading into .NET crashes and `dotnet-file-processing` health hangs
+- Dependency failures now visible at correct root cause; SQL provisioning failures surfaced early instead of masked by restart loops
+
 ## Governance
 
 - All meaningful changes require team consensus

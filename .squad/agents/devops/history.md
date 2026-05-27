@@ -59,3 +59,20 @@
 - Docker stack verified fully functional with `docker compose up --build`
 - Orchestration log: `.squad/orchestration-log/2026-05-26T01-33-25Z-devops-1.md`
 
+### Compose dependency chain repair (2026-05-27T14:19:40.019-04:00)
+
+**Approach:** Audited the full `platform-ui` dependency chain in `docker-compose.yml`, traced blocked startup through `dotnet-file-processing -> dotnet-policy-issuance -> sqlserver-init`, and validated the running stack with `docker compose ps`, service logs, and HTTP health checks.
+
+**Key learnings:**
+- `dotnet-file-processing` does exist in `docker-compose.yml`; the blocker was not a missing service but an upstream readiness failure on the .NET chain.
+- `sqlserver-init` was returning success even when `middleware_nsb` was never created because the compose command tried to `USE middleware_nsb` in the same batch and swallowed failure with `exit 0`.
+- `platform-ui` should not hard-gate on backend container health; it only needs backend URLs at runtime, so startup should stay decoupled from Java/.NET readiness.
+- Key file paths for this repair: `docker-compose.yml`, `.squad/decisions/inbox/devops-platform-ui-startup-decoupling.md`, `.squad/skills/compose-init-fail-fast/SKILL.md`.
+
+**Resolution completed:**
+- Removed hard `depends_on` from `platform-ui` service
+- Fixed SQL init to split create-then-seed pattern (decision #27)
+- All .NET services confirmed healthy on stack restart
+- Platform-ui now available during partial backend outages
+- Verified `docker compose up --build` completes without UI service disappearing
+
