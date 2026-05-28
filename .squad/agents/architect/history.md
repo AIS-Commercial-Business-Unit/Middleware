@@ -120,6 +120,27 @@ PolicyLifecycle waits for both completion events (join pattern) before publishin
 **Output:** `.docs/java-vs-dotnet-biztalk-replacement.md` — full strategic comparison document
 **Decision:** `.squad/decisions/inbox/architect-java-vs-dotnet-recommendation.md`
 
+### 2026-05-28 — UC4 Appraisal Documents Architecture & Demo Gap Analysis
+
+**Architecture Deliverable:**
+- Created `.docs/demo-gaps-uc4.md` — comprehensive demo gap reference document identifying 9 requirements gaps (4 critical, 5 moderate)
+- Gateway pattern enforcement validated: RiskIDMQGateway, PLUWGateway, PLAPRGateway, MasterpieceGateway, CustomerDBGateway — all designed as proper domain-layer abstractions with swappable adapter implementations
+- Saga structure validated: AppraisalReceivedSaga (outer) → StatusCode6UWSaga, StatusCode15CompletedSaga, GenericStatusUpdateSaga (sub-workflows)
+- Timeout handling design: Java/Camel uses custom timer + MongoDB state check; NServiceBus uses built-in `RequestTimeout<T>()`
+- Join pattern for parallel calls (PLUW creation + UW determination) uses MongoDB `findAndModify()` atomic check (same pattern as UC1 issuance saga)
+
+**Key Demo Gaps (Critical):**
+1. UW Determination business rules — mocked with InspectionTypeCode proxy
+2. PLAPR database schema — completely unknown
+3. @Work MQ message format — completely unknown
+4. Real RiskID sample payloads — simplified JSON instead of real MQ messages
+
+**Architectural Principle Reinforced:**
+- Every gap is isolated behind a gateway interface — resolving gaps requires adapter changes only, never saga logic changes
+- This is the abstract-layer principle in action: design for unknowns
+
+**Key File:** `.docs/demo-gaps-uc4.md`
+
 ### 2026-05-26 — AIS Stack Framing Correction
 
 **Integration Boundary Framing:**
@@ -127,3 +148,50 @@ PolicyLifecycle waits for both completion events (join pattern) before publishin
 - When Kafka is already the production messaging backbone, Java + Camel removes the need for Azure Service Bus and Azure Logic Apps entirely.
 - In Azure, .NET + NServiceBus typically adds Azure Service Bus as the transport; avoiding that means using SQL Server as message infrastructure instead.
 - Logic Apps should be framed as a required adapter tier for .NET protocol gaps (SFTP, IBM MQ bridging, file polling, SQL polling), not as an optional convenience layer.
+
+### 2026-05-28 — UC4 Cross-Stack Alignment & Gateway Pattern Enforcement
+
+**Cross-Team Coordination Results:**
+- All 6 agents (Architect, Backend, DotNet, Integration, Frontend, QA) completed UC4 Appraisal Documents in parallel with zero blocking dependencies
+- Architecture pattern (gateway + orchestrator saga) applied identically across Java and .NET implementations
+- Both Java `AppraisalReceivedSagaRoute` and .NET `AppraisalReceivedSaga` implement the same saga structure: outer orchestrator → StatusCode6UWSaga (parallel join), StatusCode15CompletedSaga, GenericStatusUpdateSaga
+- All 5 gateways (RiskIDMQGateway, PLUWGateway, PLAPRGateway, MasterpieceGateway, CustomerDBGateway) use consistent domain/adapter separation across both stacks
+- Demo gap visibility standard enforced: `⚠️ STUBBED` and `⚠️ DEMO GAP` markers visible in logs for every stub gateway call
+- Frontend demo shell pattern makes requirements gaps explicit in UI with mock data flag + expandable gap panel
+- QA two-section test standard (architecture patterns + demo gaps) enables honest stakeholder communication
+
+**Gateway Pattern Enforcement Across Stacks:**
+- Java: All 5 gateways defined as interfaces in `prs-appraisal-service/src/main/java/.../gateway/` (domain layer), implemented as adapter stubs in `src/main/java/.../gateway/adapter/`
+- .NET: All 5 gateways defined as `I*Gateway` interfaces in `dotnet-prs-appraisal/Gateways/`, wired to static `AppraisalRuntime` class in `Program.cs`
+- Consistent naming across stacks: `IRiskIDMQGateway`, `IPLUWGateway`, `IPLAPRGateway`, `IMasterpieceGateway`, `ICustomerDBGateway`
+- All gateway stubs log with `⚠️ STUBBED:` or `⚠️ DEMO STUB:` prefix visible in docker logs during demo
+- All fabricated data constants use `REPLACE_ME_*` naming for searchability in code review
+
+**Parallel Join Pattern Alignment:**
+- Java UC4 StatusCode6UWSagaRoute uses two separate Kafka subscriptions (`prs.events.pluw-appraisal-created` + `prs.events.uw-assignment-determined`) with MongoDB `findAndModify` CAS (status-based, like UC1 IssuanceSagaRoute)
+- .NET UC4 AppraisalReceivedSaga implements equivalent parallel join using NServiceBus subscription to completion events
+- Pattern reuse from UC1: atomic join condition via `findAndModify(returnNew(true))` + CAS prevents race condition on both stacks
+
+**EDA Observability Contract Across Stacks:**
+- Java: `AppraisalReceivedSagaRoute` uses existing `EDAFlowProcessor` intercepts; `appraisalId` mapped to `correlationId` fallback path
+- .NET: Planned `EDAFlowBehavior` (NServiceBus pipeline) will emit same `EDA_*` MDC contract as Java
+- Correlation key: `appraisalId` (UC4) stored as `correlationId` property/header so both observability systems pick it up without code duplication
+- Live ops sequence diagram will render UC4 saga flow across Java/.NET choice at frontend runtime via `active-backend` cookie
+
+**Demo Readiness Outcome:**
+- UC4 dashboard is fully functional and demoable without appraisal-service backend implementation
+- Frontend proxy tries real backend first, falls back to typed mock data with `isMockData: true` flag
+- All 8 demo gap items documented in `.docs/demo-gaps-uc4.md` and searchable in code via `DEMO GAP`, `REPLACE_ME_*`, `⚠️ STUBBED`, `⚠️ DEMO GAP` markers
+- Prep session can point to specific log lines showing stub boundaries (e.g., "This log from `⚠️ DEMO STUB: RiskIDMQGateway` is where the real IBM MQ message would arrive")
+- QA test scenarios provide both architecture validation (patterns work) and explicit gap documentation for PRS team confirmation
+
+**Key Learning: Design for Unknowns**
+- When external system schemas are unknown, abstract them behind gateway interfaces — when the schema is confirmed, only the adapter changes, never the saga logic
+- This applied to all 5 gateways: real IBM MQ schema, PLUW WCF contract, PLAPR stored procedure signature, Masterpiece Transaction 90 format, CustomerDB cross-reference structure
+- The gateway pattern proved itself as the correct abstraction for UC4 because it isolated domain logic from infrastructure unknowns
+
+**Cross-Stack Parity Achieved:**
+- Both Java and .NET stacks now implement UC4 identically: orchestrator saga with gateway abstraction
+- Frontend can switch between backends at runtime (`active-backend` cookie) without changing demo functionality
+- QA architecture tests apply to both stacks (parallel join, saga state, timeout, EDA observability)
+- Decision decisions #28-35 align all team members on the same architectural direction

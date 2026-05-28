@@ -168,6 +168,64 @@
 - Real blocker was `sqlserver-init` falsely succeeding while `middleware_nsb` did not exist, cascading into .NET crashes and `dotnet-file-processing` health hangs
 - Dependency failures now visible at correct root cause; SQL provisioning failures surfaced early instead of masked by restart loops
 
+### 28. UC4 Gateway Pattern & Saga Structure (2026-05-28)
+- All UC4 external integration points MUST use the gateway pattern with domain-layer interfaces and swappable adapter implementations
+- Five gateways: RiskIDMQGateway (IBM MQ inbound), PLUWGateway (@Work updates), PLAPRGateway (PLAPR database), MasterpieceGateway (Transaction 90), CustomerDBGateway (producer cross-reference)
+- Saga structure uses orchestrator pattern (not choreography) because the workflow is inherently sequential with branching: `AppraisalReceivedSaga` (outer coordinator), `StatusCode6UWSaga` (parallel calls + join), `StatusCode15CompletedSaga` (sequential), `GenericStatusUpdateSaga` (simple pass-through)
+- Gateway abstraction ensures saga logic is stable regardless of when/how gaps are resolved
+- Orchestrator pattern is appropriate here because the workflow is coordinated, not autonomous reactions, and gateways are adapters within the service boundary, not autonomous services
+- This does NOT violate Udi Dahan's pub/sub principle — gateways are infrastructure, not domain services
+- **Impact:** Backend must implement gateway interfaces in domain layer; adapter implementations in infrastructure layer. DevOps: gateway stubs need docker-compose entries for demo. All: demo gap document (`.docs/demo-gaps-uc4.md`) is the reference.
+
+### 29. UC4 prs-appraisal-service architecture patterns (2026-05-28)
+- **Saga Timeouts:** Implemented `SagaTimeoutRoute` as a `timer:saga-timeout-watchdog?period=60000` Camel timer route (not message-scheduled callbacks). It scans MongoDB for sagas where `timeoutAt < now()` and status is not terminal. Uses MongoDB `findAndModify` with `nin(status, [Completed, Failed, TimedOut])` CAS to prevent double-processing. ProducerTemplate injected as singleton per Decision #13.
+- **Parallel Join Pattern:** StatusCode=6 UW Determination requires two parallel operations (PLUW appraisal creation + UW assignment determination) with a synchronization point. Two separate Kafka topics are consumed by two separate routes, both update MongoDB via `findAndModify` setting boolean flags. The route that sets the second flag proceeds to the join. MongoDB `findAndModify` with `ne(status, UpdatingDownstream)` CAS ensures exactly one route proceeds — consistent with atomic join condition (Decision #3).
+- **HTTP Endpoint as RiskIDMQGateway Stub:** `AppraisalController.POST /api/appraisal/status-update` acts as the demo stub for `RiskIDMQGateway`. Production MQ integration will replace the controller body without changing the saga. Demo entry point is `http://localhost:8090/api/appraisal/status-update`.
+- **Impact:** Saga timeout pattern is reusable for any long-running Camel saga. Watchdog delay tunable via `appraisal.saga.timeout-minutes`. Parallel join extends the UC1 IssuanceSagaRoute pattern to UC4. Both UC1 and UC4 use `findAndModify` with status-based CAS for join synchronization.
+
+### 30. DevOps — Renewal drop-zone bind mounts (2026-05-28)
+- Use repo-local bind mounts under `.docker-data/renewals` for file-processing drop-zones in `docker-compose.yml` instead of named volumes
+- Java service writes through `./.docker-data/renewals/java:/app/data`, creating `renewals/inbound`, `processed`, and `error` directories itself
+- .NET service needs explicit subdirectory bind mounts because a fresh non-root bind mount at `/app/data` caused permission failures when creating `/app/data/renewals`
+- **Why:** Dockerfile-created directories don't work when a named volume is mounted over the mount path; the mount hides image-layer directories
+- **Impact:** Java batch generation succeeds locally and generated CSV is visible under `.docker-data/renewals/java/renewals/inbound`. .NET drop-zone directories are created as host bind mounts. `.docker-data/` remains ignored by git.
+
+### 31. UC4 .NET stack gateway pattern (2026-05-28)
+- All UC4 appraisal service external integration points exposed through named interfaces (`IRiskIDMQGateway`, `IPLUWGateway`, `IPLAPRGateway`, `IMasterpieceGateway`, `ICustomerDBGateway`) with stub implementations that log `⚠️ STUBBED:` warnings with `REPLACE_ME_*` constants
+- Gateway instances wired to the static `AppraisalRuntime` class at `Program.cs` startup, consistent with the `CustomerIdentityRuntime` pattern established in UC1
+- **Rationale:** Demo requires ALL integration points to be visible without real systems. Gateway stubs must be observable. `REPLACE_ME_*` constants make demo gaps searchable. Static runtime pattern avoids NServiceBus DI container complexity.
+- **Impact:** `dotnet-prs-appraisal` builds and runs standalone with all stubs. `dotnet-customer-identity` extended (not replaced) — ProducerLookupHandler added. `Middleware.sln` updated with new project. `docker-compose.yml` updated — port 8189.
+
+### 32. UC4 Demo Shell — Demo Gap Visibility Pattern (2026-05-28)
+- When building a demo page for a use case where the backend service is not yet implemented, frontend API proxy routes should:
+  1. Try to call the real backend service
+  2. On any failure (connection refused, timeout, 404, 503), return typed mock/stub data with `isMockData: true` in the response body
+  3. The UI should display the mock data flag prominently — banner at the top, `⚠️ DEMO GAP` badges on every mock field, expandable requirements gap panel listing all open questions
+- Applied to: `platform-ui/src/app/uc4/page.tsx` (UC4 Appraisal Documents page), `platform-ui/src/app/api/riskid/status-update/route.ts` (returns stub saga on integration service failure), `platform-ui/src/app/api/riskid/sagas/route.ts` (returns seeded mock sagas on appraisal service failure)
+- **Rationale:** Appraisal Service and Integration Service appraisal endpoints not yet implemented. Frontend page needs to be demoable now to show architecture pattern and requirements gaps. Making demo gaps highly visible drives the questions that need to be answered by the PRS developer.
+
+### 33. Integration — Renewal Volume Bootstrap (2026-05-28)
+- Keep the existing `renewal-data:/app/data/renewals` volume mount, but bootstrap the mounted directory at container start
+- Container entrypoint creates `inbound`, `processed`, and `error`, fixes ownership/permissions on the mounted volume root, then launches the Java process as `appuser`
+- **Why:** Dockerfile-created directories do not work when a named volume is mounted over the mount path (the mount hides image-layer directories)
+- **Impact:** Preserves the non-root runtime decision for Java services. Avoids docker-compose volume mount changes. Makes startup fail fast if drop-zone directories are missing or not writable.
+
+### 34. UC4 RiskIDMQGateway — Topic Naming and Integration Seam (2026-05-28)
+- **Topic Naming:** PRS domain topics use `prs.*` prefix — `prs.events.appraisal-received`, `prs.dlq.riskid-gateway`. Consistent with existing single-word domain naming convention (policy, compliance, customer, billing, file, integration).
+- **IBM MQ Entry Point Seam:** Is `direct:riskid-kafka-publish`. The HTTP controller is demo scaffolding only. The Camel route entry point is the explicit cut-point where the real IBM MQ JMS consumer will plug in at production time. No other code changes needed when switching from HTTP to MQ.
+- **Correlation Key:** `appraisalId` is the UC4 correlation key (analogous to `issuanceId` in UC1). Stored as `correlationId` on the exchange so `EDAFlowProcessor.resolveIssuanceId()` handles it via the existing fallback path without changes to the observability layer.
+- **Canonical Published Event:** `AppraisalReceivedEvent` is the canonical published event. Fields are explicitly marked `// ⚠️ DEMO GAP` until the PRS integration team provides the real IBM MQ wire schema.
+- **Rationale:** IBM MQ format is unknown — keeping the demo gap markers explicit and traceable forces the real confirmation conversation with the PRS developer before go-live. The seam approach means the appraisal saga logic can be built and tested now, decoupled from the real MQ plumbing.
+- **Impact:** `kafka-setup` pre-creates `prs.events.appraisal-received` and `prs.dlq.riskid-gateway` at startup. Appraisal domain service subscribes to `prs.events.appraisal-received` with its own consumer group.
+
+### 35. QA — UC4 Demo Gap Documentation Standard (2026-05-28)
+- **For any BizTalk replacement feature demo, QA will produce two distinct sections:**
+  1. Architecture test scenarios — verifiable against the running docker-compose stack. Test that the *patterns* work: saga state management, content-based routing, parallel join, EDA_FLOW observability, DLQ handling, retry logic.
+  2. Demo gap scenarios — explicit documentation of what cannot be verified without real system data. Each gap gets a risk level (HIGH/MEDIUM/LOW) and a specific question for the domain expert.
+- **Gateway stubs must include `⚠️ STUBBED` in log output** so that during demo, the presenter can point at the log and show the audience exactly where the real integration boundary is
+- **Rationale:** Stakeholders include PRS domain experts who know the actual message formats and business rules. Making demo gaps highly visible (rather than hiding them) builds trust: "we know what we don't know."
+- **Impact:** All future UC demos should follow this two-section structure. `⚠️ STUBBED` log markers become a team-wide convention. Prep session agendas should include a "gap validation" block.
+
 ## Governance
 
 - All meaningful changes require team consensus
