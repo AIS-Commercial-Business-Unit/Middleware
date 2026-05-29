@@ -76,3 +76,52 @@
 - Platform-ui now available during partial backend outages
 - Verified `docker compose up --build` completes without UI service disappearing
 
+### Renewal drop-zone bind mounts (2026-05-27T14:29:44.195-04:00)
+
+**Approach:** Reworked renewal file storage in `docker-compose.yml` so file-processing services write to repo-local bind mounts under `.docker-data/renewals`, then validated both stacks locally with container startup checks, health checks, and a live Java batch file generation smoke test.
+
+**Key learnings:**
+- `platform-file-processing-service` already had a data mount, but the original named-volume strategy at `/app/data/renewals` still allowed the UI create-file path to fail because the drop-zone subdirectories were not reliably writable/visible during local runs.
+- Java works cleanly with a parent bind mount at `/app/data`; it created `renewals/inbound`, `renewals/processed`, and `renewals/error` on startup, and the generated CSV appeared on the host at `.docker-data/renewals/java/renewals/inbound`.
+- .NET needed explicit bind mounts per drop-zone subdirectory (`inbound`, `processed`, `error`) to avoid non-root permission failures when creating `/app/data/renewals` from a fresh host mount.
+- Key file paths for this repair: `docker-compose.yml`, `.docker-data/renewals/java`, `.docker-data/renewals/dotnet`, `.squad/decisions/inbox/devops-renewal-bind-mounts.md`, `.squad/skills/non-root-file-drop-bind-mounts/SKILL.md`.
+
+### UC4 — prs-appraisal-service + dotnet-prs-appraisal stack-up (2026-05-29T05:03:49.407-04:00)
+
+**Approach:** Built UC4 Java/NET services (JARs and DLLs were already fresh from 2026-05-28), ran `docker compose up -d --build` for the new services, debugged two blocking build/runtime failures.
+
+**Bug 1 — All non-prs Dockerfiles missing `prs-appraisal-service/pom.xml` COPY step:**
+- Root cause: When `prs-appraisal-service` was added to the parent `pom.xml` as a reactor module, 14 existing Dockerfiles that copy all module POMs for Maven reactor resolution were not updated.
+- Symptom: `mvn dependency:go-offline` failed with `Child module /workspace/prs-appraisal-service of /workspace/pom.xml does not exist`.
+- Fix: Added `COPY prs-appraisal-service/pom.xml prs-appraisal-service/` after the `platform-file-processing-service/pom.xml` COPY line in all 14 affected Dockerfiles.
+- **Rule:** Every time a new module is added to `java/pom.xml`, all Dockerfiles in `java/` must get the corresponding `COPY {module}/pom.xml {module}/` line.
+
+**Bug 2 — `ProcessAppraisalStatusUpdateCommand` missing `ICommand` interface:**
+- Root cause: `Middleware.Contracts/Commands/ProcessAppraisalStatusUpdateCommand.cs` was created without `using NServiceBus;` and `: ICommand`.
+- Symptom: NServiceBus startup crash — `Cannot configure routing for type ... because it is not considered a message`.
+- Fix: Added `using NServiceBus;` and `: ICommand` to the class declaration.
+- **Rule:** Every NServiceBus command class in `Middleware.Contracts` MUST implement `ICommand` (or `IEvent`/`IMessage`). Forgetting this causes a hard startup crash.
+
+**Outcome:**
+- prs-appraisal-service: healthy on port 8090
+- dotnet-prs-appraisal: healthy on port 8189
+- dotnet-customer-identity: healthy on port 8183
+- customer-identity-service: healthy on port 8083
+- platform-integration-service: healthy on port 8084
+- platform-ui: healthy on port 3000
+- RiskIDMQGateway smoke test: POST http://localhost:8084/api/riskid/status-update → 202 Accepted
+- Kafka `prs.events.*` topics confirmed: 11 topics present
+- Stack total: 34/37 healthy (mongo-express pre-existing unhealthy, not UC4)
+- One application-level DLQ error in prs-appraisal-service: `OffsetDateTime` BSON codec missing — routes to DLQ as designed, not a container failure.
+
+**Key file paths:**
+- `java/pom.xml` — parent reactor module list
+- `java/stubs/*/Dockerfile`, `java/*/Dockerfile` — all needed prs-appraisal-service pom COPY
+- `dotnet/Middleware.Contracts/Commands/ProcessAppraisalStatusUpdateCommand.cs` — ICommand fix
+- `docker-compose.yml` — prs-appraisal-service:8090, dotnet-prs-appraisal:8189
+
+### Cross-agent learning — Dockerfile POM sync requirement (2026-05-29)
+
+**From Scribe decision merge:** New Maven modules require Dockerfile POM sync across all Java services. When a new module is added to `java/pom.xml`, ALL Dockerfiles under `java/` must receive a corresponding `COPY {module}/pom.xml {module}/` line in the POM-copy block (immediately before `RUN mvn dependency:go-offline`). Missing module causes hard build failure. Whoever adds a module to `java/pom.xml` is responsible for patching all Dockerfiles in the same commit.
+
+**Pattern established:** This mechanical step prevents the `[ERROR] Child module ... does not exist` failure seen with prs-appraisal-service.

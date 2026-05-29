@@ -193,6 +193,25 @@
 ### 31. UC4 .NET stack gateway pattern (2026-05-28)
 - All UC4 appraisal service external integration points exposed through named interfaces (`IRiskIDMQGateway`, `IPLUWGateway`, `IPLAPRGateway`, `IMasterpieceGateway`, `ICustomerDBGateway`) with stub implementations that log `⚠️ STUBBED:` warnings with `REPLACE_ME_*` constants
 - Gateway instances wired to the static `AppraisalRuntime` class at `Program.cs` startup, consistent with the `CustomerIdentityRuntime` pattern established in UC1
+
+### 32. New Maven modules require Dockerfile POM sync (2026-05-29)
+- When a new module is added to `java/pom.xml`, ALL Dockerfiles under `java/` must receive a corresponding `COPY {module}/pom.xml {module}/` line in the POM-copy block
+- Missing module causes hard build failure: `[ERROR] Child module /workspace/{module} does not exist`
+- Whoever adds a module to `java/pom.xml` is responsible for patching all Dockerfiles in the same commit
+- DevOps will catch missing POM-copy lines in build review
+
+### 33. MongoConfig Required for Every Service Using OffsetDateTime in MongoDB (2026-05-29)
+- Spring Data MongoDB 4.x does not natively support `java.time.OffsetDateTime` without custom codec
+- Missing codec causes `CodecConfigurationException` and DLQ failures
+- Every Java service that uses Spring Data MongoDB AND has `OffsetDateTime` fields in domain/persistence classes MUST include `MongoConfig.java`
+- Copy canonical template from `policy-issuance-service/config/MongoConfig.java`; converters: `OffsetDateTimeToDateConverter` (OffsetDateTime → BSON Date UTC) and `DateToOffsetDateTimeConverter` (BSON Date → OffsetDateTime UTC)
+- Checklist: MongoDB dependency? OffsetDateTime fields? If both: add `MongoConfig.java` before first PR
+
+### 34. Use `.nin()` for Multi-Value Exclusion in MongoDB Criteria (2026-05-29)
+- Chained `.ne()` calls on same field throw `InvalidMongoDbApiUsageException`
+- When excluding multiple values from same field, use `.nin(val1, val2, ...)` NOT chained `.ne()` calls
+- Example: `Criteria.where("_id").is(id).and("status").nin("A", "B")` ✅ not `and("status").ne("A").and("status").ne("B")` ❌
+- Applies to `findAndModify`, `find`, and `update` queries
 - **Rationale:** Demo requires ALL integration points to be visible without real systems. Gateway stubs must be observable. `REPLACE_ME_*` constants make demo gaps searchable. Static runtime pattern avoids NServiceBus DI container complexity.
 - **Impact:** `dotnet-prs-appraisal` builds and runs standalone with all stubs. `dotnet-customer-identity` extended (not replaced) — ProducerLookupHandler added. `Middleware.sln` updated with new project. `docker-compose.yml` updated — port 8189.
 
