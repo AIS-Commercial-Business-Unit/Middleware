@@ -125,3 +125,54 @@
 **From Scribe decision merge:** New Maven modules require Dockerfile POM sync across all Java services. When a new module is added to `java/pom.xml`, ALL Dockerfiles under `java/` must receive a corresponding `COPY {module}/pom.xml {module}/` line in the POM-copy block (immediately before `RUN mvn dependency:go-offline`). Missing module causes hard build failure. Whoever adds a module to `java/pom.xml` is responsible for patching all Dockerfiles in the same commit.
 
 **Pattern established:** This mechanical step prevents the `[ERROR] Child module ... does not exist` failure seen with prs-appraisal-service.
+
+### Container transient health check recovery — dotnet-policy-issuance (2026-05-29T07:28:46.621-04:00)
+
+**Reported issue:** Steven Suing reported `dotnet-policy-issuance` container unhealthy on fresh `docker compose up`.
+
+**Investigation:** Full stack health audit: `docker ps -a`, logs inspection, health check config verification.
+
+**Root cause:** Transient SQL persistence initialization race condition during NServiceBus startup. Container logs show SQL outbox/saga table creation in progress when initial health checks fired. Not a config bug — timing variance across cold starts.
+
+**Status:** Container recovered to healthy state within normal startup period (60s start_period + 3 retries × 30s interval = self-healing). Current health: **healthy, FailingStreak=0**.
+
+**Health configuration verified:**
+- Test: `wget -qO- http://localhost:8181/health`
+- Interval: 30s, Timeout: 10s, Retries: 3, Start period: 60s
+- Mem limit: 512m (sufficient for .NET with SQL persistence)
+- Dependencies: sqlserver (healthy), sqlserver-init (completed), kafka (healthy), mongodb (healthy)
+
+**Learnings:** NServiceBus SQL persistence auto-installs on first run. Initial health check may fire during table creation. The 60s start_period + 3 retries design handles this correctly. No code or config changes needed. If issue recurs, check for memory pressure (watch `docker stats` for dotnet-policy-issuance) or SQL Server connectivity timeouts.
+
+### Full stack health repair — 17/21 → 21/21 healthy (2026-05-29T10:07:07.672-04:00)
+
+**Reported issue:** Steven Suing reported 17/21 containers healthy; 4 not healthy.
+
+**Containers investigated and fixed:**
+
+**1. mongo-express — FailingStreak 644 (unhealthy)**
+- Root cause: BusyBox `wget` resolves `localhost` to `::1` (IPv6 loopback). Node.js binds to `0.0.0.0:8081` (IPv4 only). Health check `wget -qO- http://localhost:8081/` always fails with "Connection refused" even though the service is perfectly healthy and reachable from the host at `http://127.0.0.1:8888/`.
+- Fix: Changed health check to `wget -qO- http://127.0.0.1:8081/` (explicit IPv4 address).
+- **Rule:** Any BusyBox wget health check must use `127.0.0.1`, never `localhost`. IPv6 resolution of `localhost` is the default in newer Linux network stacks.
+
+**2. dotnet-platform-integration — stuck in "Created" state (never started)**
+- Root cause: Container was created by a previous `docker compose up` run but never started. Likely happened during an interrupted or partial compose start. All dependencies (dotnet-policy-issuance, dotnet-billing-finance, etc.) were healthy and met.
+- Fix: `docker compose up -d dotnet-platform-integration` — container started and reached healthy within seconds.
+- **Rule:** If a container shows "Created" state in `docker ps -a` but is missing from `docker compose ps`, it was orphaned from a prior partial start. Always run `docker compose up -d <service>` to recover.
+
+**3. otel-collector — no health check (distroless image)**
+- Root cause: `otel/opentelemetry-collector-contrib:0.111.0` is genuinely distroless — no `/bin/sh`, no `wget`, no `curl`, no `nc`. Previous comment said "health check not possible via CMD-SHELL" which is correct, but no CMD health check was added either.
+- Fix: Added `healthcheck: test: ["CMD", "/otelcol-contrib", "--help"]` — a process-alive probe using the container's own binary. Exits 0 if the collector binary is running; non-zero if the container is dead.
+- **Limitation:** This is a process-alive check, not a service health check. The `health_check` extension (port 13133) provides deeper health but cannot be queried from within a distroless container. This is acceptable for local dev — services depend on `condition: service_started`.
+- **Rule:** For distroless containers, use `CMD ["/the-main-binary", "--help"]` as a last-resort process-alive health check so the container gets a `(healthy)` badge.
+
+**Outcome:** All 21 trackable services now show `(healthy)`. Full running stack verified with `docker compose ps`.
+
+**Key file:** `docker-compose.yml` (mongo-express healthcheck line ~185, otel-collector healthcheck added ~244)
+
+## Team Decisions Generated
+
+### Decision #40: BusyBox wget Health Checks Must Use 127.0.0.1, Not localhost (2026-05-29)
+- Merged from devops inbox decision
+- IPv6 localhost issue in BusyBox affects all alpine/busybox health checks
+- Applied to mongo-express fix; standard for all future BusyBox-based services

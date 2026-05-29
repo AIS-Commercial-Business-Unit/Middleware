@@ -268,6 +268,21 @@
 - All three routes include mock fallbacks (`isMockData: true`) for early demoability before backend implementation
 - **Impact:** Frontend demo page ready to ship; backend implementation gates on Decision #37
 
+### 39. Verification Standards for Completion (2026-05-29)
+- All UI/frontend work must include browser verification before declaring done
+- Build artifacts (pages, components, APIs) must be tested end-to-end in their runtime environment, not just validated that files were created
+- **Applies to:** Frontend work (new routes, pages, components), Backend APIs (verify endpoints respond correctly), Containerized service changes (verify health after rebuild)
+- **Required before declaring done:** File artifacts created ✅ Build succeeds (if applicable) ✅ Container rebuilt (if applicable) ✅ **Runtime verification in target environment** ✅ Log evidence provided (for backend/integration work)
+- This is a quality gate, not optional
+- **Rationale:** `/demo-control` page returned 404 after container rebuild, caught by user not team. Verification gaps undermine demo readiness and waste session time.
+
+### 40. BusyBox wget Health Checks Must Use 127.0.0.1, Not localhost (2026-05-29)
+- In BusyBox-based Docker containers (Alpine, mongo-express, etc.), `localhost` resolves to `::1` (IPv6 loopback) by default; if service binds to `0.0.0.0` (IPv4 only), `wget -qO- http://localhost:<port>/` fails with "Connection refused" even though the service is fully operational
+- **All Docker health checks using BusyBox wget MUST use `127.0.0.1` (explicit IPv4) instead of `localhost`**
+- Applies to all BusyBox-based images in docker-compose.yml; images using full glibc (Debian/Ubuntu-based) also respect `127.0.0.1` so this change is safe everywhere
+- Applied to `mongo-express` (fixed FailingStreak 644 → healthy)
+- Apply to any new health checks added to docker-compose.yml; review existing health checks when adding new BusyBox-based services
+
 ## Governance
 
 - All meaningful changes require team consensus
