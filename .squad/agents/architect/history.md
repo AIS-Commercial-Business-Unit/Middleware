@@ -195,3 +195,30 @@ PolicyLifecycle waits for both completion events (join pattern) before publishin
 - Frontend can switch between backends at runtime (`active-backend` cookie) without changing demo functionality
 - QA architecture tests apply to both stacks (parallel join, saga state, timeout, EDA observability)
 - Decision decisions #28-35 align all team members on the same architectural direction
+
+### 2026-05-29 — UC4 Post-Integration Architectural Sweep & Lucid Chart Reference
+
+**Sweep Results (All Pass):**
+- Abstract layer separation: ZERO infrastructure imports in domain layers across both stacks
+- Event schema naming: All 11 prs.* topics and 30 .NET Contracts events follow conventions
+- Kafka topic organization: `prs.*` domain prefix correct, DLQ patterns consistent
+- Gateway pattern enforcement: All 5 gateway interfaces in domain, stubs in adapter layer
+- Cross-service boundaries: No service reaches into another's database; all inter-service via Kafka
+- DLQ patterns: Retry with exponential backoff + DLQ for all saga routes
+
+**Cleanup Applied:**
+- Fixed `observability/mongo-init.js` — added `file_processing_db` and `prs_appraisal_db` (were auto-created but not in init script)
+
+**Advisory (Non-Blocking):**
+- .NET `dotnet-prs-appraisal` gateway stubs collocated with interfaces in `Gateways/` — recommend moving to `Infrastructure/Gateways/` before production
+
+**Deliverable Created:**
+- `.docs/architecture-for-lucid-chart.md` — comprehensive architecture reference for Lucid Chart AI prompt generation
+- Lists all 35+ running Docker Compose components with stack attribution (Java/NET/Shared)
+- Includes event flows for UC1, UC3, UC4; Kafka topic catalog; MongoDB databases; service boundaries; communication matrix
+- Decision: `.squad/decisions/inbox/architect-uc4-sweep.md`
+
+**Key File Paths:**
+- `.docs/architecture-for-lucid-chart.md` — Lucid Chart AI prompt reference
+- `observability/mongo-init.js` — MongoDB database initialization (8 databases)
+- `docker-compose.yml` — 35+ services, full platform topology

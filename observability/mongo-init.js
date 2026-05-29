@@ -7,7 +7,9 @@ const databases = [
     "customer_identity_db",
     "integration_db",
     "billing_finance_db",
-    "notification_db"
+    "notification_db",
+    "file_processing_db",
+    "prs_appraisal_db"
 ];
 
 databases.forEach(dbName => {
