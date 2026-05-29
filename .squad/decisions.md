@@ -245,6 +245,29 @@
 - **Rationale:** Stakeholders include PRS domain experts who know the actual message formats and business rules. Making demo gaps highly visible (rather than hiding them) builds trust: "we know what we don't know."
 - **Impact:** All future UC demos should follow this two-section structure. `⚠️ STUBBED` log markers become a team-wide convention. Prep session agendas should include a "gap validation" block.
 
+### 36. UC4 Architecture Sweep — Clean Integration (2026-05-29)
+- All UC4 services (Java prs-appraisal-service, customer-identity-service, .NET dotnet-prs-appraisal, dotnet-customer-identity) pass domain/infrastructure separation audit
+- Domain layer contains ZERO infrastructure imports; persistence adapters properly isolated in `persistence/` or `Infrastructure/` packages
+- All 5 gateway interfaces (`RiskIDMQGateway`, `PLUWGateway`, `PLAPRGateway`, `MasterpieceGateway`, `CustomerDBGateway`) cleanly abstracted; stubs in adapter layer
+- Event schema naming verified across all 11 UC4 prs.* topics; kafka-setup pre-creates all topics with correct DLQ pattern
+- MongoDB init script fixed to pre-create `file_processing_db` and `prs_appraisal_db`
+- Gateway stub relocation in .NET (from `Gateways/` to `Infrastructure/Gateways/`) deferred to production hardening (not a demo blocker)
+- **Impact:** Architecture is sound; cross-service boundary correctness verified; no structural rework required
+
+### 37. Demo Reset API in platform-integration-service (2026-05-29)
+- UC4 demo reset orchestration (`GET /api/demo/health`, `POST /api/demo/clear`, `POST /api/demo/seed`, `POST /api/demo/reset`) lives in **platform-integration-service** (port 8084)
+- Rationale: Integration service already has MongoDB and HTTP dependencies; no new infrastructure added. Natural hub for cross-system demo tooling. Single `MongoClient` handles cross-database operations (`prs_appraisal_db`, `dotnet_prs_appraisal_db`)
+- `DemoResetService` intentionally isolated in `demo` subpackage, extractable to future `platform-devtools-service` without domain changes
+- **Impact:** Four endpoints added to platform-integration-service; `demo.health.*` properties added to `application.yml` with Docker-internal defaults
+
+### 38. Frontend Demo Control Panel — Backend API Contract (2026-05-29)
+- Platform UI `/demo-control` page proxies three mutation endpoints (`/api/demo/reset`, `/api/demo/seed`, `/api/demo/clear`) to backend via `DEMO_API_URL` environment variable
+- Default target: `http://policy-issuance-service:8081` (overridable once Backend finalizes owner service)
+- Expected response contract for `/api/demo/reset`: JSON with `success`, `message`, `durationMs`, and `steps` array (each step has `step`, `status` ["ok"|"error"], `message`)
+- `GET /api/demo/health` implemented entirely in Next.js layer — fans out to all 21 service health endpoints in parallel; no backend changes required
+- All three routes include mock fallbacks (`isMockData: true`) for early demoability before backend implementation
+- **Impact:** Frontend demo page ready to ship; backend implementation gates on Decision #37
+
 ## Governance
 
 - All meaningful changes require team consensus

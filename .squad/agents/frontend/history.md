@@ -11,6 +11,50 @@
 
 <!-- Append new learnings below. -->
 
+### 2026-05-29 — Demo Control Panel (`/demo-control`) + Decisions Merged
+
+- **Frontend demo control panel completed:** New route `/demo-control` with health monitoring (21 service checks in parallel), three mutation buttons (Clear Data, Seed Fresh Data, Full Reset), and scrollable status log.
+
+- **Health aggregator:** Single Next.js API route `/api/demo/health` fans out to all 21 service endpoints in parallel using `Promise.all` with 3-second timeout per service. Returns consolidated status with latency per service.
+
+- **Reset orchestration:** Three mutation routes (clear, seed, reset) forward to backend via `DEMO_API_URL` environment variable (defaults to `http://policy-issuance-service:8081`). All three have mock fallbacks returning `isMockData: true` so the panel is fully functional before backend implementation.
+
+- **Progress animation:** Reset API call takes a few seconds; client-side animation cycles through expected steps while fetch is in flight. On response, server-returned step array replaces animation state (avoids SSE/polling dependency for UI progress bar).
+
+- **Status log:** Client-side `LogEntry[]` state appended to on every action. Uses `toLocaleTimeString` for human-readable timestamps. Auto-scrolls to bottom via `ref.scrollIntoView`.
+
+- **Scribe Decisions Merged (2026-05-29):**
+  - Decision #36: UC4 Architecture Sweep — Clean Integration (audit confirming patterns are correct)
+  - Decision #37: Demo Reset API in platform-integration-service (location and scope)
+  - Decision #38: Frontend Demo Control Panel — Backend API Contract (defines expected response shapes, endpoints, defaults)
+
+- **Key file paths:**
+  - `platform-ui/src/app/demo-control/page.tsx` — NEW demo control panel page
+  - `platform-ui/src/app/api/demo/health/route.ts` — NEW health aggregator
+  - `platform-ui/src/app/api/demo/reset/route.ts` — NEW reset mutation (with mock fallback)
+  - `platform-ui/src/app/api/demo/seed/route.ts` — NEW seed mutation (with mock fallback)
+  - `platform-ui/src/app/api/demo/clear/route.ts` — NEW clear mutation (with mock fallback)
+  - `platform-ui/src/app/layout.tsx` — nav link added
+  - `platform-ui/src/app/page.tsx` — homepage card added
+  - `.env.local` — `DEMO_API_URL` defaults to `http://policy-issuance-service:8081` (will update to platform-integration-service:8084 after backend finalizes)
+
+### 2026-05-28 — UC4 Appraisal Documents Demo Shell
+
+- **When the backend service doesn't exist yet, proxy API routes should gracefully fall back to seeded mock data** (return `isMockData: true` in the response) so the UI page is fully functional and demoable without requiring any backend implementation. The `/api/riskid/sagas` route and `/api/riskid/status-update` route both do this — try the real service, catch any error, return typed stub data. This is the "demo shell" pattern.
+
+- **Demo gap visibility is a first-class UI concern.** For UC4, every mock field gets a `⚠️ DEMO GAP` badge inline, an expandable requirements gap panel lists all open PRS developer questions, and the page-level mock data banner summarizes all stubs. This ensures stakeholders immediately understand what is real vs. scaffolded during a demo.
+
+- **Key file paths for UC4:**
+  - Page: `platform-ui/src/app/uc4/page.tsx`
+  - Status update proxy: `platform-ui/src/app/api/riskid/status-update/route.ts`
+  - Sagas list (with mock fallback): `platform-ui/src/app/api/riskid/sagas/route.ts`
+  - Nav link added in: `platform-ui/src/app/layout.tsx`
+  - Homepage card added in: `platform-ui/src/app/page.tsx`
+
+- **SignalR is listed as a demo gap** — the page uses SWR polling (`refreshInterval: 2000`) as the existing platform pattern. Production requires an Azure SignalR Service hub connected to the Appraisal Service. This is documented in both the mock data banner and the requirements gap panel.
+
+- **`INTEGRATION_SERVICE_URL` env var** controls the target for `/api/riskid/*` routes. Defaults to `http://platform-integration-service:8084`. Will need to be updated once the appraisal endpoint is added to that service (or pointed at a new appraisal service).
+
 ### 2026-05-27 — Sequence diagram hover tooltips
 
 - **Sequence-diagram hover UX works best when the SVG stays purely for shapes and the tooltip is rendered as an absolutely positioned HTML overlay inside a relatively positioned wrapper.** This keeps the arrow hit area simple, allows Tailwind styling, and avoids SVG text layout constraints for multi-line event details.
