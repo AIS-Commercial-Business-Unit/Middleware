@@ -288,3 +288,441 @@
 - All meaningful changes require team consensus
 - Document architectural decisions here
 - Keep history focused on work, decisions focused on direction
+
+
+# Decision: UC4 POC Scope Correction — Appraisal Query Services Only
+
+**Date:** 2026-05-30  
+**Author:** Architect (Steven Suing)  
+**Source:** Developer meeting 2026-05-29 with MJ (Mruthunjaya Jodukapli, BizTalk developer) and Siva Narapareddy (client lead)  
+**Status:** Confirmed — all UC4 documentation updated
+
+---
+
+## Decision
+
+The UC4 POC scope is **GetAppraisalList** and **GetAppraisalDocument** only.
+
+All prior documentation describing the UpdateStatus saga (StatusCode 6/15, PLUW, PLAPR, Masterpiece, underwriter determination) as the demo target was incorrect. That documentation has been replaced.
+
+---
+
+## What Was Corrected
+
+### Previous (incorrect) scope
+- UC4 demo described as: UpdateStatus saga from RiskID — complex workflow with parallel UW determination, multi-database updates, PLUW creation, Masterpiece Transaction 90
+- Documentation included: AppraisalUnderwriterAssigned, AppraisalCompleted events; UpdateStatusSagaData aggregate; PLAPR deduplication rules; Masterpiece and PLUW gateway stubs
+
+### Confirmed (correct) scope
+- **GetAppraisalList** — scatter-gather fan-out to @Work SQL stored procedure and DEIPDE07 mainframe via IBM MQ simultaneously; merge and deduplicate results; return combined appraisal list with DocumentKeys
+- **GetAppraisalDocument** — content-based router: if DocumentKey contains `_RiskID_` → call RiskID WCF service (`GetInspectionPDFBizTalk`); if DocumentKey is numeric-only → call DEIPDE07 mainframe via IBM MQ with multi-message chunk aggregation
+
+---
+
+## Key Facts Confirmed by MJ
+
+1. The BizTalk application has ~19 integrations in the PRS estate. The POC targets 2 of them.
+2. GetAppraisalList and GetAppraisalDocument are **independent standalone workflows** — there is no outer orchestration wrapper that dispatches to them.
+3. GetAppraisalDetails is **out of scope** for the POC.
+4. The UpdateStatus saga is **out of scope** for the POC.
+5. The hardest architectural challenge in the POC is the **multi-message aggregation** for GetAppraisalDocument from DEIPDE07: the mainframe sends the PDF as N separate MQ messages, each containing a 64-byte chunk of base64 content with EBCDIC newlines. All chunks must be collected in order, EBCDIC artifacts stripped, and concatenated into the final base64 PDF string. In BizTalk this was handled by a .NET helper class with no observability.
+6. DEIPDE07 MQ timeouts: 1-second initial check, 30-second overall for GetAppraisalList; 30-second overall for GetAppraisalDocument chunk aggregation.
+7. MJ will share sample XML payloads via the Teams channel — these are needed to finalize stub implementations.
+
+---
+
+## Architectural Patterns in Scope
+
+| Pattern | Workflow |
+|---|---|
+| Scatter-Gather with Timeout | GetAppraisalList |
+| Content-Based Routing | GetAppraisalDocument |
+| Async-to-Sync Bridge | Both MQ paths |
+| Multi-Message Aggregation | GetAppraisalDocument (DEIPDE07 path) |
+| EBCDIC-to-ASCII Conversion | GetAppraisalDocument (DEIPDE07 path) |
+
+---
+
+## Documentation Updated
+
+All six UC4 documentation files have been rewritten to reflect this scope:
+
+| File | Change |
+|---|---|
+| `.docs/req/25-appraisal.md` | Ubiquitous language, data model, commands, events, business rules, test artifacts — all updated; UpdateStatus saga removed entirely |
+| `.docs/req/uc4-appraisal-updatestatus-demo-plan.md` | Entire file replaced with correct demo plan for GetAppraisalList + GetAppraisalDocument |
+| `.docs/req/uc4-internal-demo-prep.md` | Entire file replaced; questions answered, implementation tasks written |
+| `.docs/req/uc4-demo-prep-INTERNAL.md` | Entire file replaced; task list rewritten for correct scope |
+| `.docs/uc4-demo-script.md` | Entire file replaced; demo script for 7 correct scenarios |
+| `.docs/uc4-test-scenarios.md` | Entire file replaced; SC-001 through SC-007 for correct workflows |
+
+---
+
+## Impact on Other Domains
+
+- **Platform.Integration** — no UpdateStatus MQ consumer or PLUW/Masterpiece gateway needed for the POC
+- **Customer domain** — ProducerCrossReference lookup is NOT needed for the POC (it was only required for the UpdateStatus saga)
+- **Stubs needed** — @Work SQL (list), DEIPDE07 MQ (list + document), RiskID WCF (document only)
+
+
+# Decision: DEIPDE07 MQ Simulator stub built
+
+**Date:** 2026-05-30  
+**Author:** Backend  
+**Requested by:** Steven Suing  
+
+## Decision
+
+The `deipde07-mq-simulator` Spring Boot service has been created at `java/stubs/deipde07-mq-simulator/` and wired into the Maven reactor.
+
+## What Was Built
+
+- `pom.xml` — inherits from middleware-platform parent; deps: `spring-boot-starter-web`, `spring-boot-starter-actuator`, `spring-boot-starter-artemis`
+- `Dockerfile` — multi-stage build following rsk3x3-compliance-stub pattern; exposes port 9020; includes all existing reactor modules plus new `stubs/deipde07-mq-simulator/pom.xml`
+- `.dockerignore` — identical pattern to other stubs
+- `Deipde07SimulatorApplication.java` — `@SpringBootApplication` + `@EnableJms`
+- `config/JmsConfig.java` — placeholder; Spring Boot Artemis autoconfiguration handles wiring
+- `simulator/MqRequestDispatcher.java` — `@JmsListener` on `${mq.request.queue}`; dispatches to `AppraisalListResponder` or `DocumentChunkResponder` based on body parse; catches all exceptions to keep listener alive
+- `simulator/AppraisalListResponder.java` — fixture data for POL-001-TEST (3 records), POL-002-TEST (0 records), POL-003-TEST (1 record), POL-TIMEOUT (35s sleep); sends multi-message JMS responses with `SEQUENCE=X OF N` format
+- `simulator/DocumentChunkResponder.java` — fixture PDFs for keys `12345678901` (small) and `98765432109876` (large); sends 64-byte chunks with `\r\n` CRLF artifact; last chunk gets `||END-OF-DOCUMENT||` sentinel
+- `util/MessageParser.java` — `isAppraisalListRequest`, `isDocumentRequest`, `parsePolicyNumber`, `parseDocumentKey`
+- `src/main/resources/application.yml` — Artemis native mode, all queue names and delays configurable via env vars
+
+## Key Design Notes
+
+- Uses `jakarta.jms.*` (not `javax.jms.*`) — required for Spring Boot 3.x
+- Structured logging on every dispatch: correlationId, policyNumber/documentKey, messageCount
+- All configurable parameters exposed as `@Value` fields with `${ENV_VAR:default}` pattern
+- Parent POM already had `stubs/deipde07-mq-simulator` as a reactor module
+- JmsTemplate used for all sends (not Session.createProducer) — consistent with Spring idiom
+
+
+# Decision: Kafka-UI Minimum Memory Configuration
+
+**Date:** 2026-05-29T10:49:51.724-04:00  
+**Author:** DevOps  
+**Trigger:** Kafka-UI "fetch failed" errors caused by OOM at 93.8% of 128MiB limit
+
+## Decision
+
+Kafdrop (kafka-ui) requires a minimum of `mem_limit: 384m` and `JVM_OPTS: "-Xms32M -Xmx128M"` when serving 30+ Kafka topics with 3 partitions each.
+
+## Rationale
+
+Kafdrop is a Spring Boot + Undertow JVM application. JVM total footprint = heap + metaspace + native threads + NIO buffers. With `Xmx64M`, the observed container RSS was 120 MiB — leaving only 8 MiB headroom in a 128m container. Under topic-fetch load, GC pressure caused "fetch failed" errors at the UI.
+
+Increasing to `Xmx128M` + `mem_limit: 384m` drops steady-state usage to ~58% (224 MiB / 384 MiB), providing ~160 MiB headroom for burst fetches and GC cycles.
+
+## Rule
+
+- `kafka-ui` in `docker-compose.yml`: always `mem_limit: 384m` and `JVM_OPTS: "-Xms32M -Xmx128M"` minimum.
+- If the topic count exceeds 50, bump to `mem_limit: 512m` and `Xmx192M`.
+- Never set `Xmx` within 64M of `mem_limit` for Spring Boot apps — the JVM footprint overhead is always ~2× the heap size.
+
+
+# Decision: Resource Limit Hardening for Infra-Critical Containers
+
+**Author:** DevOps  
+**Date:** 2026-05-29T11:03:42.465-04:00  
+**Triggered by:** Steven Suing — intermittent container instability; PRS Appraisal timeout/recovery pattern
+
+---
+
+## Decision
+
+Apply conservative resource limits and explicit JVM/Go heap bounds to the four infra-critical containers that were running at ≥67% of their memory limits in steady state. The rule is: **steady-state memory usage should not exceed 60% of container limit**, leaving headroom for GC bursts, compaction spikes, and log volume increases.
+
+## Changes Applied
+
+| Container | Old Limit | New Limit | JVM/Go Bound Added |
+|-----------|-----------|-----------|---------------------|
+| tempo | 512m | 768m | `GOMEMLIMIT=650MiB` |
+| kafka | 1g | 1.5g | `KAFKA_HEAP_OPTS=-Xms256m -Xmx768m` |
+| zookeeper | 256m | 384m | `ZOOKEEPER_HEAP_SIZE=256` |
+| promtail | 128m | 256m | — (Go runtime, self-managed) |
+
+## Rationale
+
+- **Tempo at 97%** was the primary risk. Tempo's block compaction is in-memory; without `GOMEMLIMIT`, the Go GC has no knowledge of the container limit and will not collect aggressively until the OOM killer fires. `GOMEMLIMIT` sets a soft ceiling that causes the GC to run before the hard limit is hit.
+- **Kafka without `KAFKA_HEAP_OPTS`** auto-sizes to ~25% of host RAM, which can be several GB. Explicit bounds prevent both over-allocation and prevent the JVM from approaching the container limit.
+- **`ZOOKEEPER_HEAP_SIZE`** is the cp-zookeeper-specific env var (integer MB) for controlling heap. It is equivalent to setting both `-Xms` and `-Xmx`.
+- **Promtail** tails Docker socket logs from all containers. With 37 containers producing logs, memory grows proportionally with log volume. Doubling the limit is appropriate insurance.
+
+## Rules for Future Containers
+
+1. **JVM containers (Kafka, Kafdrop, Zookeeper, Java services):** Always set explicit `-Xms`/`-Xmx`. Rule of thumb: `Xmx` ≤ 50% of `mem_limit`. Reserve the rest for non-heap (metaspace, OS, NIO buffers, native threads).
+2. **Go containers (Tempo, Loki, Prometheus, Grafana):** Set `GOMEMLIMIT` ≈ 85% of `mem_limit` so the GC receives a soft signal before the container OOM kills the process.
+3. **Steady-state target:** No container should exceed 60% of its `mem_limit` during normal operation. If `docker stats --no-stream` shows ≥75% on a given container, that service needs a limit increase before the next demo or load run.
+
+## Root Cause of PRS Appraisal "timeout and comeback"
+
+Not a container failure. The perceived instability was Tempo (97%) doing block compaction → GC pressure → otel-collector trace export backup → services spending extra flush time → UI timing out on the first cold-start requests. Resolved entirely by fixing Tempo's memory allocation. No changes needed to prs-appraisal-service or dotnet-prs-appraisal health checks.
+
+
+# Decision: UC4 New Services Wired into docker-compose + POM + Dockerfiles
+
+**Author:** devops  
+**Date:** 2026-05-30  
+**Status:** Proposed  
+
+## Decision
+
+Wire `activemq-artemis`, `deipde07-mq-simulator`, and updated `prs-appraisal-service` into the local development stack.
+
+## Changes
+
+### `java/pom.xml`
+- Added `<module>stubs/deipde07-mq-simulator</module>` after `stubs/crm19x1-billing-stub`
+
+### All 15 Java Dockerfiles
+- Added `COPY stubs/deipde07-mq-simulator/pom.xml stubs/deipde07-mq-simulator/` in POM-copy block of every Java multi-stage Dockerfile
+- Required because all Java builds use the Maven reactor; every Dockerfile must declare all sibling module POMs or the reactor resolution fails
+
+### `docker-compose.yml` — New services added
+
+**`activemq-artemis`** (apache/activemq-artemis:2.37.0)
+- Ports: 61616 (JMS/OpenWire), 8161 (Web Console), 5672 (AMQP)
+- Healthcheck: `curl -sf http://127.0.0.1:8161/console/`
+- mem_limit: 384m
+- Positioned in EXTERNAL SYSTEM STUBS section
+
+**`deipde07-mq-simulator`** (custom Java build from `stubs/deipde07-mq-simulator/Dockerfile`)
+- Port: 9020 (Spring Boot actuator + app)
+- Depends on: `activemq-artemis` healthy
+- Healthcheck: `wget -qO- http://127.0.0.1:9020/actuator/health`
+- mem_limit: 256m
+- Environment: broker URL, queue names, simulated delay config
+
+### `docker-compose.yml` — `prs-appraisal-service` updated
+
+- `depends_on` extended with `activemq-artemis: condition: service_healthy` and `deipde07-mq-simulator: condition: service_healthy`
+- Environment variables added: `ARTEMIS_BROKER_URL`, `ARTEMIS_USER`, `ARTEMIS_PASSWORD`, `JAVA_TOOL_OPTIONS: "-Xmx256m"`
+
+## Rationale
+
+- UC4 PRS Appraisal flow requires communication with a legacy MQ system (deipde07). The simulator stands in for the real system locally.
+- `prs-appraisal-service` must not start before the MQ simulator is healthy, preventing connection errors on startup.
+- `JAVA_TOOL_OPTIONS: "-Xmx256m"` = 50% of 512m mem_limit — consistent with team JVM memory rule (Xmx ≤ 50% of container limit).
+- `127.0.0.1` in all healthcheck tests per BusyBox IPv6 team decision.
+
+
+# Decision: IBM MQ Stub Approach for UC4 POC Demo
+
+**Author:** Integration  
+**Date:** 2026-05-30  
+**Scope:** UC4 GetAppraisalList + GetAppraisalDocument DEIPDE07 mainframe stubs  
+**Full design:** `.docs/req/uc4-mq-stub-design.md`
+
+---
+
+## Decision
+
+**Use ActiveMQ Artemis as the JMS broker, plus a custom `deipde07-mq-simulator` Spring Boot service** that impersonates the DEIPDE07 mainframe response patterns.
+
+Reject IBM MQ Developer Docker (`icr.io/ibm-messaging/mq:latest`) for the POC demo environment.
+
+---
+
+## Rationale
+
+**Against IBM MQ Docker:**
+- ~1.8 GB image adds significant pull time; problematic for first-run `docker compose up` in demo conditions
+- Requires explicit IBM license acceptance at container start — breaks unattended startup
+- IBM MQ JMS provider JARs are not on Maven Central; require manual download or a private Nexus mirror we don't have
+- No built-in queue browser UI suitable for live demo visibility
+
+**For ActiveMQ Artemis:**
+- Built-in web console at port 8161 — demo audience watches queue depths change in real time as requests flow through
+- `camel-jms` + `artemis-jms-client` both on Maven Central — zero setup friction
+- `Apache.NMS.ActiveMQ` NuGet for .NET — same API surface as IBM MQ .NET client
+- ~350 MB image, Apache 2.0 license, zero friction startup
+- The DEIPDE07 patterns (correlation ID, multi-message, 64-byte chunks, end-of-message sentinel) are JMS semantics — they work identically on Artemis
+
+**Pattern authenticity is preserved:** The Camel route DSL is identical for Artemis and IBM MQ. The only difference is the JMS connection factory bean. When the real DEIPDE07 connection is available, only the infrastructure config changes — no route logic, no gateway interface, no domain code.
+
+---
+
+## Impact
+
+- Add `activemq-artemis` and `deipde07-mq-simulator` services to `docker-compose.yml`
+- Camel services use `camel-jms` + `artemis-jms-client` (not `camel-ibm-mq`)
+- .NET services use `Apache.NMS.ActiveMQ` NuGet
+- Queue names are fixed: `MQP.REQUESTQUEUE.1` (requests), `MQP.RESPONSEQUEUE.1` (responses) — match intended production naming
+
+---
+
+## Production Migration
+
+When the real IBM MQ endpoint is available:
+1. Swap JMS connection factory bean to IBM MQ provider
+2. Remove `deipde07-mq-simulator` from compose (or gate behind `profiles: [stub]`)
+3. No changes to Camel routes, gateway interfaces, or domain code
+
+
+# Decision: prs-appraisal-service UC4 Scope Correction
+
+**Author:** Integration (squad agent)  
+**Date:** 2026-05-30  
+**Requested by:** Steven Suing  
+**Status:** Implemented
+
+---
+
+## Decision
+
+`prs-appraisal-service` has been completely rewritten. The previous implementation (UpdateStatus saga with StatusCode 6/15, PLUW, PLAPR, Masterpiece) was wrong scope and has been **removed entirely**. The service now implements the correct UC4 scope.
+
+---
+
+## What Was Removed
+
+- All 5 saga route files (`AppraisalReceivedSagaRoute`, `GenericStatusUpdateSagaRoute`, `SagaTimeoutRoute`, `StatusCode15CompletedSagaRoute`, `StatusCode6UWSagaRoute`)
+- MongoDB saga persistence (`AppraisalSagaDocument`, `AppraisalSagaMongoRepository`, `AppraisalSagaRepositoryAdapter`)
+- Saga domain model (`AppraisalSagaRecord`, `AppraisalSagaRepository`)
+- Old gateway interfaces and stubs (`PLUWGateway`, `PLAPRGateway`, `MasterpieceGateway`, `CustomerDBGateway` and their stubs)
+- `MongoConfig.java` (MongoDB OffsetDateTime converters — not needed without saga persistence)
+- Old `AppraisalController.java` (status-update endpoint, saga list/detail endpoints)
+
+---
+
+## What Was Built
+
+### Two Camel Routes
+
+1. **GetAppraisalList** (`GetAppraisalListRoute`) — scatter-gather
+   - `POST /api/appraisals/list` with `{"policyNumber": "..."}`
+   - Parallel fan-out: `direct:callAtWorkSQL` + `direct:callDEIPDE07MQList`
+   - @Work branch: `AtWorkGateway` (fixture data, production: JDBC stored proc)
+   - DEIPDE07 branch: send to `MQP.REQUESTQUEUE.1`, poll `MQP.RESPONSEQUEUE.1` via `AppraisalListMqPoller`
+   - Aggregated + deduplicated by `AppraisalListAggregationStrategy`
+   - `partialResult=true` when DEIPDE07 times out
+
+2. **GetAppraisalDocument** (`GetAppraisalDocumentRoute`) — content-based router
+   - `POST /api/appraisals/document` with `{"documentKey": "..."}`
+   - Routes by key format: `_RiskID_I` → WCF insured, `_RiskID_A` → WCF agent, `^[0-9]{10,15}$` → DEIPDE07 MQ
+   - DEIPDE07 path: multi-message chunk aggregation via `PdfChunkMqPoller`; strips `\r\n` EBCDIC artifacts; detects `||END-OF-DOCUMENT||` sentinel
+   - Returns `{"documentKey": "...", "base64Pdf": "...", "contentType": "application/pdf"}`
+
+### Supporting Infrastructure
+
+- `AppraisalListMqPoller` — `ConsumerTemplate` poll loop, 1s per-poll timeout, 30s max, sequence detection
+- `PdfChunkMqPoller` — `ConsumerTemplate` poll loop, 1s per-poll timeout, 30s max, sentinel detection, CRLF strip
+- `AppraisalListAggregationStrategy` — merges @Work + DEIPDE07 lists, deduplicates by (streetAdr + policyNumber)
+- `AtWorkGateway` — demo fixtures for POL-001-TEST/POL-002-TEST/POL-003-TEST/default
+- `RiskIdWcfGateway` — demo fixtures returning base64-encoded fake PDF content
+- `JmsConfig` — wires Camel JMS component to Spring Boot Artemis `ConnectionFactory`
+- `AppraisalAuditEventRoute` — publishes to `prs.events.appraisal-list-retrieved` and `prs.events.document-retrieved`
+
+### pom.xml Additions
+
+- `spring-boot-starter-artemis` (dev broker; production: IBM MQ ConnectionFactory)
+- `camel-jms-starter`
+- `camel-http-starter` (for future RiskID WCF production path)
+
+### application.yml Changes
+
+- Removed: saga timeout config, Kafka consumer config
+- Added: `spring.artemis.*` connection config with env var overrides
+
+---
+
+## Architectural Notes
+
+- **No persistence in this service** — both workflows are query-side, read-only, synchronous. MongoDB dependency retained in pom.xml (per existing project convention) but unused.
+- **Production swap points**:
+  - `AtWorkGateway`: replace fixture with JDBC `DataSource` call to `ESB_MWInterfaces_LC360_GetAppraisalList_MPC`
+  - `RiskIdWcfGateway`: replace fixture with CXF/HTTP call to `GetInspectionPDFBizTalk` WCF endpoint
+  - `JmsConfig`: replace Spring Artemis `ConnectionFactory` with IBM MQ `ConnectionFactory` bean — route DSL unchanged
+- **Route IDs**: all kebab-case, all unique: `get-appraisal-list`, `call-atwork-sql`, `call-deipde07-mq-list`, `get-appraisal-document`, `call-riskid-wcf-insured`, `call-riskid-wcf-agent`, `call-deipde07-mq-document`, `publish-appraisal-list-audit`, `publish-document-retrieved-audit`
+
+
+# Decision: UC4 Integration Test API Contract
+
+**Author:** QA  
+**Date:** 2026-05-30  
+**Status:** Proposed  
+
+---
+
+## Decision
+
+The UC4 integration tests for `prs-appraisal-service` establish the following REST API contract as executable specifications. The Integration agent must implement routes and a controller that satisfy these contracts before the tests can pass.
+
+### Endpoint Contract: GetAppraisalList
+
+```
+POST /api/appraisals/list
+Content-Type: application/json
+
+Request:
+{
+  "policyNumber": "<string>"
+}
+
+Response (HTTP 200):
+{
+  "items": [
+    {
+      "appraisalUid":   "<string>",
+      "policyQuoteNbr": "<string>",
+      "streetAdr":      "<string>",
+      "cityAdr":        "<string>",
+      "stateCde":       "<string>",
+      "zipAdr":         "<string>",
+      "appraisalDte":   "<string>",
+      "documenttype":   "<string>",
+      "documentname":   "<string>",
+      "documentkey":    "<string>"
+    }
+  ],
+  "partialResult": <boolean>
+}
+
+Validation failure (empty policyNumber):
+HTTP 400
+```
+
+### Endpoint Contract: GetAppraisalDocument
+
+```
+POST /api/appraisals/document
+Content-Type: application/json
+
+Request:
+{
+  "documentKey": "<string>"
+}
+
+Response (HTTP 200):
+{
+  "base64Pdf":   "<base64-encoded string — no \r\n>",
+  "contentType": "application/pdf"
+}
+
+Unrecognised key format:
+HTTP 400
+
+Known key, document not found in backend:
+HTTP 404
+```
+
+---
+
+## Rationale
+
+1. **Tests as executable specifications:** The UC4 REST API does not yet exist. By writing tests first against defined inputs/outputs, the team has a concrete, runnable contract the Integration agent can implement against.
+
+2. **Integration profile isolation:** Tests are tagged `@Tag("integration")` and excluded from the default Maven test phase. This prevents CI failures while the implementation is in progress, while keeping the tests runnable on demand against the docker stack: `mvn test -pl prs-appraisal-service -Dgroups=integration`.
+
+3. **`RestTemplate` over `@SpringBootTest`:** Tests call `http://localhost:8090` directly. This avoids spinning up a second application context and ensures the tests exercise the full running stack (Camel routes, JMS connections to Artemis, @Work SQL stub, RiskID WCF stub) — not an isolated Spring context.
+
+4. **Timeout annotation on SC-004:** The `@Timeout(40)` guard on `timeout_deipde07_returnsPartialResult` is mandatory. Without it, if the MQ timeout implementation hangs, this test would block CI indefinitely. The 40-second ceiling gives the 30-second MQ timeout room to fire while preventing an infinite hang.
+
+---
+
+## Impact
+
+- **Integration agent:** Must implement `GET /api/appraisals/list` and `GET /api/appraisals/document` routes in `prs-appraisal-service` that match the contracts above.
+- **prs-appraisal-service pom.xml:** `spring-boot-starter-test` added in test scope; `integration-tests` Maven profile added. No impact on production build.
+- **Test evidence:** `UC4TestEvidence.md` provides the fill-in table; QA will complete it after the first successful docker stack run.
+

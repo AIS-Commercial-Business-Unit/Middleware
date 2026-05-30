@@ -11,6 +11,18 @@
 
 <!-- Append new learnings below. -->
 
+### 2026-05-30 — DEIPDE07 MQ Simulator stub built
+
+- **Spring Boot Artemis autoconfiguration is sufficient for JMS stubs.** `spring-boot-starter-artemis` with `spring.artemis.mode=native` provides both `ConnectionFactory` and `JmsTemplate` beans automatically. No manual `@Bean` wiring needed; `JmsConfig` is a documentation placeholder only.
+
+- **`@JmsListener` supports `Session` as a method parameter directly.** Spring JMS injects the JMS `Session` into `@JmsListener` methods so the simulator can use it alongside the injected `JmsTemplate` for sends — no need for `SessionAwareMessageListener`.
+
+- **JMS stub listener must never rethrow exceptions.** Rethrowing from a `@JmsListener` method triggers Spring JMS to roll back / retry the message. For simulator services that must stay alive, catch all exceptions, log with correlationId, and return normally.
+
+- **`JmsTemplate.send(queue, MessageCreator)` is the correct pattern for reply-correlation.** Using `template.send(responseQueue, session -> { msg.setJMSCorrelationID(correlationId); return msg; })` inside a lambda ensures the correlationId is always set on each outbound message.
+
+- **Jakarta EE namespace (`jakarta.jms.*`) required for Spring Boot 3.x.** The task spec listed `javax.jms.*` but this codebase uses Spring Boot 3.3.4 which migrated to Jakarta EE 9. All JMS imports use `jakarta.jms`.
+
 ### 2026-05-29 — Gateway latency + Demo Reset API + Decisions Merged (backend-1 complete)
 
 
@@ -81,3 +93,11 @@
 - No compilation errors; all tests pass
 - Orchestration log: `.squad/orchestration-log/2026-05-26T01-33-25Z-backend-1.md`
 
+
+### 2026-05-30 — DEIPDE07 MQ Simulator (UC4 build complete)
+
+- **Multi-message fixture responses require SEQUENCE=X OF N tracking.** The simulator's AppraisalListResponder sends N separate JMS messages for a single appraisal list result; each message includes SEQUENCE=X and TOTAL_MESSAGES=N headers. The consuming route must correlate by JMS correlation ID and buffer until all N messages arrive.
+
+- **64-byte chunks with CRLF EBCDIC artifacts require detection and stripping.** DocumentChunkResponder sends PDF bytes as 64-byte chunks with \r\n line terminators (EBCDIC legacy). The aggregation route must detect the ||END-OF-DOCUMENT|| sentinel and strip all \r\n before base64-encoding the final PDF.
+
+- **Configurable delays and queue names via environment variables enable test flexibility.** The simulator exposes ${mq.request.queue}, ${mq.response.queue}, ${mq.poll.timeout.seconds}, and response delays as @Value fields. docker-compose can override these to simulate different failure modes (long delays, queue name mismatches).
