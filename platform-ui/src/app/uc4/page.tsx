@@ -18,6 +18,7 @@ interface DocumentListResponse {
   policyNumber: string;
   documents: DocumentSummary[];
   partialResult: boolean;
+  status?: string;
 }
 
 interface DocumentResponse {
@@ -32,7 +33,7 @@ interface DocumentResponse {
 }
 
 type SourceSystem = "AtWork" | "Mainframe";
-type ListState = "idle" | "loading" | "success" | "error";
+type ListState = "idle" | "loading" | "success" | "accepted" | "error";
 type DocumentState = "idle" | "loading" | "success" | "accepted" | "error";
 
 const POLICY_CHIPS = ["POL-001-TEST", "POL-002-TEST", "POL-003-TEST", "POL-TIMEOUT"];
@@ -162,6 +163,27 @@ async function readError(response: Response): Promise<string> {
   }
 }
 
+function TraceIdBadge({ requestId }: { requestId: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.25rem" }}>
+      <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.45)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+        Trace
+      </span>
+      <code style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.75)", background: "rgba(0,0,0,0.25)", padding: "0.18rem 0.45rem", borderRadius: 4, border: "1px solid rgba(255,255,255,0.1)" }}>
+        {requestId}
+      </code>
+      <a
+        href={`/ops/${requestId}`}
+        target="_blank"
+        rel="noreferrer"
+        style={{ fontSize: "0.78rem", color: "var(--accent-light)", textDecoration: "none", fontWeight: 700 }}
+      >
+        View Flow →
+      </a>
+    </div>
+  );
+}
+
 export default function UC4Page() {
   const [policyNumber, setPolicyNumber] = useState("");
   const [listState, setListState] = useState<ListState>("idle");
@@ -200,7 +222,9 @@ export default function UC4Page() {
 
       const data: DocumentListResponse = await response.json();
       setListResponse(data);
-      setListState("success");
+      setListState(
+        response.status === 202 || isAcceptedStatus(data.status) ? "accepted" : "success"
+      );
     } catch (error) {
       setListError(String(error));
       setListState("error");
@@ -341,8 +365,27 @@ export default function UC4Page() {
               </div>
             )}
 
+            {listState === "accepted" && listResponse && (
+              <div
+                style={{
+                  borderRadius: 10,
+                  border: "1px solid rgba(245, 158, 11, 0.35)",
+                  background: "rgba(120, 53, 15, 0.25)",
+                  color: "#fcd34d",
+                  padding: "1rem",
+                  display: "grid",
+                  gap: "0.5rem",
+                }}
+              >
+                <strong>⏳ Request accepted — still processing</strong>
+                <TraceIdBadge requestId={listResponse.requestId} />
+              </div>
+            )}
+
             {listState === "success" && listResponse && (
               <div style={{ display: "grid", gap: "0.85rem" }}>
+                <TraceIdBadge requestId={listResponse.requestId} />
+
                 {listResponse.partialResult && (
                   <div
                     style={{
@@ -500,10 +543,11 @@ export default function UC4Page() {
                   color: "#fcd34d",
                   padding: "1rem",
                   display: "grid",
-                  gap: "0.35rem",
+                  gap: "0.5rem",
                 }}
               >
-                <strong>⏳ Request accepted — still processing (requestId: {documentResponse.requestId})</strong>
+                <strong>⏳ Request accepted — still processing</strong>
+                <TraceIdBadge requestId={documentResponse.requestId} />
               </div>
             )}
 
@@ -516,7 +560,7 @@ export default function UC4Page() {
                   color: "#bbf7d0",
                   padding: "1rem",
                   display: "grid",
-                  gap: "0.35rem",
+                  gap: "0.5rem",
                 }}
               >
                 <strong>✅ Document Retrieved</strong>
@@ -524,6 +568,7 @@ export default function UC4Page() {
                 <span style={{ color: "#86efac", fontSize: "0.9rem" }}>
                   {formatBytes(estimateBytes(documentResponse.contentBase64))}
                 </span>
+                <TraceIdBadge requestId={documentResponse.requestId} />
               </div>
             )}
           </div>
