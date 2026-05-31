@@ -1,7 +1,7 @@
 using dotnet_prs_appraisal.Domain;
-using dotnet_prs_appraisal.Infrastructure;
 using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
+using Middleware.Contracts.Messages;
 using NServiceBus;
 using Serilog.Context;
 
@@ -13,14 +13,10 @@ public sealed class DocumentRetrievalSaga :
     IHandleMessages<Uc4AppraisalDocumentRetrievedEvent>,
     IHandleTimeouts<Uc4DocumentRetrievalSagaTimeoutMessage>
 {
-    private readonly ICallbackRegistry _callbackRegistry;
     private readonly ILogger<DocumentRetrievalSaga> _logger;
 
-    public DocumentRetrievalSaga(
-        ICallbackRegistry callbackRegistry,
-        ILogger<DocumentRetrievalSaga> logger)
+    public DocumentRetrievalSaga(ILogger<DocumentRetrievalSaga> logger)
     {
-        _callbackRegistry = callbackRegistry;
         _logger = logger;
     }
 
@@ -47,8 +43,18 @@ public sealed class DocumentRetrievalSaga :
             || message.DocumentKey.Contains("_RiskID_", StringComparison.OrdinalIgnoreCase))
         {
             LogEdaFlow(message.RequestId, "AtWorkDocumentRetrieve", "PrsAppraisal", "AtWork", "atwork.retrieve.document", "published");
-            _callbackRegistry.TryComplete(message.RequestId, AtWorkFixture.BuildRetrievalResult(message.RequestId, message.DocumentKey));
+            var fixture = AtWorkFixture.BuildRetrievalResult(message.RequestId, message.DocumentKey);
             LogEdaFlow(message.RequestId, "AtWorkDocumentResponse", "AtWork", "PrsAppraisal", "atwork.retrieve.document", "consumed");
+            await context.Reply(new RetrieveAppraisalDocumentResponse
+            {
+                RequestId = fixture.RequestId,
+                DocumentId = fixture.DocumentId,
+                DocumentKey = fixture.DocumentKey,
+                SourceSystem = fixture.SourceSystem,
+                ContentType = fixture.ContentType,
+                ContentBase64 = fixture.ContentBase64,
+                FileName = fixture.FileName
+            }).ConfigureAwait(false);
             MarkAsComplete();
             return;
         }
@@ -61,42 +67,36 @@ public sealed class DocumentRetrievalSaga :
         }).ConfigureAwait(false);
     }
 
-    public Task Handle(Uc4AppraisalDocumentRetrievedEvent message, IMessageHandlerContext context)
+    public async Task Handle(Uc4AppraisalDocumentRetrievedEvent message, IMessageHandlerContext context)
     {
-        _callbackRegistry.TryComplete(
-            Data.RequestId,
-            new DocumentRetrievalResult
-            {
-                RequestId = Data.RequestId,
-                DocumentId = Data.DocumentKey,
-                DocumentKey = Data.DocumentKey,
-                SourceSystem = string.IsNullOrWhiteSpace(message.SourceSystem) ? Data.SourceSystem : message.SourceSystem,
-                ContentType = message.ContentType,
-                ContentBase64 = message.ContentBase64,
-                FileName = string.IsNullOrWhiteSpace(message.FileName) ? $"appraisal-{Data.DocumentKey}.pdf" : message.FileName
-            });
+        await context.Reply(new RetrieveAppraisalDocumentResponse
+        {
+            RequestId = Data.RequestId,
+            DocumentId = Data.DocumentKey,
+            DocumentKey = Data.DocumentKey,
+            SourceSystem = string.IsNullOrWhiteSpace(message.SourceSystem) ? Data.SourceSystem : message.SourceSystem,
+            ContentType = message.ContentType,
+            ContentBase64 = message.ContentBase64,
+            FileName = string.IsNullOrWhiteSpace(message.FileName) ? $"appraisal-{Data.DocumentKey}.pdf" : message.FileName
+        }).ConfigureAwait(false);
 
         MarkAsComplete();
-        return Task.CompletedTask;
     }
 
-    public Task Timeout(Uc4DocumentRetrievalSagaTimeoutMessage state, IMessageHandlerContext context)
+    public async Task Timeout(Uc4DocumentRetrievalSagaTimeoutMessage state, IMessageHandlerContext context)
     {
-        _callbackRegistry.TryComplete(
-            Data.RequestId,
-            new DocumentRetrievalResult
-            {
-                RequestId = Data.RequestId,
-                DocumentId = Data.DocumentKey,
-                DocumentKey = Data.DocumentKey,
-                SourceSystem = Data.SourceSystem,
-                ContentType = string.Empty,
-                ContentBase64 = string.Empty,
-                FileName = string.Empty
-            });
+        await context.Reply(new RetrieveAppraisalDocumentResponse
+        {
+            RequestId = Data.RequestId,
+            DocumentId = Data.DocumentKey,
+            DocumentKey = Data.DocumentKey,
+            SourceSystem = Data.SourceSystem,
+            ContentType = string.Empty,
+            ContentBase64 = string.Empty,
+            FileName = string.Empty
+        }).ConfigureAwait(false);
 
         MarkAsComplete();
-        return Task.CompletedTask;
     }
 
     private void LogEdaFlow(string requestId, string messageType, string from, string to, string topic, string direction = "consumed")
@@ -112,3 +112,4 @@ public sealed class DocumentRetrievalSaga :
         _logger.LogInformation("EDA_FLOW {EDA_MessageType} {EDA_From} -> {EDA_To}", messageType, from, to);
     }
 }
+

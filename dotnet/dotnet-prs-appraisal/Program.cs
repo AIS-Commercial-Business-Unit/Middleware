@@ -20,7 +20,6 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHealthChecks();
 
 // ── UC4 services ──────────────────────────────────────────────────────────────
-builder.Services.AddSingleton<ICallbackRegistry, CallbackRegistry>();
 builder.Services.AddSingleton<IArtemisAdapter, ArtemisAdapter>();
 builder.Services.AddHostedService<ArtemisListReplyListener>();
 builder.Services.AddHostedService<ArtemisDocumentReplyListener>();
@@ -46,6 +45,8 @@ builder.Host.UseNServiceBus(_ =>
     persistence.ConnectionBuilder(() => new SqlConnection(connectionString));
 
     endpointConfiguration.EnableInstallers();
+    endpointConfiguration.EnableCallbacks();
+    endpointConfiguration.MakeInstanceUniquelyAddressable("appraisal-1");
     endpointConfiguration.UseSerialization<SystemJsonSerializer>();
     endpointConfiguration.SendFailedMessagesTo("error");
     endpointConfiguration.AuditProcessedMessagesTo("audit");

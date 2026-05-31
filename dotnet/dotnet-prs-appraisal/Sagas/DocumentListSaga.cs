@@ -1,8 +1,8 @@
 using System.Text.Json;
 using dotnet_prs_appraisal.Domain;
-using dotnet_prs_appraisal.Infrastructure;
 using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
+using Middleware.Contracts.Messages;
 using Middleware.Contracts.Models;
 using NServiceBus;
 using Serilog.Context;
@@ -18,14 +18,10 @@ public sealed class DocumentListSaga :
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly ICallbackRegistry _callbackRegistry;
     private readonly ILogger<DocumentListSaga> _logger;
 
-    public DocumentListSaga(
-        ICallbackRegistry callbackRegistry,
-        ILogger<DocumentListSaga> logger)
+    public DocumentListSaga(ILogger<DocumentListSaga> logger)
     {
-        _callbackRegistry = callbackRegistry;
         _logger = logger;
     }
 
@@ -58,55 +54,69 @@ public sealed class DocumentListSaga :
         LogEdaFlow(message.RequestId, "AppraisalDocumentListRequested", "DocumentListSaga", "AllSubscribers", "nsb.uc4appraisaldocumentlistrequested", "published");
     }
 
-    public Task Handle(Uc4AtWorkDocumentListCompletedEvent message, IMessageHandlerContext context)
+    public async Task Handle(Uc4AtWorkDocumentListCompletedEvent message, IMessageHandlerContext context)
     {
         Data.AtWorkDocumentsJson = JsonSerializer.Serialize(message.Documents.Select(ToLocal).ToList(), JsonOptions);
         Data.AtWorkDone = true;
 
-        return TryComplete();
+        await TryCompleteAsync(context).ConfigureAwait(false);
     }
 
-    public Task Handle(Uc4MainframeDocumentListCompletedEvent message, IMessageHandlerContext context)
+    public async Task Handle(Uc4MainframeDocumentListCompletedEvent message, IMessageHandlerContext context)
     {
         Data.MainframeDocumentsJson = JsonSerializer.Serialize(message.Documents.Select(ToLocal).ToList(), JsonOptions);
         Data.MainframeDone = true;
 
-        return TryComplete();
+        await TryCompleteAsync(context).ConfigureAwait(false);
     }
 
-    public Task Timeout(Uc4DocumentListSagaTimeoutMessage state, IMessageHandlerContext context)
+    public async Task Timeout(Uc4DocumentListSagaTimeoutMessage state, IMessageHandlerContext context)
     {
-        _callbackRegistry.TryComplete(
-            Data.RequestId,
-            new DocumentListResult
+        await context.Reply(new GetAppraisalDocumentListResponse
+        {
+            RequestId = Data.RequestId,
+            PolicyNumber = Data.PolicyNumber,
+            Documents = MergeDocuments().Select(d => new Uc4DocumentSummary
             {
-                RequestId = Data.RequestId,
-                PolicyNumber = Data.PolicyNumber,
-                Documents = MergeDocuments(),
-                PartialResult = true
-            });
+                DocumentId = d.DocumentId,
+                DocumentKey = d.DocumentKey,
+                SourceSystem = d.SourceSystem,
+                DocumentType = d.DocumentType,
+                DocumentName = d.DocumentName,
+                DocumentDate = d.DocumentDate,
+                PolicyNumber = d.PolicyNumber,
+                Status = d.Status
+            }).ToList(),
+            PartialResult = true
+        }).ConfigureAwait(false);
 
         MarkAsComplete();
-        return Task.CompletedTask;
     }
 
-    private Task TryComplete()
+    private async Task TryCompleteAsync(IMessageHandlerContext context)
     {
         if (!Data.AtWorkDone || !Data.MainframeDone)
-            return Task.CompletedTask;
+            return;
 
-        _callbackRegistry.TryComplete(
-            Data.RequestId,
-            new DocumentListResult
+        await context.Reply(new GetAppraisalDocumentListResponse
+        {
+            RequestId = Data.RequestId,
+            PolicyNumber = Data.PolicyNumber,
+            Documents = MergeDocuments().Select(d => new Uc4DocumentSummary
             {
-                RequestId = Data.RequestId,
-                PolicyNumber = Data.PolicyNumber,
-                Documents = MergeDocuments(),
-                PartialResult = false
-            });
+                DocumentId = d.DocumentId,
+                DocumentKey = d.DocumentKey,
+                SourceSystem = d.SourceSystem,
+                DocumentType = d.DocumentType,
+                DocumentName = d.DocumentName,
+                DocumentDate = d.DocumentDate,
+                PolicyNumber = d.PolicyNumber,
+                Status = d.Status
+            }).ToList(),
+            PartialResult = false
+        }).ConfigureAwait(false);
 
         MarkAsComplete();
-        return Task.CompletedTask;
     }
 
     private List<DocumentSummary> MergeDocuments() => GetAtWorkDocuments()
@@ -149,3 +159,4 @@ public sealed class DocumentListSaga :
         Status = document.Status
     };
 }
+

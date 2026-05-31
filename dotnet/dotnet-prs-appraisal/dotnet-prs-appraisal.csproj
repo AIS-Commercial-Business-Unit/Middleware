@@ -9,6 +9,7 @@
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.*" />
     <PackageReference Include="MongoDB.Driver" Version="2.*" />
     <PackageReference Include="NServiceBus" Version="8.*" />
+    <PackageReference Include="NServiceBus.Callbacks" Version="4.*" />
     <PackageReference Include="NServiceBus.Persistence.Sql" Version="7.*" />
     <PackageReference Include="NServiceBus.Transport.SqlServer" Version="7.*" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.*" />
