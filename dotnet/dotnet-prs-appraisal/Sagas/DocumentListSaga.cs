@@ -12,6 +12,7 @@ namespace dotnet_prs_appraisal.Sagas;
 public sealed class DocumentListSaga :
     Saga<DocumentListSagaData>,
     IAmStartedByMessages<GetAppraisalDocumentListCommand>,
+    IHandleMessages<Uc4AtWorkDocumentListCompletedEvent>,
     IHandleMessages<Uc4MainframeDocumentListCompletedEvent>,
     IHandleTimeouts<Uc4DocumentListSagaTimeoutMessage>
 {
@@ -32,6 +33,7 @@ public sealed class DocumentListSaga :
     {
         mapper.MapSaga(sagaData => sagaData.RequestId)
             .ToMessage<GetAppraisalDocumentListCommand>(message => message.RequestId)
+            .ToMessage<Uc4AtWorkDocumentListCompletedEvent>(message => message.RequestId)
             .ToMessage<Uc4MainframeDocumentListCompletedEvent>(message => message.RequestId);
     }
 
@@ -46,18 +48,22 @@ public sealed class DocumentListSaga :
             RequestId = message.RequestId
         }).ConfigureAwait(false);
 
-        LogEdaFlow(message.RequestId, "AtWorkListQuery", "PrsAppraisal", "AtWork", "atwork.query.list", "published");
-        var atWorkDocuments = AtWorkFixture.GetDocuments(message.PolicyNumber);
-        Data.AtWorkDocumentsJson = JsonSerializer.Serialize(atWorkDocuments, JsonOptions);
-        Data.AtWorkDone = true;
-        LogEdaFlow(message.RequestId, "AtWorkListResponse", "AtWork", "PrsAppraisal", "atwork.query.list", "consumed");
-
-        await context.Send(new StartMainframeListAggregationCommand
+        await context.Publish(new Uc4AppraisalDocumentListRequestedEvent
         {
             RequestId = message.RequestId,
             PolicyNumber = message.PolicyNumber,
             RequestedAt = message.RequestedAt
         }).ConfigureAwait(false);
+
+        LogEdaFlow(message.RequestId, "AppraisalDocumentListRequested", "DocumentListSaga", "AllSubscribers", "nsb.uc4appraisaldocumentlistrequested", "published");
+    }
+
+    public Task Handle(Uc4AtWorkDocumentListCompletedEvent message, IMessageHandlerContext context)
+    {
+        Data.AtWorkDocumentsJson = JsonSerializer.Serialize(message.Documents.Select(ToLocal).ToList(), JsonOptions);
+        Data.AtWorkDone = true;
+
+        return TryComplete();
     }
 
     public Task Handle(Uc4MainframeDocumentListCompletedEvent message, IMessageHandlerContext context)
@@ -65,19 +71,7 @@ public sealed class DocumentListSaga :
         Data.MainframeDocumentsJson = JsonSerializer.Serialize(message.Documents.Select(ToLocal).ToList(), JsonOptions);
         Data.MainframeDone = true;
 
-        var mergedDocuments = MergeDocuments();
-        _callbackRegistry.TryComplete(
-            Data.RequestId,
-            new DocumentListResult
-            {
-                RequestId = Data.RequestId,
-                PolicyNumber = Data.PolicyNumber,
-                Documents = mergedDocuments,
-                PartialResult = !(Data.AtWorkDone && Data.MainframeDone)
-            });
-
-        MarkAsComplete();
-        return Task.CompletedTask;
+        return TryComplete();
     }
 
     public Task Timeout(Uc4DocumentListSagaTimeoutMessage state, IMessageHandlerContext context)
@@ -90,6 +84,25 @@ public sealed class DocumentListSaga :
                 PolicyNumber = Data.PolicyNumber,
                 Documents = MergeDocuments(),
                 PartialResult = true
+            });
+
+        MarkAsComplete();
+        return Task.CompletedTask;
+    }
+
+    private Task TryComplete()
+    {
+        if (!Data.AtWorkDone || !Data.MainframeDone)
+            return Task.CompletedTask;
+
+        _callbackRegistry.TryComplete(
+            Data.RequestId,
+            new DocumentListResult
+            {
+                RequestId = Data.RequestId,
+                PolicyNumber = Data.PolicyNumber,
+                Documents = MergeDocuments(),
+                PartialResult = false
             });
 
         MarkAsComplete();

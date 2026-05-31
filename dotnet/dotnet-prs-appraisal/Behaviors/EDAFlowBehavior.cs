@@ -24,6 +24,8 @@ file static class AppraisalParticipantMap
         ["deipde07-mq-simulator"] = "Mainframe",
         ["mainframelistaggregator"] = "MainframeListAggregator",
         ["mainframedocumentaggregator"] = "MainframeDocumentAggregator",
+        ["atworkhandler"] = "AtWorkHandler",
+        ["mainframeadapter"] = "MainframeAdapter",
     };
 
     private static readonly Dictionary<string, string> MessageTypeToPrimarySubscriber = new(StringComparer.OrdinalIgnoreCase)
@@ -37,6 +39,8 @@ file static class AppraisalParticipantMap
         ["AppraisalStatusUpdateFailedEvent"] = "broadcast",
         ["GetAppraisalDocumentListCommand"] = "DocumentListSaga",
         ["RetrieveAppraisalDocumentCommand"] = "DocumentRetrievalSaga",
+        ["Uc4AppraisalDocumentListRequestedEvent"] = "broadcast",
+        ["Uc4AtWorkDocumentListCompletedEvent"] = "DocumentListSaga",
         ["StartMainframeListAggregationCommand"] = "MainframeListAggregator",
         ["StartMainframeDocumentAggregationCommand"] = "MainframeDocumentAggregator",
         ["MainframeAppraisalListPartReceivedEvent"] = "MainframeListAggregator",
