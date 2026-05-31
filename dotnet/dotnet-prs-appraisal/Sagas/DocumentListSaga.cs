@@ -17,16 +17,13 @@ public sealed class DocumentListSaga :
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly IArtemisAdapter _artemisAdapter;
     private readonly ICallbackRegistry _callbackRegistry;
     private readonly ILogger<DocumentListSaga> _logger;
 
     public DocumentListSaga(
-        IArtemisAdapter artemisAdapter,
         ICallbackRegistry callbackRegistry,
         ILogger<DocumentListSaga> logger)
     {
-        _artemisAdapter = artemisAdapter;
         _callbackRegistry = callbackRegistry;
         _logger = logger;
     }
@@ -55,15 +52,12 @@ public sealed class DocumentListSaga :
         Data.AtWorkDone = true;
         LogEdaFlow(message.RequestId, "AtWorkListResponse", "AtWork", "PrsAppraisal", "atwork.query.list", "consumed");
 
-        try
+        await context.Send(new StartMainframeListAggregationCommand
         {
-            LogEdaFlow(message.RequestId, "MqListRequest", "PrsAppraisal", "Mainframe", "APPRAISAL.LIST.REQUEST", "published");
-            _artemisAdapter.SendListRequest(message.RequestId, message.PolicyNumber);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send Artemis list request for {RequestId}. Timeout will return partial data.", message.RequestId);
-        }
+            RequestId = message.RequestId,
+            PolicyNumber = message.PolicyNumber,
+            RequestedAt = message.RequestedAt
+        }).ConfigureAwait(false);
     }
 
     public Task Handle(Uc4MainframeDocumentListCompletedEvent message, IMessageHandlerContext context)

@@ -13,16 +13,13 @@ public sealed class DocumentRetrievalSaga :
     IHandleMessages<Uc4AppraisalDocumentRetrievedEvent>,
     IHandleTimeouts<Uc4DocumentRetrievalSagaTimeoutMessage>
 {
-    private readonly IArtemisAdapter _artemisAdapter;
     private readonly ICallbackRegistry _callbackRegistry;
     private readonly ILogger<DocumentRetrievalSaga> _logger;
 
     public DocumentRetrievalSaga(
-        IArtemisAdapter artemisAdapter,
         ICallbackRegistry callbackRegistry,
         ILogger<DocumentRetrievalSaga> logger)
     {
-        _artemisAdapter = artemisAdapter;
         _callbackRegistry = callbackRegistry;
         _logger = logger;
     }
@@ -56,15 +53,12 @@ public sealed class DocumentRetrievalSaga :
             return;
         }
 
-        try
+        await context.Send(new StartMainframeDocumentAggregationCommand
         {
-            LogEdaFlow(message.RequestId, "MqDocumentRequest", "PrsAppraisal", "Mainframe", "APPRAISAL.DOCUMENT.REQUEST", "published");
-            _artemisAdapter.SendDocumentRequest(message.RequestId, message.DocumentKey);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send Artemis document request for {RequestId}. Timeout will return the fallback response.", message.RequestId);
-        }
+            RequestId = message.RequestId,
+            DocumentKey = message.DocumentKey,
+            RequestedAt = message.RequestedAt
+        }).ConfigureAwait(false);
     }
 
     public Task Handle(Uc4AppraisalDocumentRetrievedEvent message, IMessageHandlerContext context)

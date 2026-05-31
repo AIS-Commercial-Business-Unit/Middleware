@@ -22,6 +22,8 @@ file static class AppraisalParticipantMap
         ["AtWork"] = "AtWork",
         ["Mainframe"] = "Mainframe",
         ["deipde07-mq-simulator"] = "Mainframe",
+        ["mainframelistaggregator"] = "MainframeListAggregator",
+        ["mainframedocumentaggregator"] = "MainframeDocumentAggregator",
     };
 
     private static readonly Dictionary<string, string> MessageTypeToPrimarySubscriber = new(StringComparer.OrdinalIgnoreCase)
@@ -35,10 +37,16 @@ file static class AppraisalParticipantMap
         ["AppraisalStatusUpdateFailedEvent"] = "broadcast",
         ["GetAppraisalDocumentListCommand"] = "DocumentListSaga",
         ["RetrieveAppraisalDocumentCommand"] = "DocumentRetrievalSaga",
+        ["StartMainframeListAggregationCommand"] = "MainframeListAggregator",
+        ["StartMainframeDocumentAggregationCommand"] = "MainframeDocumentAggregator",
+        ["MainframeAppraisalListPartReceivedEvent"] = "MainframeListAggregator",
+        ["MainframeDocumentChunkReceivedEvent"] = "MainframeDocumentAggregator",
         ["Uc4MainframeDocumentListCompletedEvent"] = "DocumentListSaga",
         ["Uc4AppraisalDocumentRetrievedEvent"] = "DocumentRetrievalSaga",
         ["Uc4DocumentListSagaTimeoutMessage"] = "DocumentListSaga",
         ["Uc4DocumentRetrievalSagaTimeoutMessage"] = "DocumentRetrievalSaga",
+        ["Uc4MainframeListAggregatorTimeoutMessage"] = "MainframeListAggregator",
+        ["Uc4MainframeDocumentAggregatorTimeoutMessage"] = "MainframeDocumentAggregator",
     };
 
     private static readonly HashSet<string> SuppressedOutgoing = new(StringComparer.OrdinalIgnoreCase);

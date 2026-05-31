@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using Apache.NMS;
 using Apache.NMS.ActiveMQ;
@@ -16,7 +15,6 @@ public sealed partial class ArtemisListReplyListener : BackgroundService
     private readonly IConfiguration _configuration;
     private readonly IMessageSession _messageSession;
     private readonly ILogger<ArtemisListReplyListener> _logger;
-    private readonly ConcurrentDictionary<string, SequenceAccumulator> _pendingDocuments = new(StringComparer.OrdinalIgnoreCase);
 
     public ArtemisListReplyListener(
         IConfiguration configuration,
@@ -89,33 +87,17 @@ public sealed partial class ArtemisListReplyListener : BackgroundService
         }
 
         var parsed = ParseDocument(message.Text);
-        LogEdaFlow(correlationId, "MqListReply", "Mainframe", "PrsAppraisal", "APPRAISAL.LIST.REPLY", "consumed");
-        var accumulator = _pendingDocuments.GetOrAdd(correlationId, _ => new SequenceAccumulator(parsed.Total));
-        accumulator.ExpectedTotal = parsed.Total;
-        accumulator.Documents[parsed.Sequence] = parsed.Document;
-
-        if (accumulator.Documents.Count < accumulator.ExpectedTotal)
-        {
-            return;
-        }
-
-        if (_pendingDocuments.TryRemove(correlationId, out var completed))
-        {
-            var documents = completed.Documents
-                .OrderBy(static item => item.Key)
-                .Select(static item => item.Value)
-                .ToList();
-
-            LogEdaFlow(correlationId, "Uc4MainframeDocumentListCompletedEvent", "PrsAppraisal", "DocumentListSaga", "nsb.uc4mainframedocumentlistcompleted", "published");
-            await _messageSession.Publish(
-                    new Uc4MainframeDocumentListCompletedEvent
-                    {
-                        RequestId = correlationId,
-                        Documents = documents
-                    },
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
+        LogEdaFlow(correlationId, "MqListReply", "Mainframe", "MainframeListAggregator", "APPRAISAL.LIST.REPLY", "consumed");
+        await _messageSession.Publish(
+                new MainframeAppraisalListPartReceivedEvent
+                {
+                    RequestId = correlationId,
+                    SequenceNumber = parsed.Sequence,
+                    TotalExpected = parsed.Total,
+                    Document = parsed.Document
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private void LogEdaFlow(string requestId, string messageType, string from, string to, string topic, string direction = "consumed")
@@ -183,18 +165,6 @@ public sealed partial class ArtemisListReplyListener : BackgroundService
     private string GetUser() => _configuration["Artemis:User"] ?? string.Empty;
     private string GetPassword() => _configuration["Artemis:Password"] ?? string.Empty;
     private string GetReplyQueue() => _configuration["Artemis:ListReplyQueue"] ?? "APPRAISAL.LIST.REPLY";
-
-    private sealed class SequenceAccumulator
-    {
-        public SequenceAccumulator(int expectedTotal)
-        {
-            ExpectedTotal = expectedTotal;
-        }
-
-        public int ExpectedTotal { get; set; }
-
-        public ConcurrentDictionary<int, Uc4DocumentSummary> Documents { get; } = new();
-    }
 
     [GeneratedRegex("^SEQUENCE=(\\d+) OF (\\d+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
     private static partial Regex SequenceLine();

@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using System.Text;
 using Apache.NMS;
 using Apache.NMS.ActiveMQ;
 using Middleware.Contracts.Events;
@@ -15,7 +13,6 @@ public sealed class ArtemisDocumentReplyListener : BackgroundService
     private readonly IConfiguration _configuration;
     private readonly IMessageSession _messageSession;
     private readonly ILogger<ArtemisDocumentReplyListener> _logger;
-    private readonly ConcurrentDictionary<string, ChunkAccumulator> _chunks = new(StringComparer.OrdinalIgnoreCase);
 
     public ArtemisDocumentReplyListener(
         IConfiguration configuration,
@@ -88,39 +85,16 @@ public sealed class ArtemisDocumentReplyListener : BackgroundService
         }
 
         var text = (message.Text ?? string.Empty).Replace("\r", string.Empty).Replace("\n", string.Empty);
-        LogEdaFlow(correlationId, "MqDocumentChunk", "Mainframe", "PrsAppraisal", "APPRAISAL.DOCUMENT.REPLY", "consumed");
         var isFinalChunk = text.Contains(EndOfDocumentSentinel, StringComparison.Ordinal);
         var chunk = text.Replace(EndOfDocumentSentinel, string.Empty, StringComparison.Ordinal);
 
-        var accumulator = _chunks.GetOrAdd(correlationId, _ => new ChunkAccumulator());
-        string? completedPayload = null;
-
-        lock (accumulator.SyncRoot)
-        {
-            accumulator.Chunks.Add(chunk);
-            if (isFinalChunk)
-            {
-                completedPayload = string.Concat(accumulator.Chunks);
-            }
-        }
-
-        if (completedPayload is null)
-        {
-            return;
-        }
-
-        _chunks.TryRemove(correlationId, out _);
-
-        LogEdaFlow(correlationId, "Uc4AppraisalDocumentRetrievedEvent", "PrsAppraisal", "DocumentRetrievalSaga", "nsb.uc4appraisaldocumentretrieved", "published");
+        LogEdaFlow(correlationId, "MqDocumentChunk", "Mainframe", "MainframeDocumentAggregator", "APPRAISAL.DOCUMENT.REPLY", "consumed");
         await _messageSession.Publish(
-                new Uc4AppraisalDocumentRetrievedEvent
+                new MainframeDocumentChunkReceivedEvent
                 {
                     RequestId = correlationId,
-                    DocumentKey = string.Empty,
-                    SourceSystem = "Mainframe",
-                    ContentType = "application/pdf",
-                    ContentBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(completedPayload)),
-                    FileName = $"appraisal-{correlationId}.pdf"
+                    ChunkPayload = chunk,
+                    IsFinal = isFinalChunk
                 },
                 cancellationToken)
             .ConfigureAwait(false);
@@ -143,11 +117,4 @@ public sealed class ArtemisDocumentReplyListener : BackgroundService
     private string GetUser() => _configuration["Artemis:User"] ?? string.Empty;
     private string GetPassword() => _configuration["Artemis:Password"] ?? string.Empty;
     private string GetReplyQueue() => _configuration["Artemis:DocumentReplyQueue"] ?? "APPRAISAL.DOCUMENT.REPLY";
-
-    private sealed class ChunkAccumulator
-    {
-        public object SyncRoot { get; } = new();
-
-        public List<string> Chunks { get; } = new();
-    }
 }

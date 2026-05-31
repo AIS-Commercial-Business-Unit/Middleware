@@ -38,6 +38,8 @@ builder.Host.UseNServiceBus(_ =>
     var routing = transport.Routing();
     routing.RouteToEndpoint(typeof(GetAppraisalDocumentListCommand), "dotnet-prs-appraisal");
     routing.RouteToEndpoint(typeof(RetrieveAppraisalDocumentCommand), "dotnet-prs-appraisal");
+    routing.RouteToEndpoint(typeof(StartMainframeListAggregationCommand), "dotnet-prs-appraisal");
+    routing.RouteToEndpoint(typeof(StartMainframeDocumentAggregationCommand), "dotnet-prs-appraisal");
 
     var persistence = endpointConfiguration.UsePersistence<SqlPersistence>();
     persistence.SqlDialect<SqlDialect.MsSqlServer>();

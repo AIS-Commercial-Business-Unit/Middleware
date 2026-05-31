@@ -12,5 +12,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Middleware.Contracts\Middleware.Contracts.csproj" />
     <ProjectReference Include="..\dotnet-policy-issuance\dotnet-policy-issuance.csproj" />
+    <ProjectReference Include="..\dotnet-prs-appraisal\dotnet-prs-appraisal.csproj" />
   </ItemGroup>
 </Project>
