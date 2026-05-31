@@ -501,7 +501,7 @@ export default function OpsPage() {
               <span className="text-xs animate-pulse" style={{ color: "#f59e0b" }}>● live</span>
             )}
           </div>
-          <h1 className="text-2xl font-bold">IssuanceSaga Flow</h1>
+          <h1 className="text-2xl font-bold">EDA Flow Trace</h1>
           <code className="text-xs px-2 py-1 rounded font-mono mt-1 inline-block"
             style={{ background: "var(--border)", color: "var(--text)" }}>
             {issuanceId}
@@ -535,7 +535,7 @@ export default function OpsPage() {
       {sagaLoading && (
         <div className="text-sm animate-pulse" style={{ color: "var(--muted)" }}>Loading saga state…</div>
       )}
-      {sagaError && (
+      {sagaError && !isLiveMode && (
         <div className="rounded px-3 py-2 text-sm" style={{ background: "#2d1515", color: "var(--danger)" }}>
           Could not load saga: {sagaError.message}
         </div>
@@ -548,7 +548,7 @@ export default function OpsPage() {
         <div className="rounded-lg border overflow-x-auto"
           style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
           <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-            <p className="text-sm font-semibold">Kafka Message Sequence</p>
+            <p className="text-sm font-semibold">Message Sequence</p>
             <p className="text-xs" style={{ color: "var(--muted)" }}>
               <span style={{ color: "#22c55e" }}>● done</span>
               <span className="mx-2" style={{ color: "#f59e0b" }}>● active</span>
@@ -556,12 +556,23 @@ export default function OpsPage() {
             </p>
           </div>
           <div className="px-2 pb-4">
-            <SequenceDiagram sagaStatus={sagaStatus} liveSteps={liveSteps} isLiveMode={isLiveMode} />
+            {!isLiveMode && !saga && !sagaLoading ? (
+              <div className="py-12 text-center space-y-2">
+                <p className="text-sm animate-pulse" style={{ color: "var(--muted)" }}>
+                  ⏳ Waiting for trace data…
+                </p>
+                <p className="text-xs" style={{ color: "var(--muted)", opacity: 0.6 }}>
+                  Logs are being collected from Loki. Refresh in a moment.
+                </p>
+              </div>
+            ) : (
+              <SequenceDiagram sagaStatus={sagaStatus} liveSteps={liveSteps} isLiveMode={isLiveMode} />
+            )}
           </div>
           {/* Topic legend — shown for active steps */}
           <div className="border-t px-4 py-3 space-y-1" style={{ borderColor: "var(--border)" }}>
             <p className="text-xs font-semibold mb-2" style={{ color: "var(--muted)" }}>
-              Kafka Topics
+              Topics / Queues
             </p>
             <div className="flex flex-wrap gap-2">
               {stepsToRender.map((step) => {
@@ -651,8 +662,8 @@ export default function OpsPage() {
                 href: `http://localhost:3001/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{deployment_environment%3D%22local%22} |%3D \`${issuanceId}\`"}]`,
               },
               {
-                label: "Policy Issuance Logs →",
-                href: `http://localhost:3001/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{service_name%3D%22policy-issuance-service%22} |%3D \`${issuanceId}\`"}]`,
+                label: "Service Logs (Loki) →",
+                href: `http://localhost:3001/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{service_name%3D~%22.%2B%22} |%3D \`${issuanceId}\`"}]`,
               },
               {
                 label: "Traces (Tempo) →",
