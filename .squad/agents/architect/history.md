@@ -11,6 +11,14 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### 2026-05-31: EDA Compliance Review — UC4 Scatter-Gather Pattern
+
+**Finding:** The UC4 `DocumentListSaga` scatter-gather is architecturally incomplete. The AtWork path is synchronous inline (temporal coupling) while the mainframe path is correctly event-driven. The requirements define a published-event fan-out pattern (§9.2, §10) where `AppraisalDocumentListRequested` triggers independent handlers — this is not implemented. The event contracts exist (`Uc4AppraisalDocumentListRequestedEvent`, `Uc4AtWorkDocumentListCompletedEvent`) but are dead code.
+
+**Key Principle Reinforced:** In NServiceBus scatter-gather, the coordinator saga must ONLY publish an event and wait for completion events. It must NEVER call services inline or send direct commands to known participants. This is the Udi Dahan separation: the saga doesn't know who will respond, only that responses will arrive.
+
+**Action:** Decision inbox entry filed (`architect-eda-review-uc4.md`) with 3 critical, 3 important, and 3 minor findings. Primary fix is a single refactor pass: publish event → create AtWork handler → convert mainframe aggregator from command to event subscription → saga waits for both completion events.
+
 ### 2026-05-29: UC4 Architecture Sweep & Decisions Finalization
 
 **UC4 Architecture Audit (Post-Merge Cleanup):**
@@ -136,3 +144,33 @@ PolicyLifecycle waits for both completion events (join pattern) before publishin
 - `.docs/architecture-for-lucid-chart.md` — Lucid Chart AI prompt reference
 - `observability/mongo-init.js` — MongoDB database initialization (8 databases)
 - `docker-compose.yml` — 35+ services, full platform topology
+
+### 2026-05-31T19:35:23-04:00 — UC4 EDA Compliance Review & Scatter-Gather Validation
+
+**EDA Compliance Review Finding:** UC4 `DocumentListSaga` scatter-gather architecture is incomplete. The AtWork path is synchronous inline (temporal coupling) while mainframe path is correctly event-driven. Requirements define published-event fan-out pattern (§9.2, §10) — this was NOT implemented. Event contracts exist (`Uc4AppraisalDocumentListRequestedEvent`, `Uc4AtWorkDocumentListCompletedEvent`) but were dead code.
+
+**Critical Violations Documented (3 items):**
+- C1: Scatter-gather event not published; AtWork called synchronously inline
+- C2: Temporal coupling; AtWork blocks saga handler
+- C3: Same pattern in DocumentRetrievalSaga
+
+**Important Issues Documented (3 items):**
+- I1: Command used where event should be (`StartMainframeListAggregationCommand`)
+- I2: Infrastructure reference in domain/saga layer (`AtWorkFixture` in sagas)
+- I3: Saga does not wait for AtWork completion event
+
+**Minor Issues Documented (3 items):**
+- M1: Unused event contracts (now dead code, will activate with C1 fix)
+- M2: EDA Flow log fakes AtWork async behavior (will auto-resolve with C1)
+- M3: Command naming pattern in document retrieval path
+
+**What Is Correct:** Mainframe aggregator saga properly event-driven; ArtemisListReplyListener correctly bridges IBM MQ into events; timeout handling implements graceful degradation; saga correlation via RequestId; structured EDA logging enables observability.
+
+**Priority Matrix:** C1+C2+I1+I2+I3 as single sprint (medium effort, high impact). C3 (small effort) as follow-on. M2 (trivial) auto-resolves.
+
+**Key Principle Reinforced:** In NServiceBus scatter-gather, coordinator saga must ONLY publish event and wait for completion events. Never call services inline or send direct commands to known participants. This is Udi Dahan separation: saga doesn't know who will respond, only that responses will arrive.
+
+**Validation Completed (By DotNet Agent):** Scatter-gather implementation committed (7d86cb3) — all 3 critical violations fixed in single refactor pass. Event published, handlers subscribe independently, saga coordinates both AtWork and Mainframe completions.
+
+**Decision Merged:** `architect-eda-compliance-uc4` added to `.squad/decisions/decisions.md` for team reference and ongoing governance.
+

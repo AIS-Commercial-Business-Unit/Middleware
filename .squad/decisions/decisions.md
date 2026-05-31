@@ -346,3 +346,107 @@ The healthcheck was `wget http://localhost:3000/`. Alpine Linux resolves `localh
 - Events: `API→PolicyIssuance, PolicyIssuance→Compliance, Compliance→PolicyIssuance, PolicyIssuance→CustomerIdentity, CustomerIdentity→PolicyIssuance, PolicyIssuance→Integration, Integration→PolicyIssuance, Integration→Billing (fan-out), CustomerIdentity→PolicyIssuance, Billing→PolicyIssuance, PolicyIssuance→Notification`
 - Ops page shows "📡 Live — from Loki" badge; `isLiveMode = true`
 - Platform-UI container: **healthy** ✓
+
+---
+
+## Directive: UC4 EDA Compliance Review — Critical Violations & Action Items
+
+**Decision ID:** architect-eda-compliance-uc4  
+**Status:** Captured (awaiting sprint commitment)  
+**Date:** 2026-05-31  
+**Author:** Architect  
+
+---
+
+### Context
+
+UC4 PRS Appraisal Documents implementation has a structurally correct mainframe path (event-driven aggregation via sagas) but a critically non-compliant AtWork path. The scatter-gather pattern — where a published event fans out to multiple independent handlers — is not implemented. Instead, AtWork data is fetched synchronously inline, creating temporal coupling and violating the event-first design principle. Event contracts exist but are never published or consumed.
+
+### Critical Violations (must fix before demo)
+
+#### C1: Scatter-Gather Event Not Published — Direct Inline AtWork Call
+
+- **Principle violated:** Event-first design, loose coupling, pub/sub fan-out
+- **Requirement ref:** §1, §6.1, §8.1, §9.2, §10
+- **Current behavior:** `DocumentListSaga.Handle(GetAppraisalDocumentListCommand)` calls `AtWorkFixture.GetDocuments()` synchronously inline, stores result, then sends `StartMainframeListAggregationCommand` directly.
+- **Required behavior:** Saga publishes `Uc4AppraisalDocumentListRequestedEvent`. Separate handlers (`AtWorkAppraisalHandler` + `MainframeAdapter`) independently subscribe. Saga waits for *both* `Uc4AtWorkDocumentListCompletedEvent` and `Uc4MainframeDocumentListCompletedEvent` before merging.
+- **Fix approach:** 
+  1. Add `IHandleMessages<Uc4AtWorkDocumentListCompletedEvent>` to `DocumentListSaga`
+  2. Replace inline AtWork + direct Send with `Publish(new Uc4AppraisalDocumentListRequestedEvent {...})`
+  3. Create `AtWorkAppraisalListHandler : IHandleMessages<Uc4AppraisalDocumentListRequestedEvent>` → calls AtWork, publishes completion event
+  4. Modify `MainframeListAggregatorSaga` to subscribe to event instead of receiving command
+  5. Saga completes when both events arrive (or timeout fires)
+
+#### C2: Temporal Coupling — AtWork Blocks Saga Handler
+
+- **Principle violated:** No temporal coupling, async-first
+- **Requirement ref:** §6.1, §8.1
+- **Current behavior:** Saga handler synchronously calls `AtWorkFixture.GetDocuments()` within same handler. If AtWork is slow or fails, entire saga handler fails/retries — blocking mainframe path from starting.
+- **Required behavior:** AtWork is independent handler triggered by published event. Saga only reacts to completion events.
+- **Fix:** Same as C1 — extract AtWork into dedicated handler.
+
+#### C3: Same Pattern in DocumentRetrievalSaga — AtWork Inline
+
+- **Principle violated:** Event-first design, loose coupling
+- **Requirement ref:** §8.3, §11
+- **Current behavior:** `DocumentRetrievalSaga.Handle(RetrieveAppraisalDocumentCommand)` calls `AtWorkFixture.BuildRetrievalResult()` inline, directly completes callback, bypasses event-driven path.
+- **Required behavior:** Saga publishes retrieval request, waits for `Uc4AppraisalDocumentRetrievedEvent` from dedicated AtWork handler.
+- **Fix:** Create `AtWorkDocumentRetrievalHandler` subscribing to retrieval event/command, publish completion event. Saga handles all sources uniformly via events.
+
+### Important Issues (should fix)
+
+#### I1: Command Used Where Event Should Be — `StartMainframeListAggregationCommand`
+
+- **Principle violated:** Pub/sub for fan-out (commands for point-to-point, events for broadcast)
+- **Requirement ref:** §9.2, §10
+- **Current behavior:** `DocumentListSaga` sends command directly to aggregator — point-to-point coupling, saga knows about mainframe aggregator.
+- **Required behavior:** Mainframe aggregator subscribes to `Uc4AppraisalDocumentListRequestedEvent`, starts autonomously. Saga doesn't know which systems respond.
+- **Fix:** Make `MainframeListAggregatorSaga` implement `IAmStartedByMessages<Uc4AppraisalDocumentListRequestedEvent>` instead of command-based start.
+
+#### I2: Infrastructure Reference in Domain/Saga Layer — `AtWorkFixture`
+
+- **Principle violated:** Abstract layer integrity (domain must not reference infrastructure)
+- **Requirement ref:** §6.3
+- **Current behavior:** Sagas directly reference `AtWorkFixture` (infrastructure stub). Sagas should only interact with NServiceBus message context.
+- **Required behavior:** Sagas exclusively send/publish NServiceBus messages. Data retrieval lives in separate handlers/adapters.
+- **Fix:** Move AtWork logic into dedicated handler classes.
+
+#### I3: `DocumentListSaga` Does Not Wait for AtWork Completion Event
+
+- **Principle violated:** Scatter-gather completeness
+- **Requirement ref:** §8.1 ("wait for AtWork result, wait for mainframe result")
+- **Current behavior:** `Data.AtWorkDone` set to `true` immediately in same handler. Saga only waits for mainframe event — never truly waits for AtWork.
+- **Required behavior:** Saga tracks `AtWorkDone` and `MainframeDone` separately, both set by incoming events. Saga completes only when both done (or timeout fires).
+- **Fix:** Add `Handle(Uc4AtWorkDocumentListCompletedEvent)` method setting `Data.AtWorkDone = true` and checking overall completion.
+
+### Minor / Cosmetic Issues
+
+#### M1: Unused Event Contracts
+
+`Uc4AppraisalDocumentListRequestedEvent` and `Uc4AtWorkDocumentListCompletedEvent` exist but are not published/consumed. Dead code currently; will be activated after C1 fix.
+
+#### M2: EDA Flow Log Fakes AtWork Async Behavior
+
+`DocumentListSaga` logs AtWork query/response as if async, but it's actually synchronous inline. Creates misleading observability traces. Will auto-resolve with C1 fix.
+
+#### M3: Command Naming — `StartMainframeDocumentAggregationCommand`
+
+Same pattern as I1 for document retrieval path. Should eventually become event subscription. Lower priority (single-source-at-a-time).
+
+### What Is Correct
+
+- **MainframeListAggregatorSaga** — Properly event-driven: receives `MainframeAppraisalListPartReceivedEvent`, aggregates, publishes `Uc4MainframeDocumentListCompletedEvent` on completion/timeout. Textbook saga.
+- **ArtemisListReplyListener** — Correctly bridges IBM MQ/Artemis into NServiceBus events. Infrastructure properly isolated in `BackgroundService`.
+- **Timeout handling** — Both sagas implement 30-second timeouts with partial result delivery. Matches requirements for graceful degradation.
+- **Saga correlation** — `RequestId` correctly configured across all sagas/events.
+- **Structured EDA logging** — `LogEdaFlow` pattern with Serilog context properties enables observability dashboard.
+
+### Priority & Effort
+
+| # | Item | Effort | Impact |
+|---|------|--------|--------|
+| 1 | C1+C2+I1+I2+I3 | Medium | Fixes entire scatter-gather architecture in one pass |
+| 2 | C3 | Small | Brings document retrieval AtWork path into EDA compliance |
+| 3 | M2 | Trivial | Fix misleading logs (auto-resolves with C1) |
+
+**Recommended:** Fix C1+C2+I1+I2+I3 in single sprint before UC4 demo. This is proactive architecture review ensuring implementation matches EDA principles and requirements.

@@ -5,62 +5,49 @@
 - **Stack:** C# 12, .NET 8 LTS, NServiceBus 8.x, SQL Server transport, MongoDB persistence, ASP.NET Core, Serilog, OpenTelemetry
 - **Created:** 2026-05-27T05:50:30-04:00
 
-## Learnings
+## Summary of Learnings (Through 2026-05-31)
 
-### 2026-05-27 — EDA_FLOW NServiceBus pipeline logging
+**UC1 EDA Architecture (Complete & Verified):**
+- Cross-service orchestration uses pub/sub events, not direct commands (Udi Dahan pattern)
+- Live EDA_FLOW observability: `EDAFlowBehavior` emits Serilog properties for sequence diagrams
+- `ParticipantMap` resolves endpoint names to UI labels (e.g., dotnet-policy-issuance → PolicyIssuance)
+- UC1 complete flow: API→PolicyIssuance→Compliance→PAS Response (fan-out)→Billing+CustomerIdentity→Notification
+- All 6 UC1 tests pass; cross-stack observability unified with Java
 
-- **`dotnet-policy-issuance` now emits `EDA_FLOW` logs from the NServiceBus pipeline for both outgoing and incoming messages.** `EDAFlowOutgoingBehavior` records published/sent messages with `EDA_*` properties, and `EDAFlowIncomingBehavior` records consumed messages using `NServiceBus.Headers.OriginatingEndpoint` plus the message `IssuanceId`.
+**Platform-Integration Container Startup Pattern:**
+- NServiceBus SQL transport auto-creates queue tables on endpoint startup
+- Container startup order matters; if integration service never starts, queues never created
+- Fixed: docker compose up -d dotnet-platform-integration
+- Decision: must explicitly start or improve depends_on retry logic
 
-- **Participant labels for the sequence diagram are resolved centrally from endpoint names.** The `ParticipantMap` in `Behaviors/EDAFlowBehavior.cs` translates NServiceBus endpoint names like `dotnet-platform-compliance` into UI labels like `Compliance`, keeping Loki-driven diagram rendering consistent across the .NET issuance flow.
+**Kafka Serialization Convention:**
+- All .NET → Kafka serialization uses `JsonNamingPolicy.CamelCase` (Java Jackson default)
+- Centralized in `KafkaBridgeRuntime.PublishAsync` via static `KafkaJsonOptions`
+- Root cause fix: PascalCase (C# default) → camelCase (Java default) mismatch halted batch processing
+- Verified: batch demo completed with correct JSON format
 
-- **Cross-stack observability contract (Java + .NET + frontend) creates unified live diagnostics.** Both Java EDAFlowProcessor and .NET EDAFlowBehavior emit identical `EDA_*` Serilog properties so the frontend Loki proxy can query and normalize both stacks' messages into a single live sequence diagram with a live/static badge. This validates actual topology against the Udi Dahan pub/subscribe architecture.
+**UC4 Architecture & Gateway Pattern (Established):**
+- 5 external system gateways abstracted behind interfaces (IBM MQ, PLUW, PLAPR, Masterpiece, CustomerDB)
+- Saga orchestration over NServiceBus; gateway stubs in adapter layer
+- EDAFlowBehavior correlation fallback: AppraisalId → CorrelationId → RequestId
+- EC4 spans both Java (prs-appraisal-service) and .NET (dotnet-prs-appraisal); cross-stack parity
 
-### 2026-05-27 — UC1 EDA publish/subscribe correction
+## Detailed Learnings
 
-- **Cross-service orchestration in the .NET issuance flow must use events, not direct commands.** `IssuanceSaga` now publishes `PolicyIssuanceInitiatedEvent`, `AccountLookupRequestedEvent`, and `IssuePolicyRequestedEvent`, while downstream services subscribe and react autonomously. This is the required pattern for inter-service work in the .NET stack.
+### 2026-05-27 — UC1 EDA Architecture (Condensed Summary)
+- EDA_FLOW pipeline logging: `EDAFlowBehavior` emits Serilog properties for Loki sequence diagrams
+- ParticipantMap: endpoint names translated to UI labels for consistent rendering
+- Cross-service via pub/sub events (not direct commands); fan-out point: `PolicyAdminSystemResponseReceivedEvent`
+- Live issuance 232eb4f4: full flow API→PolicyIssuance→Compliance→Integration→(fan-out)→Billing+CustomerIdentity→Notification
+- Platform-integration startup: NServiceBus auto-creates queue tables; if service never starts, queues don't exist
+- SQL transport fallback: direct-send plus publish ensures reliability with canonical event semantics
+- Duplicate collapsing: dedup key `messageType|from|to` ensures rendered sequence matches canonical UC1 shape
 
-- **`PolicyAdminSystemResponseReceivedEvent` is the fan-out point after PAS confirmation.** Billing and customer updates are no longer commanded by the saga; `dotnet-billing-finance` and `dotnet-customer-identity` both subscribe to the PAS response event and emit their own completion events back to the saga.
-
-### 2026-05-27 — DotNet UC1 flow parity validation
-
-- **The authoritative UC1 sequence spec is `.docs/req/use-cases.html`, and the live ops diagram renders whatever `EDA_From` / `EDA_To` labels the backend logs.** In practice, `dotnet-policy-issuance/Behaviors/EDAFlowBehavior.cs` is part of the user-visible contract because `platform-ui/src/app/api/policies/[issuanceId]/flow/route.ts` deduplicates and renders directly from those structured log labels.
-
-- **Local .NET UC1 fan-out over NServiceBus + SQL transport was not fully reliable from subscription rows alone.** Stable end-to-end completion required deterministic `SubscriptionRouting` seeding/startup ordering plus direct-send fallbacks that still preserve the canonical published event flow: PAS responses are published and also forwarded to `dotnet-policy-issuance`, `dotnet-billing-finance`, and `dotnet-customer-identity`, while billing/customer completion events are also forwarded back to `dotnet-policy-issuance`.
-
-- **Duplicate deliveries are acceptable for the live diagram as long as labels stay canonical.** The fallback approach can produce repeated `PolicyAdminSystemResponseReceivedEvent`, `CustomerUpdatedEvent`, and `BillingAssociationCreatedEvent` deliveries, but the frontend flow endpoint collapses duplicates by `messageType|from|to|direction`, so the rendered sequence still matches the canonical UC1 shape.
-### 2026-05-27 — UC1 flow parity achieved (dotnet-2 complete)
-
-- **PasGatewayHandler now publishes and direct-sends PolicyAdminSystemResponseReceivedEvent.** The canonical flow required both publish (for subscribers) and direct-send fallback (for local SQL transport reliability). This dual-path approach keeps the architecture event-driven while ensuring Billing and Customer Identity receive the PAS response reliably.
-
-- **EDAFlowBehavior labels now match the ops diagram and use canonical UC1 participant names.** The ParticipantMap ensures that dotnet-policy-issuance renders as PolicyIssuance, dotnet-billing-finance as Billing, etc. This creates the feedback loop where live EDA_FLOW logs match the static .docs/req/use-cases.html topology.
-
-- **Live issuance 232eb4f4 completed end-to-end with canonical flow.** API→PolicyIssuance→Compliance, API→PolicyIssuance→Integration→(fan-out)→Billing+CustomerIdentity→back to PolicyIssuance→Notification. All 6 tests pass. The .NET stack now enforces Udi Dahan pub/subscribe semantics operationally.
-
-### 2026-05-27 — Debug: dotnet-platform-integration container never started (IssuePolicyRequestedEvent stuck)
-
-- **Root cause: `dotnet-platform-integration` container was in `Created` state and never started.** The container has `depends_on` conditions on `dotnet-policy-issuance`, `dotnet-billing-finance`, and `dotnet-customer-identity` (all `service_healthy`). These services only became healthy after a delay, and the integration container either was not started in the initial `docker compose up` invocation or failed silently to start after its dependencies became healthy.
-
-- **Symptom chain:** `dotnet-policy-issuance` saga received `AccountServiceRecordRetrievedEvent` and tried to publish `IssuePolicyRequestedEvent`. NServiceBus SQL transport looked up the `SubscriptionRouting` table, found `dotnet-platform-integration@[dbo]@[middleware_nsb]` as the subscriber, and attempted to INSERT into the `dotnet-platform-integration` SQL queue table — which didn't exist because the service had never started. NServiceBus threw `QueueNotFoundException` (SQL Error 208) and moved the `AccountServiceRecordRetrievedEvent` messages to the `error` queue.
-
-- **Fix:** `docker compose up -d dotnet-platform-integration` started the container. NServiceBus auto-created the `dotnet-platform-integration` and `dotnet-platform-integration.Delayed` queue tables on startup. Two stranded `AccountServiceRecordRetrievedEvent` messages were moved from `dbo.error` back to `dbo.dotnet-policy-issuance` via direct SQL INSERT, allowing the saga to re-process them.
-
-- **Verification:** New issuance `f43d16ea-4403-470a-9214-aa5f6f3157b2` reached `Completed` with policy `DC-COMM-F43D16EA`. Loki EDA_FLOW trace confirms: API→PolicyIssuance→Compliance→PolicyIssuance→CustomerIdentity→PolicyIssuance→**Integration**→PolicyIssuance→Billing+CustomerIdentity→Notification. Error queue is empty (0 rows).
-
-- **Operational note:** `dotnet-platform-integration` must be explicitly started or its `depends_on` timing improved. The container is healthy after startup but is not guaranteed to come up automatically if its health-dependent parents start slowly. Consider adding an explicit startup step or health retry loop in the compose workflow.
-
-### 2026-05-27 — Kafka camelCase serialization fix (cross-stack interop)
-
-- **Root cause of batch demo stall:** `KafkaBridgeRuntime.PublishAsync` called `JsonSerializer.Serialize(payload)` with no options, producing PascalCase JSON (e.g. `IssuanceId`). Java's Jackson deserializer expects camelCase (`issuanceId`) by default, so every field deserialized to null, causing exceptions and DLQ routing.
-
-- **Fix (Option A — centralized):** Added a static `JsonSerializerOptions KafkaJsonOptions` with `PropertyNamingPolicy = JsonNamingPolicy.CamelCase` to `KafkaBridgeRuntime` and passed it to every `JsonSerializer.Serialize` call. All current and future handlers automatically use camelCase because all Kafka publication flows through this single method.
-
-- **Convention:** All .NET → Kafka serialization must use `JsonNamingPolicy.CamelCase`. Do not use `[JsonPropertyName]` attributes on `Middleware.Contracts` event classes; the serializer option at the bridge is the canonical fix.
-
-- **Verification:** New batch (`count=3`) completed with `status: Completed, processedRecords: 3`. Kafka topic `policy.events.policy-issued` confirmed camelCase format: `{"issuanceId":"...","accountId":"...","policyNumbers":[...],"completedAt":"..."}`. Decision documented in `.squad/decisions/inbox/dotnet-kafka-camelcase.md`.
-
-### 2026-05-27 — Cross-agent synchronization (Scribe session)
-
-- **qa-1 root cause diagnosis enabled dotnet-4 fix:** QA diagnosed the batch stall as cross-stack JSON serialization mismatch (PascalCase vs. camelCase). DotNet team implemented centralized `JsonNamingPolicy.CamelCase` in `KafkaBridgeRuntime`, fixing batch processing end-to-end.
+### 2026-05-27 — Kafka camelCase Serialization Convention
+- Root cause: `KafkaBridgeRuntime.PublishAsync` produced PascalCase JSON (C# default); Java Jackson expects camelCase
+- Fix: static `JsonSerializerOptions KafkaJsonOptions` with `PropertyNamingPolicy = CamelCase` at bridge
+- Convention: all .NET→Kafka serialization uses `CamelCase`; no per-class `[JsonPropertyName]` attributes
+- Verified: batch demo completed with correct camelCase format in Kafka topics
 
 - **dotnet-3 startup ordering pattern established:** Container startup sequencing revealed infrastructure-critical pattern — NServiceBus endpoints must start to create their queue tables. Decision documented; structural hardening recommendations provided for future sprint.
 
@@ -102,3 +89,10 @@
 
 - **Observable cross-checks:** dotnet build: 0 errors, 0 warnings. All existing UC1 tests pass. UC4 tests still pending (Decision #46: add .NET test project + JSON logging).
 
+### 2026-05-31T19:35:23-04:00 — UC4 Scatter-Gather Implementation & NServiceBus.Callbacks Migration
+
+- **Implemented proper EDA scatter-gather pattern via `Uc4AppraisalDocumentListRequestedEvent`.** `DocumentListSaga` now publishes event instead of calling AtWork inline. Created `AtWorkDocumentListHandler` subscribing to event and publishing `Uc4AtWorkDocumentListCompletedEvent`. Mainframe handler also subscribes to same event. Saga coordinates both sources, eliminating temporal coupling. **Commit:** 7d86cb3
+
+- **Replaced homegrown `ICallbackRegistry`/`CallbackRegistry` with NServiceBus.Callbacks 4.0.3.** Updated `PolicyIssuanceController` to use `messageSession.Request<T>()` for callback-style messaging. All sagas now use `context.Reply()` instead of custom registry calls. Removed dead files: `CallbackRegistry.cs`, `ICallbackRegistry.cs`, `DocumentListResult.cs`. **Commit:** 2e7d9b5
+
+- **UC4 EDA compliance review findings documented by Architect.** 3 critical violations (scatter-gather not published, temporal coupling, inline AtWork calls) — all fixed by this session's scatter-gather implementation. 3 important issues (command vs event pattern I1, infrastructure in domain layer I2, missing completion event I3) — fixed in commits above. Decision merged to `decisions.md` for team reference. Next: Review whether DocumentRetrievalSaga needs same scatter-gather pattern (C3 priority).
