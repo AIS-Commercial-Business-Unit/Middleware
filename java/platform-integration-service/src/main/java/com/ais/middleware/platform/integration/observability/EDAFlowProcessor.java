@@ -32,7 +32,9 @@ public class EDAFlowProcessor implements Processor {
             Map.entry("customer.events.customer-updated", "CustomerIdentity"),
             Map.entry("integration.events.policy-admin-system-response-received", "Integration"),
             Map.entry("integration.events.policy-admin-system-call-failed", "Integration"),
-            Map.entry("billing.events.billing-association-created", "Billing")
+            Map.entry("billing.events.billing-association-created", "Billing"),
+            // UC4 PRS / Appraisal topics
+            Map.entry("prs.events.appraisal-received", "Integration")
     );
 
     private static final Map<String, String> TOPIC_TO_CONSUMER = Map.ofEntries(
@@ -48,7 +50,9 @@ public class EDAFlowProcessor implements Processor {
             Map.entry("customer.events.customer-updated", "PolicyIssuance"),
             Map.entry("integration.events.policy-admin-system-response-received", "PolicyIssuance"),
             Map.entry("integration.events.policy-admin-system-call-failed", "PolicyIssuance"),
-            Map.entry("billing.events.billing-association-created", "PolicyIssuance")
+            Map.entry("billing.events.billing-association-created", "PolicyIssuance"),
+            // UC4 PRS / Appraisal topics
+            Map.entry("prs.events.appraisal-received", "Appraisal")
     );
 
     private static final Map<String, String> TOPIC_TO_MESSAGE_TYPE = Map.ofEntries(
@@ -64,7 +68,9 @@ public class EDAFlowProcessor implements Processor {
             Map.entry("customer.events.customer-updated", "CustomerUpdatedEvent"),
             Map.entry("integration.events.policy-admin-system-response-received", "PolicyAdminSystemResponseReceivedEvent"),
             Map.entry("integration.events.policy-admin-system-call-failed", "PolicyAdminSystemCallFailedEvent"),
-            Map.entry("billing.events.billing-association-created", "BillingAssociationCreatedEvent")
+            Map.entry("billing.events.billing-association-created", "BillingAssociationCreatedEvent"),
+            // UC4 PRS / Appraisal topics
+            Map.entry("prs.events.appraisal-received", "AppraisalReceivedEvent")
     );
 
     private static final Map<String, String> SERVICE_TO_PARTICIPANT = Map.of(

@@ -12,6 +12,7 @@ COPY platform-integration-service/pom.xml platform-integration-service/
 COPY billing-finance-service/pom.xml billing-finance-service/
 COPY platform-notification-service/pom.xml platform-notification-service/
 COPY platform-file-processing-service/pom.xml platform-file-processing-service/
+COPY prs-appraisal-service/pom.xml prs-appraisal-service/
 COPY stubs/duckcreek-commercial-stub/pom.xml stubs/duckcreek-commercial-stub/
 COPY stubs/duckcreek-personal-stub/pom.xml stubs/duckcreek-personal-stub/
 COPY stubs/forefront-stub/pom.xml stubs/forefront-stub/
@@ -19,6 +20,7 @@ COPY stubs/rsk3x3-compliance-stub/pom.xml stubs/rsk3x3-compliance-stub/
 COPY stubs/erm7x1-account-stub/pom.xml stubs/erm7x1-account-stub/
 COPY stubs/crm40x1-customer-stub/pom.xml stubs/crm40x1-customer-stub/
 COPY stubs/crm19x1-billing-stub/pom.xml stubs/crm19x1-billing-stub/
+COPY stubs/deipde07-mq-simulator/pom.xml stubs/deipde07-mq-simulator/
 # Pre-download dependencies (cached layer — only re-runs when POMs change)
 RUN mvn dependency:go-offline -pl stubs/duckcreek-personal-stub -q --no-transfer-progress
 

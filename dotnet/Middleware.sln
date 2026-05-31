@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dotnet-billing-finance", "d
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dotnet-customer-identity", "dotnet-customer-identity\dotnet-customer-identity.csproj", "{1EA59847-DAD3-4C5B-AD86-14E38E8E2F4D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dotnet-prs-appraisal", "dotnet-prs-appraisal\dotnet-prs-appraisal.csproj", "{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dotnet-file-processing", "dotnet-file-processing\dotnet-file-processing.csproj", "{832E0192-99E3-404D-95E3-DC4388D92CF3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dotnet-kafka-bridge", "dotnet-kafka-bridge\dotnet-kafka-bridge.csproj", "{E7CB6385-220C-406A-A432-9B8C467434F0}"
@@ -59,6 +61,18 @@ Global
 		{1EA59847-DAD3-4C5B-AD86-14E38E8E2F4D}.Release|x64.Build.0 = Release|Any CPU
 		{1EA59847-DAD3-4C5B-AD86-14E38E8E2F4D}.Release|x86.ActiveCfg = Release|Any CPU
 		{1EA59847-DAD3-4C5B-AD86-14E38E8E2F4D}.Release|x86.Build.0 = Release|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Debug|x64.Build.0 = Debug|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Debug|x86.Build.0 = Debug|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Release|x64.ActiveCfg = Release|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Release|x64.Build.0 = Release|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Release|x86.ActiveCfg = Release|Any CPU
+		{A3C1F2B4-9D7E-4A1C-8F63-2B5D9E7A3C1F}.Release|x86.Build.0 = Release|Any CPU
 		{832E0192-99E3-404D-95E3-DC4388D92CF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{832E0192-99E3-404D-95E3-DC4388D92CF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{832E0192-99E3-404D-95E3-DC4388D92CF3}.Debug|x64.ActiveCfg = Debug|Any CPU

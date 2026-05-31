@@ -18,6 +18,7 @@ public class BatchRecord {
     private String processorResult;
     private OffsetDateTime processedAt;
     private String correlationId;
+    private String failureCategory; // "Business" | "Technical" — populated for DeadLettered records
 
     public enum BatchRecordStatus {
         Pending, Processing, Succeeded, Failed, DeadLettered
@@ -41,4 +42,6 @@ public class BatchRecord {
     public void setProcessedAt(OffsetDateTime processedAt) { this.processedAt = processedAt; }
     public String getCorrelationId() { return correlationId; }
     public void setCorrelationId(String correlationId) { this.correlationId = correlationId; }
+    public String getFailureCategory() { return failureCategory; }
+    public void setFailureCategory(String failureCategory) { this.failureCategory = failureCategory; }
 }

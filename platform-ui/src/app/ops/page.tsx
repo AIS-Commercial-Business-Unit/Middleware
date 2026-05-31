@@ -20,10 +20,10 @@ export default function OpsLandingPage() {
         <p className="text-xs font-mono mb-1" style={{ color: "var(--muted)" }}>
           Operations &amp; Observability
         </p>
-        <h1 className="text-2xl font-bold mb-2">Issuance Flow Tracer</h1>
+        <h1 className="text-2xl font-bold mb-2">Flow Tracer</h1>
         <p className="text-sm" style={{ color: "var(--muted)" }}>
-          Paste an <code className="font-mono px-1 rounded" style={{ background: "var(--border)" }}>issuanceId</code> to
-          watch the UC1 saga sequence diagram in real time — inter-service Kafka messages, saga state, and live log tail.
+          Paste a <code className="font-mono px-1 rounded" style={{ background: "var(--border)" }}>correlation ID (issuanceId or requestId)</code> to
+          watch any use case (UC1 policy issuance, UC4 appraisal documents, or any future flow) in real time — inter-service Kafka messages, saga state, and live log tail.
         </p>
       </div>
 
@@ -54,7 +54,11 @@ export default function OpsLandingPage() {
           <Link href="/" className="underline" style={{ color: "var(--accent-light)" }}>
             submit a new IssuePolicy command
           </Link>{" "}
-          — you will be redirected here automatically with the issuanceId pre-filled.
+          or{" "}
+          <Link href="/uc4" className="underline" style={{ color: "var(--accent-light)" }}>
+            open the UC4 appraisal demos
+          </Link>{" "}
+          — both flows can route you back here with the right correlation ID.
         </p>
       </form>
 
@@ -62,7 +66,7 @@ export default function OpsLandingPage() {
         {[
           {
             title: "Sequence Diagram",
-            desc: "Live SVG showing all 12 Kafka messages between the 6 domain services, colored by status (pending / in-flight / completed).",
+            desc: "Live SVG showing all inter-service messages in the flow, dynamically built from structured EDA_FLOW log entries.",
           },
           {
             title: "Saga State Panel",

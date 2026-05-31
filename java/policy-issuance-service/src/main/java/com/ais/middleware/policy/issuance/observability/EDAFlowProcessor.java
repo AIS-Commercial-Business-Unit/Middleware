@@ -33,7 +33,10 @@ public class EDAFlowProcessor implements Processor {
             Map.entry("customer.events.customer-updated", "CustomerIdentity"),
             Map.entry("integration.events.policy-admin-system-response-received", "Integration"),
             Map.entry("integration.events.policy-admin-system-call-failed", "Integration"),
-            Map.entry("billing.events.billing-association-created", "Billing")
+            Map.entry("billing.events.billing-association-created", "Billing"),
+            Map.entry("policy.events.renewal-record-processed", "PolicyIssuance"),
+            Map.entry("policy.events.renewal-record-failed", "PolicyIssuance"),
+            Map.entry("file.events.renewal-record-ready-for-issuance", "FileProcessing")
     );
 
     private static final Map<String, String> TOPIC_TO_CONSUMER = Map.ofEntries(
@@ -50,7 +53,10 @@ public class EDAFlowProcessor implements Processor {
             Map.entry("customer.events.customer-updated", "PolicyIssuance"),
             Map.entry("integration.events.policy-admin-system-response-received", "PolicyIssuance"),
             Map.entry("integration.events.policy-admin-system-call-failed", "PolicyIssuance"),
-            Map.entry("billing.events.billing-association-created", "PolicyIssuance")
+            Map.entry("billing.events.billing-association-created", "PolicyIssuance"),
+            Map.entry("policy.events.renewal-record-processed", "FileProcessing"),
+            Map.entry("policy.events.renewal-record-failed", "FileProcessing"),
+            Map.entry("file.events.renewal-record-ready-for-issuance", "PolicyIssuance")
     );
 
     private static final Map<String, String> TOPIC_TO_MESSAGE_TYPE = Map.ofEntries(
@@ -67,7 +73,10 @@ public class EDAFlowProcessor implements Processor {
             Map.entry("customer.events.customer-updated", "CustomerUpdatedEvent"),
             Map.entry("integration.events.policy-admin-system-response-received", "PolicyAdminSystemResponseReceivedEvent"),
             Map.entry("integration.events.policy-admin-system-call-failed", "PolicyAdminSystemCallFailedEvent"),
-            Map.entry("billing.events.billing-association-created", "BillingAssociationCreatedEvent")
+            Map.entry("billing.events.billing-association-created", "BillingAssociationCreatedEvent"),
+            Map.entry("policy.events.renewal-record-processed", "RenewalRecordProcessedEvent"),
+            Map.entry("policy.events.renewal-record-failed", "RenewalRecordFailedEvent"),
+            Map.entry("file.events.renewal-record-ready-for-issuance", "RenewalRecordReadyForIssuanceEvent")
     );
 
     private static final Map<String, String> SERVICE_TO_PARTICIPANT = Map.of(
@@ -76,7 +85,8 @@ public class EDAFlowProcessor implements Processor {
             "customer-identity-service", "CustomerIdentity",
             "platform-integration-service", "Integration",
             "billing-finance-service", "Billing",
-            "platform-notification-service", "Notification"
+            "platform-notification-service", "Notification",
+            "platform-file-processing-service", "FileProcessing"
     );
 
     @Override

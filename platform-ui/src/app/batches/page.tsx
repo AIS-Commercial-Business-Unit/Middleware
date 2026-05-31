@@ -60,6 +60,41 @@ function StatusBadge({ status }: { status: FileBatchStatus }) {
   );
 }
 
+// ─── Sample CSV Viewer ────────────────────────────────────────────────────────
+
+const SAMPLE_CSV = `PolicyNumber,ExpirationDate,InsuredName,PolicyTypeCode,PolicyTypeSubCode,PremiumAmount,ProducerCode,BillingType,AccountId
+POL-ACME-001,2025-09-15,Acme Corp,1,1,4250.00,PROD-001,DirectBill,ACC-ACME-001
+POL-GLOBEX-002,2025-08-30,Globex Corporation,42,1,8900.00,PROD-002,Agency,ACC-GLOBEX-002
+POL-INITECH-003,2025-10-01,Initech LLC,10,2,3100.00,PROD-003,DirectBill,ACC-INITECH-003`;
+
+function SampleCsvViewer() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="text-xs font-medium flex items-center gap-1 transition-colors hover:text-white"
+        style={{ color: "var(--accent-light)" }}
+      >
+        <span>{open ? "▼" : "▶"}</span>
+        View Sample CSV Format
+      </button>
+      {open && (
+        <div className="mt-3 rounded border overflow-x-auto" style={{ borderColor: "var(--border)" }}>
+          <div className="px-3 py-1.5 text-xs font-medium border-b flex items-center justify-between"
+               style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--bg)" }}>
+            <span>RENEWAL_*.csv — 9 columns, header required</span>
+          </div>
+          <pre className="p-3 text-xs font-mono leading-relaxed overflow-x-auto"
+               style={{ background: "var(--bg)", color: "var(--text)", whiteSpace: "pre" }}>
+            {SAMPLE_CSV}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Generate Section ─────────────────────────────────────────────────────────
 
 interface GenerateResult {
@@ -103,9 +138,9 @@ function GenerateSection({ onSuccess }: { onSuccess: () => void }) {
           <input
             type="number"
             min={1}
-            max={50}
+            max={500}
             value={count}
-            onChange={(e) => setCount(Math.min(50, Math.max(1, Number(e.target.value))))}
+            onChange={(e) => setCount(Math.min(500, Math.max(1, Number(e.target.value))))}
             className="w-28 rounded px-3 py-2 text-sm font-mono"
             style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
           />
@@ -129,6 +164,8 @@ function GenerateSection({ onSuccess }: { onSuccess: () => void }) {
           )}
         </button>
       </div>
+
+      <SampleCsvViewer />
 
       {result?.error && (
         <div className="rounded px-3 py-2 text-sm" style={{ background: "#2d1515", color: "var(--danger)", border: "1px solid var(--danger)" }}>
@@ -277,6 +314,30 @@ export default function BatchesPage() {
         <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
           Upload and process automated renewal batch files through the file processing pipeline.
         </p>
+      </div>
+
+      {/* UC3 Use Case Summary */}
+      <div className="rounded-lg border p-6 space-y-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+        <h2 className="text-base font-semibold">Use Case Overview</h2>
+        <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+          A CSV renewal file dropped in the inbound zone is automatically detected and parsed.
+          Each record in the file triggers an independent policy issuance — running the full compliance
+          screening, customer identity lookup, PAS integration, and billing association flow.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+          <div className="rounded border p-3 text-sm" style={{ borderColor: "var(--border)" }}>
+            <div className="font-semibold mb-1" style={{ color: "var(--accent-light)" }}>File-Triggered</div>
+            <div style={{ color: "var(--muted)" }}>CSV files named <span className="font-mono">RENEWAL_*.csv</span> are polled from the inbound drop-zone every 5 seconds.</div>
+          </div>
+          <div className="rounded border p-3 text-sm" style={{ borderColor: "var(--border)" }}>
+            <div className="font-semibold mb-1" style={{ color: "var(--accent-light)" }}>Per-Record Isolation</div>
+            <div style={{ color: "var(--muted)" }}>Each record runs as an independent EDA saga. A failure in one record does not affect the others — partial batches complete successfully.</div>
+          </div>
+          <div className="rounded border p-3 text-sm" style={{ borderColor: "var(--border)" }}>
+            <div className="font-semibold mb-1" style={{ color: "var(--accent-light)" }}>Observable End-to-End</div>
+            <div style={{ color: "var(--muted)" }}>Click any processed record to view its full EDA sequence diagram — from file arrival through policy issuance and billing.</div>
+          </div>
+        </div>
       </div>
 
       {/* Generate section */}

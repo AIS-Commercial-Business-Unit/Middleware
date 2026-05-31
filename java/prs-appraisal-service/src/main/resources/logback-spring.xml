@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeContext>true</includeContext>
+            <includeMdcKeyName>correlationId</includeMdcKeyName>
+            <includeMdcKeyName>appraisalId</includeMdcKeyName>
+            <includeMdcKeyName>policyNumber</includeMdcKeyName>
+            <includeMdcKeyName>sagaStep</includeMdcKeyName>
+            <includeMdcKeyName>EDA_Event</includeMdcKeyName>
+            <includeMdcKeyName>EDA_IssuanceId</includeMdcKeyName>
+            <includeMdcKeyName>EDA_MessageType</includeMdcKeyName>
+            <includeMdcKeyName>EDA_From</includeMdcKeyName>
+            <includeMdcKeyName>EDA_To</includeMdcKeyName>
+            <includeMdcKeyName>EDA_Topic</includeMdcKeyName>
+            <includeMdcKeyName>EDA_Direction</includeMdcKeyName>
+            <includeMdcKeyName>EDA_Stack</includeMdcKeyName>
+        </encoder>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="CONSOLE_JSON"/>
+    </root>
+    <logger name="com.ais.middleware" level="DEBUG"/>
+</configuration>

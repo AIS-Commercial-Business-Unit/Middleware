@@ -25,6 +25,7 @@ public class BatchRecordDocument {
     private OffsetDateTime processedAt;
     @Indexed(unique = true)
     private String correlationId;
+    private String failureCategory;
 
     public String getRecordId() { return recordId; }
     public void setRecordId(String recordId) { this.recordId = recordId; }
@@ -44,4 +45,6 @@ public class BatchRecordDocument {
     public void setProcessedAt(OffsetDateTime processedAt) { this.processedAt = processedAt; }
     public String getCorrelationId() { return correlationId; }
     public void setCorrelationId(String correlationId) { this.correlationId = correlationId; }
+    public String getFailureCategory() { return failureCategory; }
+    public void setFailureCategory(String failureCategory) { this.failureCategory = failureCategory; }
 }

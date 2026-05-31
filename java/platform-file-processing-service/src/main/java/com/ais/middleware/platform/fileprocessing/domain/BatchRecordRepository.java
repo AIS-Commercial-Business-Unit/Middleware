@@ -13,4 +13,5 @@ public interface BatchRecordRepository {
     List<BatchRecord> findByBatchId(String batchId);
     long countByBatchIdAndStatus(String batchId, BatchRecord.BatchRecordStatus status);
     Optional<BatchRecord> findByCorrelationId(String correlationId);
+    Optional<BatchRecord> findById(String recordId);
 }

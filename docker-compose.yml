@@ -20,8 +20,6 @@ volumes:
   loki-data:
   tempo-data:
   prometheus-data:
-  renewal-data:
-  dotnet-renewal-data:
   sqlserver-data:
 
 services:
@@ -38,6 +36,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      # Explicitly bound JVM heap for ZooKeeper
+      ZOOKEEPER_HEAP_SIZE: 256
     ports:
       - "2181:2181"
     healthcheck:
@@ -46,7 +46,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
-    mem_limit: 256m
+    mem_limit: 384m
 
   kafka:
     image: confluentinc/cp-kafka:7.7.0
@@ -69,13 +69,15 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_LOG_RETENTION_HOURS: 168
+      # Explicitly bound JVM heap — leaves ~256 MiB for non-heap (metaspace, threads, NIO buffers) within the 1.5g container limit
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx768m"
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
       interval: 15s
       timeout: 10s
       retries: 5
       start_period: 30s
-    mem_limit: 1g
+    mem_limit: 1.5g
 
   kafka-setup:
     image: confluentinc/cp-kafka:7.7.0
@@ -114,6 +116,18 @@ services:
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic file.events.file-batch-partial-failure --partitions 3 --replication-factor 1
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic policy.events.renewal-record-processed --partitions 3 --replication-factor 1
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic policy.events.renewal-record-failed --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic prs.events.appraisal-received --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic prs.events.producer-lookup-requested --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic prs.events.producer-crossref-retrieved --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic prs.events.pluw-appraisal-create-requested --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic prs.events.pluw-appraisal-created --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic prs.events.uw-determination-requested --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic prs.events.uw-assignment-determined --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic prs.events.appraisal-uw-assigned --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic prs.events.appraisal-completed --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic prs.events.appraisal-status-update-failed --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic prs.dlq.appraisal-saga-failures --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic customer.dlq.producer-lookup --partitions 3 --replication-factor 1
         echo "All topics created."
     restart: on-failure
 
@@ -129,14 +143,14 @@ services:
       - "9000:9000"
     environment:
       KAFKA_BROKERCONNECT: kafka:29092
-      JVM_OPTS: "-Xms32M -Xmx64M"
+      JVM_OPTS: "-Xms32M -Xmx128M"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9000/ > /dev/null 2>&1"]
       interval: 15s
       timeout: 5s
       retries: 3
       start_period: 20s
-    mem_limit: 128m
+    mem_limit: 384m
 
   mongodb:
     image: mongo:7.0
@@ -172,7 +186,8 @@ services:
       ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017
       ME_CONFIG_BASICAUTH: "false"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/ > /dev/null 2>&1"]
+      # BusyBox wget resolves 'localhost' to ::1 (IPv6) but Node.js binds IPv4 only — use 127.0.0.1 explicitly
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/ > /dev/null 2>&1"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -213,12 +228,14 @@ services:
     command:
       - |
         for i in 1 2 3 4 5; do
-          /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P 'AIS_Middleware_2024!' -No -l 15 -Q "IF DB_ID('middleware_nsb') IS NULL CREATE DATABASE middleware_nsb; USE middleware_nsb; IF OBJECT_ID('dbo.SubscriptionRouting', 'U') IS NULL BEGIN CREATE TABLE dbo.SubscriptionRouting (QueueAddress NVARCHAR(200) NOT NULL, Endpoint NVARCHAR(200) NOT NULL, Topic NVARCHAR(200) NOT NULL, CONSTRAINT PK_SubscriptionRouting PRIMARY KEY CLUSTERED (Endpoint, Topic)); END; MERGE dbo.SubscriptionRouting AS target USING (VALUES ('dotnet-platform-compliance@[dbo]@[middleware_nsb]', 'dotnet-platform-compliance', 'Middleware.Contracts.Events.PolicyIssuanceInitiatedEvent'), ('dotnet-customer-identity@[dbo]@[middleware_nsb]', 'dotnet-customer-identity', 'Middleware.Contracts.Events.AccountLookupRequestedEvent'), ('dotnet-platform-integration@[dbo]@[middleware_nsb]', 'dotnet-platform-integration', 'Middleware.Contracts.Events.IssuePolicyRequestedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.AccountServiceRecordRetrievedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.BillingAssociationCreatedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.ComplianceBlockedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.ComplianceClearedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.CustomerUpdatedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.PolicyAdminSystemCallFailedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.PolicyAdminSystemResponseReceivedEvent'), ('dotnet-billing-finance@[dbo]@[middleware_nsb]', 'dotnet-billing-finance', 'Middleware.Contracts.Events.PolicyAdminSystemResponseReceivedEvent'), ('dotnet-customer-identity@[dbo]@[middleware_nsb]', 'dotnet-customer-identity', 'Middleware.Contracts.Events.PolicyAdminSystemResponseReceivedEvent')) AS source (QueueAddress, Endpoint, Topic) ON target.Endpoint = source.Endpoint AND target.Topic = source.Topic WHEN MATCHED AND target.QueueAddress <> source.QueueAddress THEN UPDATE SET QueueAddress = source.QueueAddress WHEN NOT MATCHED BY TARGET THEN INSERT (QueueAddress, Endpoint, Topic) VALUES (source.QueueAddress, source.Endpoint, source.Topic); PRINT 'middleware_nsb ready';" && exit 0
-          echo Retry $i
+          /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P 'AIS_Middleware_2024!' -No -l 15 -Q "IF DB_ID('middleware_nsb') IS NULL CREATE DATABASE middleware_nsb;" \
+          && /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P 'AIS_Middleware_2024!' -No -l 15 -d middleware_nsb -Q "IF OBJECT_ID('dbo.SubscriptionRouting', 'U') IS NULL BEGIN CREATE TABLE dbo.SubscriptionRouting (QueueAddress NVARCHAR(200) NOT NULL, Endpoint NVARCHAR(200) NOT NULL, Topic NVARCHAR(200) NOT NULL, CONSTRAINT PK_SubscriptionRouting PRIMARY KEY CLUSTERED (Endpoint, Topic)); END; MERGE dbo.SubscriptionRouting AS target USING (VALUES ('dotnet-platform-compliance@[dbo]@[middleware_nsb]', 'dotnet-platform-compliance', 'Middleware.Contracts.Events.PolicyIssuanceInitiatedEvent'), ('dotnet-customer-identity@[dbo]@[middleware_nsb]', 'dotnet-customer-identity', 'Middleware.Contracts.Events.AccountLookupRequestedEvent'), ('dotnet-platform-integration@[dbo]@[middleware_nsb]', 'dotnet-platform-integration', 'Middleware.Contracts.Events.IssuePolicyRequestedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.AccountServiceRecordRetrievedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.BillingAssociationCreatedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.ComplianceBlockedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.ComplianceClearedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.CustomerUpdatedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.PolicyAdminSystemCallFailedEvent'), ('dotnet-policy-issuance@[dbo]@[middleware_nsb]', 'dotnet-policy-issuance', 'Middleware.Contracts.Events.PolicyAdminSystemResponseReceivedEvent'), ('dotnet-billing-finance@[dbo]@[middleware_nsb]', 'dotnet-billing-finance', 'Middleware.Contracts.Events.PolicyAdminSystemResponseReceivedEvent'), ('dotnet-customer-identity@[dbo]@[middleware_nsb]', 'dotnet-customer-identity', 'Middleware.Contracts.Events.PolicyAdminSystemResponseReceivedEvent')) AS source (QueueAddress, Endpoint, Topic) ON target.Endpoint = source.Endpoint AND target.Topic = source.Topic WHEN MATCHED AND target.QueueAddress <> source.QueueAddress THEN UPDATE SET QueueAddress = source.QueueAddress WHEN NOT MATCHED BY TARGET THEN INSERT (QueueAddress, Endpoint, Topic) VALUES (source.QueueAddress, source.Endpoint, source.Topic); PRINT 'middleware_nsb ready';" \
+          && exit 0
+          echo Retry $$i
           sleep 5
         done
-        echo 'DB init gave up (may already exist)'
-        exit 0
+        echo 'DB init failed after retries'
+        exit 1
 
 
 
@@ -232,8 +249,14 @@ services:
     command: ["--config=/etc/otel/config.yaml"]
     # Ports 4317/4318 are internal-only — services reach the collector via Docker network.
     # No host binding needed (avoids conflicts with other local OTel collectors).
-    # Note: distroless image has no shell utilities — health check not possible via CMD-SHELL.
-    # Services use condition: service_started; OTel is non-critical for app startup.
+    # Distroless image: no shell or wget. Health check uses the collector binary itself as a process-alive probe.
+    # This confirms the container process is running; the health_check extension (port 13133) provides deeper service health.
+    healthcheck:
+      test: ["CMD", "/otelcol-contrib", "--help"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     mem_limit: 256m
 
   tempo:
@@ -248,13 +271,16 @@ services:
     ports:
       - "3200:3200"   # Tempo HTTP API (Grafana datasource)
       - "4317"        # OTel gRPC ingest (internal, routed via otel-collector)
+    environment:
+      # Soft Go memory limit — triggers GC before hard OOM; headroom above = container limit - this value
+      GOMEMLIMIT: 650MiB
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3200/ready > /dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 15s
-    mem_limit: 512m
+    mem_limit: 768m
 
   loki:
     image: grafana/loki:3.2.0
@@ -341,7 +367,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
-    mem_limit: 128m
+    mem_limit: 256m
 
   # ──────────────────────────────────────────────────────────
   # EXTERNAL SYSTEM STUBS
@@ -478,6 +504,58 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    mem_limit: 256m
+
+  activemq-artemis:
+    image: apache/activemq-artemis:2.37.0
+    container_name: activemq-artemis
+    networks: [middleware-net]
+    restart: unless-stopped
+    ports:
+      - "61616:61616"   # JMS/OpenWire
+      - "8161:8161"     # Web console (DEMO: audience browses queues here)
+      - "5672:5672"     # AMQP
+    environment:
+      ARTEMIS_USER: admin
+      ARTEMIS_PASSWORD: admin
+      ARTEMIS_EXTRA_ARGS: "--allow-anonymous true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8161/console/ > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 384m
+
+  deipde07-mq-simulator:
+    build:
+      context: ./java
+      dockerfile: stubs/deipde07-mq-simulator/Dockerfile
+    container_name: deipde07-mq-simulator
+    networks: [middleware-net]
+    restart: unless-stopped
+    depends_on:
+      activemq-artemis:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 9020
+      ARTEMIS_BROKER_URL: tcp://activemq-artemis:61616
+      ARTEMIS_USER: admin
+      ARTEMIS_PASSWORD: admin
+      APPRAISAL_LIST_REQUEST_QUEUE: APPRAISAL.LIST.REQUEST
+      APPRAISAL_LIST_REPLY_QUEUE: APPRAISAL.LIST.REPLY
+      APPRAISAL_DOCUMENT_REQUEST_QUEUE: APPRAISAL.DOCUMENT.REQUEST
+      APPRAISAL_DOCUMENT_REPLY_QUEUE: APPRAISAL.DOCUMENT.REPLY
+      SIM_MESSAGE_DELAY_MS: 150
+      SIM_CHUNK_DELAY_MS: 50
+    ports:
+      - "9020:9020"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9020/actuator/health > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
     mem_limit: 256m
 
   # ──────────────────────────────────────────────────────────
@@ -717,7 +795,7 @@ services:
     ports:
       - "8087:8087"
     volumes:
-      - renewal-data:/app/data/renewals
+      - ./.docker-data/renewals/java:/app/data
     environment:
       SERVER_PORT: 8087
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
@@ -730,6 +808,52 @@ services:
       OTEL_RESOURCE_ATTRIBUTES: service.version=1.0.0,deployment.environment=local
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health > /dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    mem_limit: 512m
+
+  # ── UC4 Appraisal Service ─────────────────────────────────────────────────
+  prs-appraisal-service:
+    build:
+      context: ./java
+      dockerfile: prs-appraisal-service/Dockerfile
+    container_name: prs-appraisal-service
+    networks: [middleware-net]
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+      activemq-artemis:
+        condition: service_healthy
+      deipde07-mq-simulator:
+        condition: service_healthy
+    ports:
+      - "8090:8090"
+    environment:
+      SERVER_PORT: 8090
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/prs_appraisal_db
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: prs-appraisal-service
+      OTEL_RESOURCE_ATTRIBUTES: service.version=1.0.0,deployment.environment=local
+      ARTEMIS_BROKER_URL: tcp://activemq-artemis:61616
+      ARTEMIS_USER: admin
+      ARTEMIS_PASSWORD: admin
+      APPRAISAL_LIST_REQUEST_QUEUE: APPRAISAL.LIST.REQUEST
+      APPRAISAL_LIST_REPLY_QUEUE: APPRAISAL.LIST.REPLY
+      APPRAISAL_DOCUMENT_REQUEST_QUEUE: APPRAISAL.DOCUMENT.REQUEST
+      APPRAISAL_DOCUMENT_REPLY_QUEUE: APPRAISAL.DOCUMENT.REPLY
+      JAVA_TOOL_OPTIONS: "-Xmx256m"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/actuator/health > /dev/null 2>&1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -1006,7 +1130,9 @@ services:
     ports:
       - "8187:8187"
     volumes:
-      - dotnet-renewal-data:/app/data/renewals
+      - ./.docker-data/renewals/dotnet/inbound:/app/data/renewals/inbound
+      - ./.docker-data/renewals/dotnet/processed:/app/data/renewals/processed
+      - ./.docker-data/renewals/dotnet/error:/app/data/renewals/error
     environment:
       ASPNETCORE_URLS: http://+:8187
       ConnectionStrings__MongoDB: "mongodb://mongodb:27017"
@@ -1059,6 +1185,53 @@ services:
       start_period: 60s
     mem_limit: 512m
 
+  # ⚠️ UC4 — dotnet-prs-appraisal (demo stub service)
+  # Demo gaps visible in logs: all gateways are stubs (PLUW, PLAPR, Masterpiece, CustomerDB, RiskID MQ)
+  dotnet-prs-appraisal:
+    build:
+      context: ./dotnet
+      dockerfile: dotnet-prs-appraisal/Dockerfile
+    container_name: dotnet-prs-appraisal
+    networks: [middleware-net]
+    restart: unless-stopped
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      sqlserver-init:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+      dotnet-customer-identity:
+        condition: service_healthy
+    ports:
+      - "8189:8189"
+    environment:
+      ASPNETCORE_URLS: http://+:8189
+      ConnectionStrings__NServiceBus: "Server=sqlserver;Database=middleware_nsb;User=sa;Password=AIS_Middleware_2024!;TrustServerCertificate=True"
+      ConnectionStrings__MongoDB: "mongodb://mongodb:27017"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: dotnet-prs-appraisal
+      Artemis__BrokerUrl: activemq:tcp://activemq-artemis:61616
+      Artemis__User: admin
+      Artemis__Password: admin
+      Artemis__ListRequestQueue: APPRAISAL.LIST.REQUEST
+      Artemis__ListReplyQueue: APPRAISAL.LIST.REPLY
+      Artemis__DocumentRequestQueue: APPRAISAL.DOCUMENT.REQUEST
+      Artemis__DocumentReplyQueue: APPRAISAL.DOCUMENT.REPLY
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8189/health > /dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    mem_limit: 512m
+
   # ──────────────────────────────────────────────────────────
   # PLATFORM UI
   # ──────────────────────────────────────────────────────────
@@ -1069,23 +1242,14 @@ services:
     container_name: platform-ui
     networks: [middleware-net]
     restart: unless-stopped
-    depends_on:
-      policy-issuance-service:
-        condition: service_healthy
-      platform-compliance-service:
-        condition: service_healthy
-      platform-file-processing-service:
-        condition: service_healthy
-      dotnet-policy-issuance:
-        condition: service_healthy
-      dotnet-file-processing:
-        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
       ACTIVE_BACKEND: ${ACTIVE_BACKEND:-java}
       POLICY_ISSUANCE_SERVICE_URL: http://policy-issuance-service:8081
       DOTNET_POLICY_ISSUANCE_URL: http://dotnet-policy-issuance:8181
+      INTEGRATION_SERVICE_URL: http://platform-integration-service:8084
+      PRS_APPRAISAL_SERVICE_URL: http://dotnet-prs-appraisal:8189
       NEXT_PUBLIC_ACTIVE_BACKEND: ${ACTIVE_BACKEND:-java}
       NEXT_PUBLIC_POLICY_ISSUANCE_URL: http://localhost:8081
       NEXT_PUBLIC_DOTNET_POLICY_ISSUANCE_URL: http://localhost:8181

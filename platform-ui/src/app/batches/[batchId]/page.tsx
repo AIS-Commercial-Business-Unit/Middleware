@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 import clsx from "clsx";
 import Link from "next/link";
+import { useState, useCallback } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ interface BatchRecord {
   status: BatchRecordStatus;
   retryCount: number;
   processorResult: string | null;
+  failureCategory: string | null;
   processedAt: string | null;
   correlationId: string;
 }
@@ -101,6 +103,19 @@ function RecordStatusBadge({ status }: { status: BatchRecordStatus }) {
   );
 }
 
+function FailureCategoryBadge({ category }: { category: string | null }) {
+  if (!category) return null;
+  const isBusiness = category === "Business";
+  return (
+    <span className={clsx(
+      "inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ml-1.5",
+      isBusiness ? "bg-purple-400/10 text-purple-400" : "bg-amber-400/10 text-amber-400"
+    )}>
+      {isBusiness ? "Business" : "Technical"}
+    </span>
+  );
+}
+
 // ─── Stat Box ─────────────────────────────────────────────────────────────────
 
 function StatBox({ label, value, color }: { label: string; value: number | string; color?: string }) {
@@ -145,6 +160,53 @@ function parseFailureReason(result: string | null): string {
   return result.length > 80 ? result.slice(0, 80) + "…" : result;
 }
 
+// ─── Retry Button ─────────────────────────────────────────────────────────────
+
+function RetryButton({ recordId, onSuccess }: { recordId: string; onSuccess: () => void }) {
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleRetry = useCallback(async () => {
+    setState("loading");
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/file-processing/records/${recordId}/retry`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setState("error");
+        setErrorMsg(data.error ?? "Retry failed");
+      } else {
+        setState("idle");
+        onSuccess();
+      }
+    } catch {
+      setState("error");
+      setErrorMsg("Network error");
+    }
+  }, [recordId, onSuccess]);
+
+  if (state === "error") {
+    return (
+      <span className="text-xs" style={{ color: "var(--danger)" }} title={errorMsg ?? undefined}>
+        Retry failed
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={handleRetry}
+      disabled={state === "loading"}
+      className="text-xs font-medium px-2 py-0.5 rounded border transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-amber-400/10"
+      style={{ color: "var(--accent-light)", borderColor: "var(--border)" }}
+    >
+      {state === "loading" ? "Retrying…" : "↻ Retry"}
+    </button>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function BatchDetailPage() {
@@ -159,14 +221,13 @@ export default function BatchDetailPage() {
     }
   );
 
-  const { data: records, error: recordsError } = useSWR<BatchRecord[]>(
+  const { data: records, error: recordsError, mutate: mutateRecords } = useSWR<BatchRecord[]>(
     batchId ? `/api/file-processing/batches/${batchId}/records` : null,
     fetcher,
     {
       refreshInterval: (data) => {
         if (!batch) return 2000;
         if (TERMINAL_STATUSES.includes(batch.status)) return 0;
-        // stop if all records are terminal
         if (data && data.every((r) => r.status === "Succeeded" || r.status === "Failed" || r.status === "DeadLettered")) return 0;
         return 2000;
       },
@@ -210,6 +271,10 @@ export default function BatchDetailPage() {
     : Math.round(batch.percentComplete ?? 0);
   const inProgress = (batch.totalRecords ?? 0) - batch.succeededRecords - batch.failedRecords;
   const isTerminal = TERMINAL_STATUSES.includes(batch.status);
+
+  const retryableCount = records ? records.filter(
+    (r) => r.status === "DeadLettered" || r.status === "Failed"
+  ).length : 0;
 
   return (
     <div className="space-y-8">
@@ -261,6 +326,11 @@ export default function BatchDetailPage() {
             </div>
             <p className="text-xs" style={{ color: "var(--muted)" }}>
               {batch.processedRecords} / {batch.totalRecords} ({pct}%)
+              {retryableCount > 0 && (
+                <span className="ml-2 font-medium" style={{ color: "var(--accent-light)" }}>
+                  · {retryableCount} record{retryableCount !== 1 ? "s" : ""} available for retry
+                </span>
+              )}
             </p>
           </div>
         )}
@@ -307,40 +377,71 @@ export default function BatchDetailPage() {
                   <th className="py-2 pr-3 font-medium w-10">#</th>
                   <th className="py-2 pr-3 font-medium">Record ID</th>
                   <th className="py-2 pr-3 font-medium">Status</th>
-                  <th className="py-2 pr-3 font-medium">Policy Numbers / Failure Reason</th>
-                  <th className="py-2 font-medium">Processed At</th>
+                  <th className="py-2 pr-3 font-medium">Result / Failure Reason</th>
+                  <th className="py-2 pr-3 font-medium">Processed At</th>
+                  <th className="py-2 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {records.slice(0, 100).map((record) => (
-                  <tr key={record.recordId} className="border-t" style={{ borderColor: "var(--border)" }}>
-                    <td className="py-2.5 pr-3 font-mono text-xs" style={{ color: "var(--muted)" }}>
-                      {record.sequenceNumber}
-                    </td>
-                    <td className="py-2.5 pr-3 font-mono text-xs max-w-[120px] truncate" title={record.recordId}>
-                      {record.recordId.slice(0, 8)}…
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <RecordStatusBadge status={record.status} />
-                    </td>
-                    <td className="py-2.5 pr-3 text-xs max-w-[260px]">
-                      {record.status === "Succeeded" && record.processorResult ? (
-                        <span className="text-green-400 font-mono">
-                          {parsePolicyNumbers(record.processorResult)}
-                        </span>
-                      ) : (record.status === "Failed" || record.status === "DeadLettered") && record.processorResult ? (
-                        <span className="text-orange-400" title={record.processorResult}>
-                          {parseFailureReason(record.processorResult)}
-                        </span>
-                      ) : (
-                        <span style={{ color: "var(--muted)" }}>—</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 text-xs" style={{ color: "var(--muted)" }}>
-                      {record.processedAt ? formatDateTime(record.processedAt) : "—"}
-                    </td>
-                  </tr>
-                ))}
+                {records.slice(0, 200).map((record) => {
+                  const isFailed = record.status === "DeadLettered" || record.status === "Failed";
+                  return (
+                    <tr key={record.recordId} className="border-t" style={{ borderColor: "var(--border)" }}>
+                      <td className="py-2.5 pr-3 font-mono text-xs" style={{ color: "var(--muted)" }}>
+                        {record.sequenceNumber}
+                      </td>
+                      <td className="py-2.5 pr-3 font-mono text-xs max-w-[120px] truncate" title={record.recordId}>
+                        {record.recordId.slice(0, 8)}…
+                      </td>
+                      <td className="py-2.5 pr-3">
+                        <RecordStatusBadge status={record.status} />
+                        {record.retryCount > 0 && (
+                          <span className="ml-1 text-xs" style={{ color: "var(--muted)" }}>
+                            ×{record.retryCount}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 pr-3 text-xs max-w-[300px]">
+                        {record.status === "Succeeded" && record.processorResult ? (
+                          <span className="text-green-400 font-mono">
+                            {parsePolicyNumbers(record.processorResult)}
+                          </span>
+                        ) : isFailed && record.processorResult ? (
+                          <span className="flex items-start gap-1">
+                            <span className="text-orange-400" title={record.processorResult}>
+                              {parseFailureReason(record.processorResult)}
+                            </span>
+                            <FailureCategoryBadge category={record.failureCategory} />
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--muted)" }}>—</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 pr-3 text-xs" style={{ color: "var(--muted)" }}>
+                        {record.processedAt ? formatDateTime(record.processedAt) : "—"}
+                      </td>
+                      <td className="py-2.5">
+                        <div className="flex items-center gap-2">
+                          {record.correlationId && (
+                            <Link
+                              href={`/ops/${record.correlationId}`}
+                              className="text-xs font-medium hover:text-white transition-colors whitespace-nowrap"
+                              style={{ color: "var(--accent-light)" }}
+                            >
+                              EDA Flow →
+                            </Link>
+                          )}
+                          {isFailed && (
+                            <RetryButton
+                              recordId={record.recordId}
+                              onSuccess={() => mutateRecords()}
+                            />
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

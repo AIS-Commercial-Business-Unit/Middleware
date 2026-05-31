@@ -66,6 +66,9 @@ public class RecordOutcomeRoute extends RouteBuilder {
                 MDC.put("batchId", event.batchId());
                 MDC.put("recordId", event.recordId());
                 MDC.put("issuanceId", event.issuanceId());
+                logEdaFlow(event.issuanceId(), "RenewalRecordProcessedEvent",
+                        "PolicyIssuance", "FileProcessing",
+                        "policy.events.renewal-record-processed", "consumed");
 
                 batchRecordRepository.findByCorrelationId(event.issuanceId()).ifPresent(record -> {
                     record.setStatus(BatchRecord.BatchRecordStatus.Succeeded);
@@ -88,6 +91,9 @@ public class RecordOutcomeRoute extends RouteBuilder {
                 MDC.put("batchId", event.batchId());
                 MDC.put("recordId", event.recordId());
                 MDC.put("issuanceId", event.issuanceId());
+                logEdaFlow(event.issuanceId(), "RenewalRecordFailedEvent",
+                        "PolicyIssuance", "FileProcessing",
+                        "policy.events.renewal-record-failed", "consumed");
 
                 batchRecordRepository.findByCorrelationId(event.issuanceId()).ifPresent(record -> {
                     record.setStatus(BatchRecord.BatchRecordStatus.DeadLettered);
@@ -101,6 +107,29 @@ public class RecordOutcomeRoute extends RouteBuilder {
                 checkBatchProgress(event.batchId(), producerTemplate);
                 MDC.clear();
             });
+    }
+
+    private void logEdaFlow(String issuanceId, String messageType, String from, String to, String topic, String direction) {
+        MDC.put("EDA_Event", "EDA_FLOW");
+        MDC.put("EDA_IssuanceId", issuanceId);
+        MDC.put("EDA_MessageType", messageType);
+        MDC.put("EDA_From", from);
+        MDC.put("EDA_To", to);
+        MDC.put("EDA_Topic", topic);
+        MDC.put("EDA_Direction", direction);
+        MDC.put("EDA_Stack", "java");
+        try {
+            log.info("EDA_FLOW {} {} -> {}", messageType, from, to);
+        } finally {
+            MDC.remove("EDA_Event");
+            MDC.remove("EDA_IssuanceId");
+            MDC.remove("EDA_MessageType");
+            MDC.remove("EDA_From");
+            MDC.remove("EDA_To");
+            MDC.remove("EDA_Topic");
+            MDC.remove("EDA_Direction");
+            MDC.remove("EDA_Stack");
+        }
     }
 
     private void checkBatchProgress(String batchId, ProducerTemplate pt) throws Exception {

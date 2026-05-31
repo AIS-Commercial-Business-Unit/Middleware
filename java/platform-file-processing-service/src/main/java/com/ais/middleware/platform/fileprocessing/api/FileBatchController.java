@@ -1,23 +1,29 @@
 package com.ais.middleware.platform.fileprocessing.api;
 
+import com.ais.middleware.common.events.fileprocessing.RenewalRecordReadyForIssuanceEvent;
 import com.ais.middleware.platform.fileprocessing.domain.BatchRecord;
 import com.ais.middleware.platform.fileprocessing.domain.BatchRecordRepository;
 import com.ais.middleware.platform.fileprocessing.domain.FileBatch;
 import com.ais.middleware.platform.fileprocessing.domain.FileBatchRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.camel.ProducerTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -49,11 +55,17 @@ public class FileBatchController {
 
     private final FileBatchRepository fileBatchRepository;
     private final BatchRecordRepository batchRecordRepository;
+    private final ObjectMapper objectMapper;
+    private final ProducerTemplate producerTemplate;
 
     public FileBatchController(FileBatchRepository fileBatchRepository,
-                                BatchRecordRepository batchRecordRepository) {
+                                BatchRecordRepository batchRecordRepository,
+                                ObjectMapper objectMapper,
+                                ProducerTemplate producerTemplate) {
         this.fileBatchRepository = fileBatchRepository;
         this.batchRecordRepository = batchRecordRepository;
+        this.objectMapper = objectMapper;
+        this.producerTemplate = producerTemplate;
     }
 
     @GetMapping("/batches")
@@ -88,26 +100,30 @@ public class FileBatchController {
 
     /**
      * Generates a sample renewal CSV file in the inbound folder and returns metadata.
-     * Query param: count (1-50, default 10).
+     * Query param: count (1-500, default 10).
      */
     @PostMapping("/batches/generate")
     public ResponseEntity<Map<String, Object>> generateSampleBatch(
             @RequestParam(defaultValue = "10") int count) {
 
-        count = Math.max(1, Math.min(50, count));
+        count = Math.max(1, Math.min(500, count));
 
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         String fileName = "RENEWAL_" + timestamp + ".csv";
 
-        File inboundDirFile = new File(inboundDir);
-        if (!inboundDirFile.exists()) {
-            inboundDirFile.mkdirs();
+        Path inboundDirPath;
+        try {
+            inboundDirPath = ensureDirectoryExists(inboundDir);
+        } catch (IOException e) {
+            log.error("Inbound directory is not ready: {}", inboundDir, e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Inbound directory is not ready: " + e.getMessage()));
         }
 
-        File outputFile = new File(inboundDirFile, fileName);
+        Path outputFile = inboundDirPath.resolve(fileName);
         LocalDate baseExpiry = LocalDate.now().plusMonths(2);
 
-        try (FileWriter fw = new FileWriter(outputFile)) {
+        try (FileWriter fw = new FileWriter(outputFile.toFile())) {
             fw.write("PolicyNumber,ExpirationDate,InsuredName,PolicyTypeCode,PolicyTypeSubCode,PremiumAmount,ProducerCode,BillingType,AccountId\n");
 
             for (int i = 1; i <= count; i++) {
@@ -135,5 +151,94 @@ public class FileBatchController {
                 "recordCount", count,
                 "message", "File created in inbound folder"
         ));
+    }
+
+    /**
+     * Retry a DeadLettered or Failed record by republishing a new RenewalRecordReadyForIssuanceEvent.
+     * A fresh correlationId (issuanceId) is issued so a new saga starts cleanly.
+     * The BatchRecord is updated with the new correlationId so outcome events are linked back.
+     */
+    @PostMapping("/records/{recordId}/retry")
+    public ResponseEntity<?> retryRecord(@PathVariable String recordId) {
+        BatchRecord record = batchRecordRepository.findById(recordId)
+                .orElse(null);
+        if (record == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (record.getStatus() != BatchRecord.BatchRecordStatus.DeadLettered
+                && record.getStatus() != BatchRecord.BatchRecordStatus.Failed) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Record is not in a retryable state: " + record.getStatus()));
+        }
+
+        // Parse rawContent back to CSV fields
+        // Format: PolicyNumber,ExpirationDate,InsuredName,PolicyTypeCode,PolicyTypeSubCode,PremiumAmount,ProducerCode,BillingType,AccountId
+        String[] fields = record.getRawContent().split(",", -1);
+        if (fields.length < 9) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "error", "Cannot parse rawContent: expected 9 fields, got " + fields.length));
+        }
+
+        String newCorrelationId = UUID.randomUUID().toString();
+        int policyTypeCode    = parseInt(fields[3].trim(), 0);
+        int policyTypeSubCode = parseInt(fields[4].trim(), 0);
+        String accountId      = fields[8].trim();
+        String policyNumber   = fields[0].trim();
+
+        var event = new RenewalRecordReadyForIssuanceEvent(
+                recordId, record.getBatchId(), newCorrelationId, record.getSequenceNumber(),
+                record.getRawContent(), "AutomatedRenewal",
+                accountId, policyTypeCode, policyTypeSubCode,
+                policyNumber, OffsetDateTime.now()
+        );
+
+        // Update record: new correlationId, reset to Pending, increment retry count
+        record.setCorrelationId(newCorrelationId);
+        record.setStatus(BatchRecord.BatchRecordStatus.Pending);
+        record.setRetryCount(record.getRetryCount() + 1);
+        record.setProcessorResult(null);
+        record.setFailureCategory(null);
+        record.setProcessedAt(null);
+        batchRecordRepository.save(record);
+
+        try {
+            producerTemplate.sendBody("kafka:file.events.renewal-record-ready-for-issuance",
+                    objectMapper.writeValueAsString(event));
+        } catch (Exception e) {
+            // Roll back the record update on Kafka failure
+            log.error("Failed to publish retry event for recordId={}: {}", recordId, e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "error", "Failed to publish retry event: " + e.getMessage()));
+        }
+
+        log.info("Record retry dispatched — recordId={} batchId={} newCorrelationId={} retryCount={}",
+                recordId, record.getBatchId(), newCorrelationId, record.getRetryCount());
+        return ResponseEntity.ok(Map.of(
+                "recordId", recordId,
+                "batchId", record.getBatchId(),
+                "newCorrelationId", newCorrelationId,
+                "retryCount", record.getRetryCount(),
+                "message", "Retry dispatched — new issuance saga started"
+        ));
+    }
+
+    private Path ensureDirectoryExists(String directory) throws IOException {
+        Path path = Path.of(directory);
+        Files.createDirectories(path);
+        if (!Files.isDirectory(path)) {
+            throw new IOException("Path is not a directory: " + path);
+        }
+        if (!Files.isWritable(path)) {
+            throw new IOException("Directory is not writable: " + path);
+        }
+        return path;
+    }
+
+    private int parseInt(String value, int defaultValue) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 }

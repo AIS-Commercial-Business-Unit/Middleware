@@ -20,6 +20,7 @@
         <module>billing-finance-service</module>
         <module>platform-notification-service</module>
         <module>platform-file-processing-service</module>
+        <module>prs-appraisal-service</module>
         <module>stubs/duckcreek-commercial-stub</module>
         <module>stubs/duckcreek-personal-stub</module>
         <module>stubs/forefront-stub</module>
@@ -27,6 +28,7 @@
         <module>stubs/erm7x1-account-stub</module>
         <module>stubs/crm40x1-customer-stub</module>
         <module>stubs/crm19x1-billing-stub</module>
+        <module>stubs/deipde07-mq-simulator</module>
     </modules>
 
     <properties>

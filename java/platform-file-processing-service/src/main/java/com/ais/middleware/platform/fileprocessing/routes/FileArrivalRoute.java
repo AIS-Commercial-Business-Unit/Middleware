@@ -47,15 +47,18 @@ public class FileArrivalRoute extends RouteBuilder {
     private final BatchRecordRepository batchRecordRepository;
     private final ObjectMapper objectMapper;
     private final ProducerTemplate producerTemplate;
+    private final FailureSimulator failureSimulator;
 
     public FileArrivalRoute(FileBatchRepository fileBatchRepository,
                             BatchRecordRepository batchRecordRepository,
                             ObjectMapper objectMapper,
-                            ProducerTemplate producerTemplate) {
+                            ProducerTemplate producerTemplate,
+                            FailureSimulator failureSimulator) {
         this.fileBatchRepository = fileBatchRepository;
         this.batchRecordRepository = batchRecordRepository;
         this.objectMapper = objectMapper;
         this.producerTemplate = producerTemplate;
+        this.failureSimulator = failureSimulator;
     }
 
     @Override
@@ -122,6 +125,7 @@ public class FileArrivalRoute extends RouteBuilder {
         fileBatchRepository.save(batch);
 
         List<String> eventJsonList = new ArrayList<>();
+        List<RenewalRecordFailedEvent> preFailedEvents = new ArrayList<>();
         int sequenceNumber = 0;
 
         try (CSVReader reader = new CSVReader(new StringReader(fileBody))) {
@@ -162,8 +166,26 @@ public class FileArrivalRoute extends RouteBuilder {
                 record.setBatchId(batchId);
                 record.setSequenceNumber(sequenceNumber);
                 record.setRawContent(rawContent);
-                record.setStatus(BatchRecord.BatchRecordStatus.Pending);
                 record.setCorrelationId(correlationId);
+
+                // Check for simulated failures before dispatching to issuance
+                FailureSimulator.FailureResult failure = failureSimulator.evaluate(sequenceNumber, policyTypeCode, accountId);
+                if (failure.shouldFail()) {
+                    record.setStatus(BatchRecord.BatchRecordStatus.DeadLettered);
+                    record.setProcessorResult(failure.reason());
+                    record.setFailureCategory(failure.category());
+                    record.setProcessedAt(OffsetDateTime.now());
+                    batchRecordRepository.save(record);
+                    log.warn("Record pre-failed [{}] — seq={} batchId={} reason={}",
+                            failure.category(), sequenceNumber, batchId, failure.reason());
+                    // Collect for deferred publish (after batch totalRecords is saved)
+                    preFailedEvents.add(new RenewalRecordFailedEvent(
+                            recordId, batchId, correlationId,
+                            failure.reason(), failure.category(), OffsetDateTime.now()));
+                    continue;
+                }
+
+                record.setStatus(BatchRecord.BatchRecordStatus.Pending);
                 batchRecordRepository.save(record);
 
                 // Build event
@@ -173,6 +195,9 @@ public class FileArrivalRoute extends RouteBuilder {
                         accountId, policyTypeCode, policyTypeSubCode,
                         policyNumber, OffsetDateTime.now()
                 );
+                logEdaFlow(correlationId, "RenewalRecordReadyForIssuanceEvent",
+                        "FileProcessing", "PolicyIssuance",
+                        "file.events.renewal-record-ready-for-issuance", "published");
                 eventJsonList.add(objectMapper.writeValueAsString(event));
             }
         } catch (CsvException e) {
@@ -184,7 +209,7 @@ public class FileArrivalRoute extends RouteBuilder {
             return;
         }
 
-        // Update FileBatch to Processing
+        // Update FileBatch to Processing (totalRecords includes ALL records: both successful and pre-failed)
         batch.setTotalRecords(sequenceNumber);
         batch.setParsingCompletedAt(OffsetDateTime.now());
         batch.setStatus(FileBatch.FileBatchStatus.Processing);
@@ -194,12 +219,46 @@ public class FileArrivalRoute extends RouteBuilder {
         var startedEvent = new FileBatchStartedEvent(
                 batchId, fileName, "AutomatedRenewal", sequenceNumber, "AutomatedRenewal", OffsetDateTime.now()
         );
-        log.info("Batch parsed — batchId={} totalRecords={} — dispatching record events", batchId, sequenceNumber);
+        log.info("Batch parsed — batchId={} totalRecords={} preFailedRecords={} — dispatching record events",
+                batchId, sequenceNumber, preFailedEvents.size());
         producerTemplate.sendBody("kafka:file.events.file-batch-started",
                         objectMapper.writeValueAsString(startedEvent));
 
+        // Publish pre-failed events now that totalRecords is persisted — RecordOutcomeRoute will
+        // pick these up, increment counters, and check batch completion correctly.
+        for (RenewalRecordFailedEvent failedEvent : preFailedEvents) {
+            logEdaFlow(failedEvent.issuanceId(), "RenewalRecordFailedEvent",
+                    "FileProcessing", "PolicyIssuance",
+                    "policy.events.renewal-record-failed", "published");
+            producerTemplate.sendBody("kafka:policy.events.renewal-record-failed",
+                    objectMapper.writeValueAsString(failedEvent));
+        }
+
         exchange.getIn().setBody(eventJsonList);
         MDC.clear();
+    }
+
+    private void logEdaFlow(String issuanceId, String messageType, String from, String to, String topic, String direction) {
+        MDC.put("EDA_Event", "EDA_FLOW");
+        MDC.put("EDA_IssuanceId", issuanceId);
+        MDC.put("EDA_MessageType", messageType);
+        MDC.put("EDA_From", from);
+        MDC.put("EDA_To", to);
+        MDC.put("EDA_Topic", topic);
+        MDC.put("EDA_Direction", direction);
+        MDC.put("EDA_Stack", "java");
+        try {
+            log.info("EDA_FLOW {} {} -> {}", messageType, from, to);
+        } finally {
+            MDC.remove("EDA_Event");
+            MDC.remove("EDA_IssuanceId");
+            MDC.remove("EDA_MessageType");
+            MDC.remove("EDA_From");
+            MDC.remove("EDA_To");
+            MDC.remove("EDA_Topic");
+            MDC.remove("EDA_Direction");
+            MDC.remove("EDA_Stack");
+        }
     }
 
     private void validateHeader(String[] header) {

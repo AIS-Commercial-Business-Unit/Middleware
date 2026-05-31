@@ -43,6 +43,11 @@ public class BatchRecordRepositoryAdapter implements BatchRecordRepository {
         return mongoRepository.findByCorrelationId(correlationId).map(this::toDomain);
     }
 
+    @Override
+    public Optional<BatchRecord> findById(String recordId) {
+        return mongoRepository.findById(recordId).map(this::toDomain);
+    }
+
     private BatchRecordDocument toDocument(BatchRecord record) {
         BatchRecordDocument doc = new BatchRecordDocument();
         doc.setRecordId(record.getRecordId());
@@ -54,6 +59,7 @@ public class BatchRecordRepositoryAdapter implements BatchRecordRepository {
         doc.setProcessorResult(record.getProcessorResult());
         doc.setProcessedAt(record.getProcessedAt());
         doc.setCorrelationId(record.getCorrelationId());
+        doc.setFailureCategory(record.getFailureCategory());
         return doc;
     }
 
@@ -68,6 +74,7 @@ public class BatchRecordRepositoryAdapter implements BatchRecordRepository {
         record.setProcessorResult(doc.getProcessorResult());
         record.setProcessedAt(doc.getProcessedAt());
         record.setCorrelationId(doc.getCorrelationId());
+        record.setFailureCategory(doc.getFailureCategory());
         return record;
     }
 }

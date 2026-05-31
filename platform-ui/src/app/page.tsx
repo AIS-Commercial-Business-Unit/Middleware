@@ -161,6 +161,41 @@ export default function HomePage() {
         </div>
         <span className="text-lg" style={{ color: "var(--muted)" }}>→</span>
       </Link>
+      <Link
+        href="/uc4"
+        className="flex items-center justify-between rounded-lg border p-4 hover:border-indigo-500 transition-colors group"
+        style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+      >
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-sm group-hover:text-white transition-colors" style={{ color: "var(--accent-light)" }}>
+              UC4 · Appraisal Documents
+            </p>
+            <span className="text-xs px-1.5 py-0.5 rounded font-bold" style={{ background: "#f59e0b22", color: "#f59e0b" }}>
+              ⚠️ DEMO
+            </span>
+          </div>
+          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+            RiskID status update → AppraisalReceivedSaga — UW determination, parallel execution, gateway stubs
+          </p>
+        </div>
+        <span className="text-lg" style={{ color: "var(--muted)" }}>→</span>
+      </Link>
+      <Link
+        href="/demo-control"
+        className="flex items-center justify-between rounded-lg border p-4 hover:border-yellow-500 transition-colors group"
+        style={{ borderColor: "#f59e0b44", background: "#f59e0b0d" }}
+      >
+        <div>
+          <p className="font-semibold text-sm group-hover:text-white transition-colors" style={{ color: "#f59e0b" }}>
+            🎛️ Demo Control Panel
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+            Reset demo environment · health checks · seed UC4 data · status log
+          </p>
+        </div>
+        <span className="text-lg" style={{ color: "#f59e0b" }}>→</span>
+      </Link>
     </div>
   );
 }

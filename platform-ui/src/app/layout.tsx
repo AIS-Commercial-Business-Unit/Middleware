@@ -31,6 +31,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/batches" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
             Batches
           </Link>
+          <Link href="/uc4" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
+            Appraisals
+          </Link>
+          <Link href="/demo-control" className="text-sm hover:text-white transition-colors font-semibold" style={{ color: "#f59e0b" }}>
+            🎛️ Demo
+          </Link>
           <div className="ml-auto flex items-center gap-4">
             <a
               href={process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001"}

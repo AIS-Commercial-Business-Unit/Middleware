@@ -1,0 +1,40 @@
+server:
+  port: ${SERVER_PORT:9020}
+
+spring:
+  artemis:
+    mode: native
+    broker-url: ${ARTEMIS_BROKER_URL:tcp://localhost:61616}
+    user: ${ARTEMIS_USER:admin}
+    password: ${ARTEMIS_PASSWORD:admin}
+  jms:
+    pub-sub-domain: false
+
+mq:
+  list:
+    request:
+      queue: ${APPRAISAL_LIST_REQUEST_QUEUE:APPRAISAL.LIST.REQUEST}
+    response:
+      queue: ${APPRAISAL_LIST_REPLY_QUEUE:APPRAISAL.LIST.REPLY}
+  document:
+    request:
+      queue: ${APPRAISAL_DOCUMENT_REQUEST_QUEUE:APPRAISAL.DOCUMENT.REQUEST}
+    response:
+      queue: ${APPRAISAL_DOCUMENT_REPLY_QUEUE:APPRAISAL.DOCUMENT.REPLY}
+
+sim:
+  message:
+    delay:
+      ms: ${SIM_MESSAGE_DELAY_MS:150}
+  chunk:
+    delay:
+      ms: ${SIM_CHUNK_DELAY_MS:50}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

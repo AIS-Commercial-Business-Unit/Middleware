@@ -49,6 +49,26 @@ duckcreek:
 forefront:
   url: ${FOREFRONT_URL:localhost:9003}
 
+demo:
+  health:
+    policy-issuance: ${DEMO_HEALTH_POLICY_ISSUANCE:http://policy-issuance-service:8081}
+    platform-compliance: ${DEMO_HEALTH_PLATFORM_COMPLIANCE:http://platform-compliance-service:8082}
+    customer-identity: ${DEMO_HEALTH_CUSTOMER_IDENTITY:http://customer-identity-service:8083}
+    platform-integration: ${DEMO_HEALTH_PLATFORM_INTEGRATION:http://platform-integration-service:8084}
+    billing-finance: ${DEMO_HEALTH_BILLING_FINANCE:http://billing-finance-service:8085}
+    platform-notification: ${DEMO_HEALTH_PLATFORM_NOTIFICATION:http://platform-notification-service:8086}
+    platform-file-processing: ${DEMO_HEALTH_PLATFORM_FILE_PROCESSING:http://platform-file-processing-service:8087}
+    prs-appraisal: ${DEMO_HEALTH_PRS_APPRAISAL:http://prs-appraisal-service:8090}
+    dotnet-policy-issuance: ${DEMO_HEALTH_DOTNET_POLICY_ISSUANCE:http://dotnet-policy-issuance:8181}
+    dotnet-platform-compliance: ${DEMO_HEALTH_DOTNET_PLATFORM_COMPLIANCE:http://dotnet-platform-compliance:8182}
+    dotnet-customer-identity: ${DEMO_HEALTH_DOTNET_CUSTOMER_IDENTITY:http://dotnet-customer-identity:8183}
+    dotnet-platform-integration: ${DEMO_HEALTH_DOTNET_PLATFORM_INTEGRATION:http://dotnet-platform-integration:8184}
+    dotnet-billing-finance: ${DEMO_HEALTH_DOTNET_BILLING_FINANCE:http://dotnet-billing-finance:8185}
+    dotnet-platform-notification: ${DEMO_HEALTH_DOTNET_PLATFORM_NOTIFICATION:http://dotnet-platform-notification:8186}
+    dotnet-file-processing: ${DEMO_HEALTH_DOTNET_FILE_PROCESSING:http://dotnet-file-processing:8187}
+    dotnet-kafka-bridge: ${DEMO_HEALTH_DOTNET_KAFKA_BRIDGE:http://dotnet-kafka-bridge:8188}
+    dotnet-prs-appraisal: ${DEMO_HEALTH_DOTNET_PRS_APPRAISAL:http://dotnet-prs-appraisal:8189}
+
 logging:
   level:
     com.ais.middleware: DEBUG

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.ais.middleware</groupId>
+        <artifactId>middleware-platform</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>prs-appraisal-service</artifactId>
+    <name>AIS PRS Appraisal Service</name>
+    <description>
+        Hosts the GetAppraisalList (scatter-gather) and GetAppraisalDocument (content-based router)
+        workflows for UC4. Fan-out to @Work SQL and DEIPDE07 mainframe via IBM MQ (Artemis in dev).
+        Routes by DocumentKey format to RiskID WCF or DEIPDE07 MQ. Publishes audit events to Kafka.
+        No saga state — both workflows are synchronous query-side operations.
+    </description>
+
+    <dependencies>
+        <!-- Spring Boot -->
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-mongodb</artifactId></dependency>
+
+        <!-- JMS with ActiveMQ Artemis (DEIPDE07 MQ simulation; production: IBM MQ ConnectionFactory) -->
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-artemis</artifactId></dependency>
+
+        <!-- Apache Camel -->
+        <dependency><groupId>org.apache.camel.springboot</groupId><artifactId>camel-spring-boot-starter</artifactId></dependency>
+        <dependency><groupId>org.apache.camel.springboot</groupId><artifactId>camel-kafka-starter</artifactId></dependency>
+        <dependency><groupId>org.apache.camel.springboot</groupId><artifactId>camel-jackson-starter</artifactId></dependency>
+        <!-- Camel JMS component (used for MQP.REQUESTQUEUE.1 / MQP.RESPONSEQUEUE.1) -->
+        <dependency><groupId>org.apache.camel.springboot</groupId><artifactId>camel-jms-starter</artifactId></dependency>
+        <!-- Camel HTTP component (for RiskID WCF calls in production) -->
+        <dependency><groupId>org.apache.camel.springboot</groupId><artifactId>camel-http-starter</artifactId></dependency>
+
+        <!-- Common events module -->
+        <dependency><groupId>com.ais.middleware</groupId><artifactId>common</artifactId></dependency>
+
+        <!-- OpenTelemetry / Micrometer tracing -->
+        <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
+        <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-tracing-bridge-otel</artifactId></dependency>
+        <dependency><groupId>io.opentelemetry</groupId><artifactId>opentelemetry-exporter-otlp</artifactId><version>1.41.0</version></dependency>
+
+        <!-- Structured JSON logging -->
+        <dependency><groupId>net.logstash.logback</groupId><artifactId>logstash-logback-encoder</artifactId></dependency>
+
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!-- Run only integration tests against a live docker-compose stack:
+             mvn test -pl prs-appraisal-service -P integration-tests
+             OR use the groups shorthand:
+             mvn test -pl prs-appraisal-service -Dgroups=integration          -->
+        <profile>
+            <id>integration-tests</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <groups>integration</groups>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

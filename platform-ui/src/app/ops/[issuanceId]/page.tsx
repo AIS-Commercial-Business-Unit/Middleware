@@ -10,7 +10,23 @@ import type { FlowEvent } from "@/types/eda-flow";
 
 // ─── Participants ──────────────────────────────────────────────────────────
 
-const PARTICIPANTS = [
+type Participant = {
+  id: string;
+  label: string;
+  color: string;
+};
+
+const DYNAMIC_COLORS = [
+  "#f59e0b",
+  "#8b5cf6",
+  "#06b6d4",
+  "#10b981",
+  "#f43f5e",
+  "#84cc16",
+] as const;
+
+const PARTICIPANTS: readonly Participant[] = [
+  { id: "FileProcessing",   label: "File Processing",      color: "#b45309" },
   { id: "API",              label: "API Client",           color: "#6366f1" },
   { id: "PolicyIssuance",   label: "Policy Issuance",      color: "#0891b2" },
   { id: "Compliance",       label: "Plat. Compliance",     color: "#dc2626" },
@@ -18,9 +34,10 @@ const PARTICIPANTS = [
   { id: "Integration",      label: "Plat. Integration",    color: "#7c3aed" },
   { id: "Billing",          label: "Billing Finance",      color: "#ea580c" },
   { id: "Notification",     label: "Notification",         color: "#0d9488" },
-] as const;
-
-type ParticipantId = (typeof PARTICIPANTS)[number]["id"];
+  { id: "PrsAppraisal",     label: "PRS Appraisal",        color: "#0891b2" },
+  { id: "AtWork",           label: "AtWork SQL",           color: "#f59e0b" },
+  { id: "Mainframe",        label: "Mainframe (MQ)",       color: "#8b5cf6" },
+];
 
 // ─── Saga status ordering ─────────────────────────────────────────────────
 
@@ -48,8 +65,8 @@ type StepStatus = "done" | "active" | "pending";
 
 interface Step {
   id: string;
-  from: ParticipantId;
-  to: ParticipantId;
+  from: string;
+  to: string;
   msg: string;
   isEvent: boolean;
   topic: string;
@@ -57,16 +74,6 @@ interface Step {
   parallel?: boolean;
   note?: string;
 }
-
-const LABEL_TO_ID: Record<string, ParticipantId> = {
-  API: "API",
-  PolicyIssuance: "PolicyIssuance",
-  Compliance: "Compliance",
-  CustomerIdentity: "CustomerIdentity",
-  Integration: "Integration",
-  Billing: "Billing",
-  Notification: "Notification",
-};
 
 const UC1_STEPS: Step[] = [
   { id: "s01", from: "API",              to: "PolicyIssuance",    msg: "IssuePolicyCommand",                     isEvent: false, topic: "policy.commands.issue-policy",                             doneAtLevel: 0 },
@@ -91,11 +98,56 @@ function computeStepStatus(step: Step, sagaStatus: SagaStatus, isLive = false): 
   return "pending";
 }
 
+function formatParticipantLabel(id: string) {
+  return id
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim();
+}
+
+function getDynamicColor(id: string) {
+  const hash = [...id].reduce((total, char) => total + char.charCodeAt(0), 0);
+  return DYNAMIC_COLORS[hash % DYNAMIC_COLORS.length];
+}
+
+function createDynamicParticipant(id: string, index: number): Participant {
+  return {
+    id,
+    label: formatParticipantLabel(id),
+    color: DYNAMIC_COLORS[index % DYNAMIC_COLORS.length],
+  };
+}
+
+function buildVisibleParticipants(events: FlowEvent[], isLiveMode: boolean): Participant[] {
+  if (!(isLiveMode && events.length > 0)) {
+    const activeIds = new Set<string>(UC1_STEPS.flatMap((step) => [step.from, step.to]));
+    return PARTICIPANTS.filter((participant) => activeIds.has(participant.id));
+  }
+
+  const participantIds = [...new Set([...events.map((event) => event.from), ...events.map((event) => event.to)])];
+  let dynamicIndex = 0;
+
+  return participantIds.map((id) => {
+    const knownParticipant = PARTICIPANTS.find((participant) => participant.id === id);
+    if (knownParticipant) {
+      return knownParticipant;
+    }
+
+    const dynamicParticipant = createDynamicParticipant(id, dynamicIndex);
+    dynamicIndex += 1;
+    return dynamicParticipant;
+  });
+}
+
+function getParticipantColor(id: string, participants: readonly Participant[]) {
+  return participants.find((participant) => participant.id === id)?.color ?? getDynamicColor(id);
+}
+
 function flowEventsToSteps(events: FlowEvent[]): Step[] {
   return events.map((event, index) => ({
     id: `live-${index}`,
-    from: LABEL_TO_ID[event.from] ?? "API",
-    to: LABEL_TO_ID[event.to] ?? "Notification",
+    from: event.from,
+    to: event.to,
     msg: event.messageType,
     isEvent: true,
     topic: event.topic,
@@ -135,15 +187,17 @@ function formatTime(iso: string) {
 // ─── Sequence Diagram ────────────────────────────────────────────────────
 
 function SequenceDiagram({ sagaStatus, liveSteps = [], isLiveMode = false }: SequenceDiagramProps) {
-  const participantIndex = new Map<ParticipantId, number>(PARTICIPANTS.map((p, i) => [p.id, i]));
   const stepsToRender = isLiveMode && liveSteps.length > 0 ? flowEventsToSteps(liveSteps) : UC1_STEPS;
+  const visibleParticipants = buildVisibleParticipants(liveSteps, isLiveMode);
+
+  const participantIndex = new Map<string, number>(visibleParticipants.map((participant, index) => [participant.id, index]));
   const svgRef = useRef<SVGSVGElement>(null);
   const [tooltip, setTooltip] = useState<{
     step: Step | FlowEvent | null;
     x: number;
     y: number;
   } | null>(null);
-  const svgWidth = LEFT_MARGIN + PARTICIPANTS.length * COL_WIDTH + 20;
+  const svgWidth = LEFT_MARGIN + visibleParticipants.length * COL_WIDTH + 20;
   const svgHeight = HEADER_HEIGHT + stepsToRender.length * ROW_HEIGHT + BOTTOM_PAD;
   const lifelineBottom = svgHeight - BOTTOM_PAD;
 
@@ -158,7 +212,7 @@ function SequenceDiagram({ sagaStatus, liveSteps = [], isLiveMode = false }: Seq
             border: `1px solid ${isLiveMode ? "#16a34a" : "#6366f1"}`,
           }}
         >
-          {isLiveMode ? "📡 Live — from Loki" : "📋 Static topology"}
+          {isLiveMode ? "📡 Live — from Loki" : "📋 Static UC1 reference"}
         </span>
       </div>
 
@@ -171,7 +225,7 @@ function SequenceDiagram({ sagaStatus, liveSteps = [], isLiveMode = false }: Seq
           style={{ fontFamily: "ui-sans-serif, system-ui, sans-serif", display: "block" }}
         >
           <defs>
-            {PARTICIPANTS.map((p) => (
+            {visibleParticipants.map((p) => (
               <marker
                 key={`arrow-${p.id}`}
                 id={`arrow-${p.id}`}
@@ -204,7 +258,7 @@ function SequenceDiagram({ sagaStatus, liveSteps = [], isLiveMode = false }: Seq
           )}
 
           {/* Participant headers */}
-          {PARTICIPANTS.map((p, i) => {
+          {visibleParticipants.map((p, i) => {
             const cx = colX(i);
             return (
               <g key={`hdr-${p.id}`}>
@@ -216,7 +270,7 @@ function SequenceDiagram({ sagaStatus, liveSteps = [], isLiveMode = false }: Seq
           })}
 
           {/* Lifelines */}
-          {PARTICIPANTS.map((p, i) => (
+          {visibleParticipants.map((p, i) => (
             <line
               key={`ll-${p.id}`}
               x1={colX(i)}
@@ -232,13 +286,18 @@ function SequenceDiagram({ sagaStatus, liveSteps = [], isLiveMode = false }: Seq
           {/* Messages */}
           {stepsToRender.map((step, i) => {
             const rowY = HEADER_HEIGHT + i * ROW_HEIGHT + ROW_HEIGHT / 2;
-            const fromIdx = participantIndex.get(step.from)!;
-            const toIdx = participantIndex.get(step.to)!;
+            const fromIdx = participantIndex.get(step.from);
+            const toIdx = participantIndex.get(step.to);
+
+            if (fromIdx === undefined || toIdx === undefined) {
+              return null;
+            }
+
             const fromX = colX(fromIdx);
             const toX = colX(toIdx);
             const status = computeStepStatus(step, sagaStatus, isLiveMode);
-            const participant = PARTICIPANTS.find((x) => x.id === step.from)!;
-            const color = status === "pending" ? "#374151" : participant.color;
+            const participantColor = getParticipantColor(step.from, visibleParticipants);
+            const color = status === "pending" ? "#374151" : participantColor;
             const opacity = status === "pending" ? 0.42 : 1;
             const direction = toX > fromX ? 1 : -1;
             const lineEnd = toX - direction * 1;
@@ -489,7 +548,7 @@ export default function OpsPage() {
         <div className="rounded-lg border overflow-x-auto"
           style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
           <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-            <p className="text-sm font-semibold">UC1 · Kafka Message Sequence</p>
+            <p className="text-sm font-semibold">Kafka Message Sequence</p>
             <p className="text-xs" style={{ color: "var(--muted)" }}>
               <span style={{ color: "#22c55e" }}>● done</span>
               <span className="mx-2" style={{ color: "#f59e0b" }}>● active</span>

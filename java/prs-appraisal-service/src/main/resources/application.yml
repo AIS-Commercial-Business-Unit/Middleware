@@ -1,0 +1,60 @@
+server:
+  port: ${SERVER_PORT:8090}
+
+spring:
+  application:
+    name: prs-appraisal-service
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/prs_appraisal_db}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  artemis:
+    mode: native
+    broker-url: ${ARTEMIS_BROKER_URL:tcp://localhost:61616}
+    user: ${ARTEMIS_USER:admin}
+    password: ${ARTEMIS_PASSWORD:admin}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  tracing:
+    sampling:
+      probability: 1.0
+
+camel:
+  springboot:
+    main-run-controller: true
+  component:
+    kafka:
+      brokers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+otel:
+  exporter:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+  service:
+    name: ${OTEL_SERVICE_NAME:prs-appraisal-service}
+
+appraisal:
+  list:
+    request:
+      queue: ${APPRAISAL_LIST_REQUEST_QUEUE:APPRAISAL.LIST.REQUEST}
+    reply:
+      queue: ${APPRAISAL_LIST_REPLY_QUEUE:APPRAISAL.LIST.REPLY}
+  document:
+    request:
+      queue: ${APPRAISAL_DOCUMENT_REQUEST_QUEUE:APPRAISAL.DOCUMENT.REQUEST}
+    reply:
+      queue: ${APPRAISAL_DOCUMENT_REPLY_QUEUE:APPRAISAL.DOCUMENT.REPLY}
+
+logging:
+  level:
+    com.ais.middleware: DEBUG
+    org.apache.camel: INFO
+    org.apache.activemq: INFO

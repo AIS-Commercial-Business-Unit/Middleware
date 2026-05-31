@@ -12,6 +12,7 @@ COPY platform-integration-service/pom.xml platform-integration-service/
 COPY billing-finance-service/pom.xml billing-finance-service/
 COPY platform-notification-service/pom.xml platform-notification-service/
 COPY platform-file-processing-service/pom.xml platform-file-processing-service/
+COPY prs-appraisal-service/pom.xml prs-appraisal-service/
 COPY stubs/duckcreek-commercial-stub/pom.xml stubs/duckcreek-commercial-stub/
 COPY stubs/duckcreek-personal-stub/pom.xml stubs/duckcreek-personal-stub/
 COPY stubs/forefront-stub/pom.xml stubs/forefront-stub/
@@ -19,6 +20,7 @@ COPY stubs/rsk3x3-compliance-stub/pom.xml stubs/rsk3x3-compliance-stub/
 COPY stubs/erm7x1-account-stub/pom.xml stubs/erm7x1-account-stub/
 COPY stubs/crm40x1-customer-stub/pom.xml stubs/crm40x1-customer-stub/
 COPY stubs/crm19x1-billing-stub/pom.xml stubs/crm19x1-billing-stub/
+COPY stubs/deipde07-mq-simulator/pom.xml stubs/deipde07-mq-simulator/
 # Pre-download dependencies (cached layer — only re-runs when POMs change)
 RUN mvn dependency:go-offline -pl common,platform-file-processing-service -am -q --no-transfer-progress
 
@@ -32,9 +34,13 @@ RUN mvn clean package -DskipTests -pl platform-file-processing-service -am -q --
 # Stage 2: Runtime — minimal JRE image
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN apk add --no-cache su-exec \
+    && addgroup -S appgroup \
+    && adduser -S appuser -G appgroup
 COPY --from=builder /workspace/platform-file-processing-service/target/platform-file-processing-service-1.0.0-SNAPSHOT.jar app.jar
-RUN chown appuser:appgroup app.jar
-USER appuser
+COPY platform-file-processing-service/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /app/docker-entrypoint.sh \
+    && chmod +x /app/docker-entrypoint.sh \
+    && chown appuser:appgroup app.jar /app/docker-entrypoint.sh
 EXPOSE 8087
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
