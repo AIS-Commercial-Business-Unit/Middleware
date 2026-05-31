@@ -4,17 +4,16 @@ using Microsoft.Data.SqlClient;
 using Middleware.Contracts.Commands;
 using NServiceBus;
 using Serilog;
+using Serilog.Formatting.Json;
+
+Log.Logger = new LoggerConfiguration()
+    .Enrich.FromLogContext()
+    .WriteTo.Console(new JsonFormatter(renderMessage: true))
+    .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((context, services, configuration) =>
-{
-    configuration
-        .ReadFrom.Configuration(context.Configuration)
-        .ReadFrom.Services(services)
-        .Enrich.FromLogContext()
-        .WriteTo.Console();
-});
+builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
