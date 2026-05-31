@@ -66,3 +66,24 @@
 - JAVA_TOOL_OPTIONS Xmx = 50% of mem_limit per JVM rule
 - All services on middleware-net bridge (consistent with stack)
 - deipde07-mq-simulator positioned in EXTERNAL SYSTEM STUBS section (stub, not domain service)
+
+### 2026-05-31 — UC4 Queue Names and .NET Artemis Config
+
+**Completed:**
+- Updated `deipde07-mq-simulator` environment: replaced single MQ_REQUEST_QUEUE/MQ_RESPONSE_QUEUE pair with 4 UC4 queue names (APPRAISAL.LIST.REQUEST, APPRAISAL.LIST.REPLY, APPRAISAL.DOCUMENT.REQUEST, APPRAISAL.DOCUMENT.REPLY)
+- Updated `prs-appraisal-service` environment: added same 4 UC4 queue names alongside existing ARTEMIS_* vars
+- Updated `dotnet-prs-appraisal` environment: added Artemis configuration block (Artemis__BrokerUrl, Artemis__User, Artemis__Password, Artemis__ListRequestQueue, Artemis__ListReplyQueue, Artemis__DocumentRequestQueue, Artemis__DocumentReplyQueue) with 512m mem_limit
+- Updated `platform-ui` environment: added PRS_APPRAISAL_SERVICE_URL pointing to http://dotnet-prs-appraisal:8189
+
+### 2026-05-31 — UC4 MQ Wiring Complete (devops-1)
+
+**Final docker-compose.yml updates:**
+- `activemq-artemis` service (apache/activemq-artemis:2.37.0, JMS broker on ports 61616/8161/5672, mem_limit 384m, health check via curl on 127.0.0.1:8161)
+- `deipde07-mq-simulator` service (custom Java build, port 9020, depends_on artemis service_healthy, mem_limit 256m, JAVA_TOOL_OPTIONS="-Xmx128m" per 50% rule)
+- `prs-appraisal-service`: depends_on artemis + deipde07-mq-simulator service_healthy; environment: ARTEMIS_BROKER_URL, ARTEMIS_USER, ARTEMIS_PASSWORD, APPRAISAL_LIST_REQUEST_QUEUE, APPRAISAL_LIST_REPLY_QUEUE, APPRAISAL_DOCUMENT_REQUEST_QUEUE, APPRAISAL_DOCUMENT_REPLY_QUEUE, JAVA_TOOL_OPTIONS="-Xmx256m"
+- `dotnet-prs-appraisal`: depends_on activemq-artemis service_healthy; environment: Artemis__BrokerUrl, Artemis__User, Artemis__Password (4 queue name vars)
+- All health checks use 127.0.0.1 (BusyBox IPv6 fix per Decision #40)
+
+**Verification:** `docker compose up` — all 37 services start healthy. Artemis Web Console at http://localhost:8161 confirms all 4 UC4 queues created. Message flow verified: APPRAISAL.LIST.REQUEST → simulator → APPRAISAL.LIST.REPLY.
+
+**Key learning (2026-05-31):** Queue name externalization via environment variables enables test automation and CI scenarios without container rebuilds. The docker-compose itself becomes the source of truth for queue topology — changing queue names is a config change, not a code change.

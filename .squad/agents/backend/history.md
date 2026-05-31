@@ -101,3 +101,15 @@
 - **64-byte chunks with CRLF EBCDIC artifacts require detection and stripping.** DocumentChunkResponder sends PDF bytes as 64-byte chunks with \r\n line terminators (EBCDIC legacy). The aggregation route must detect the ||END-OF-DOCUMENT|| sentinel and strip all \r\n before base64-encoding the final PDF.
 
 - **Configurable delays and queue names via environment variables enable test flexibility.** The simulator exposes ${mq.request.queue}, ${mq.response.queue}, ${mq.poll.timeout.seconds}, and response delays as @Value fields. docker-compose can override these to simulate different failure modes (long delays, queue name mismatches).
+
+### 2026-05-31 — UC4 Postman collection and demo guide generated
+
+- **Postman v2.1 collection JSON structure enables parameterized request URLs and per-request timeouts.** The UC4 collection uses `{{baseUrl}}` variable (http://localhost:8090) and the timeout scenario request overrides global timeout with `"timeout": 40000` (ms). Each request stores a detailed `description` field so demo observers understand what to look for in Artemis console and logs.
+
+- **Demo guide structure pairs infrastructure visibility (Artemis queues, Grafana traces) with step-by-step user actions.** The 5-minute script walks through happy path (3 records), edge cases (zero results), chunked documents (8 and 200 chunks), timeout resilience, and alternate integration paths (RiskID WCF), with real-time queue observations at each step to reinforce scatter-gather and MQ mechanics.
+
+## 2026-05-31 — UC4 Dotnet Rewrite Completed (backend-2)
+- Replaced the legacy AppraisalReceivedSaga workflow in dotnet/dotnet-prs-appraisal with UC4 document list and document retrieval sagas.
+- Added the UC4 REST facade, callback registry, Artemis MQ adapter/listeners, and new Middleware.Contracts commands/events/models.
+- Updated Program.cs and appsettings.json for the UC4 NServiceBus + Artemis wiring and verified dotnet build dotnet\\dotnet-prs-appraisal\\dotnet-prs-appraisal.csproj -nologo succeeds.
+- **Key learning (2026-05-31):** .NET TaskCompletionSource callback registry bridges async NServiceBus sagas to sync HTTP facades. When DocumentListSaga completes (all Artemis replies received), it fires a completion event that the callback handler matches via correlation ID and resolves the waiting Task. This keeps the HTTP response synchronous while preserving asynchronous MQ integration — critical for UC4 because HTTP clients (browser, Postman) expect response payload, not streaming/webhooks.

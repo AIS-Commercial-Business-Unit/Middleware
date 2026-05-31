@@ -726,3 +726,28 @@ HTTP 404
 - **prs-appraisal-service pom.xml:** `spring-boot-starter-test` added in test scope; `integration-tests` Maven profile added. No impact on production build.
 - **Test evidence:** `UC4TestEvidence.md` provides the fill-in table; QA will complete it after the first successful docker stack run.
 
+### 41. UC4 dotnet-prs-appraisal rewrite (2026-05-31)
+- Implement the rewrite with two SQL-persisted NServiceBus sagas (DocumentListSaga, DocumentRetrievalSaga), an in-memory TaskCompletionSource callback registry for HTTP request bridging, and Apache.NMS ActiveMQ background services that translate Artemis reply queues into UC4 completion events.
+- Keeps the HTTP facade responsive while preserving the asynchronous integration pattern needed for mainframe and AtWork sources. Aligns the POC with the required queue names, reply parsing rules, and content-based routing behavior.
+- The API now returns document-list and document-retrieval payloads for UC4 requests, and the legacy appraisal-status demo flow is removed from the service surface. Artemis connectivity is isolated behind a dedicated adapter/listener layer so the MQ simulation can later be swapped for IBM MQ with minimal saga/controller change.
+
+### 42. UC4 Appraisals Page — API Proxy Convention (2026-05-31)
+- The UC4 Appraisals demo page (`/uc4`) now uses two dedicated Next.js API proxy routes to forward requests to `prs-appraisal-service`:
+  - `POST /api/appraisals/list` → `prs-appraisal-service:8090/api/appraisals/list`
+  - `POST /api/appraisals/document` → `prs-appraisal-service:8090/api/appraisals/document`
+- Both routes use a 35-second fetch timeout (30s MQ operation + 5s buffer), matching the backend's MQ scatter-gather and document retrieval timeouts.
+- Service URL configured via `PRS_APPRAISAL_SERVICE_URL` environment variable (default: `http://prs-appraisal-service:8090`), added to `.env.local` as `http://localhost:8090` for local development.
+- No changes to nav or layout; `/uc4` link was already present. Old saga/UpdateStatus UI fully removed. TypeScript passes clean.
+
+### 43. UC4 MQ Queue Names and Request Contract (2026-05-31)
+- UC4 appraisal MQ integration uses four dedicated queues instead of the legacy shared pair:
+  - `APPRAISAL.LIST.REQUEST`
+  - `APPRAISAL.LIST.REPLY`
+  - `APPRAISAL.DOCUMENT.REQUEST`
+  - `APPRAISAL.DOCUMENT.REPLY`
+- `prs-appraisal-service` now sends exact pipe-delimited request payloads expected by `deipde07-mq-simulator`:
+  - Appraisal list: `APPRAISAL_LIST|||{policyNumber}|||ACTIVE|||`
+  - Document retrieval: `APPRAISAL_DOC|||{documentKey}|||`
+- Both services read these queue names from explicit Spring properties / environment variables so local Docker and future deployments can override them without code changes.
+- Separate listeners in the simulator make each flow own its response queue explicitly and avoid shared-queue branching logic.
+

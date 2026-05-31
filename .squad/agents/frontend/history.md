@@ -11,107 +11,11 @@
 
 <!-- Append new learnings below. -->
 
-### 2026-05-29 — Demo Control Panel (`/demo-control`) + Decisions Merged
+### 2026-05-31 — UC4 Full Panel Replacement (frontend-1)
 
-- **Frontend demo control panel completed:** New route `/demo-control` with health monitoring (21 service checks in parallel), three mutation buttons (Clear Data, Seed Fresh Data, Full Reset), and scrollable status log.
-
-- **Health aggregator:** Single Next.js API route `/api/demo/health` fans out to all 21 service endpoints in parallel using `Promise.all` with 3-second timeout per service. Returns consolidated status with latency per service.
-
-- **Reset orchestration:** Three mutation routes (clear, seed, reset) forward to backend via `DEMO_API_URL` environment variable (defaults to `http://policy-issuance-service:8081`). All three have mock fallbacks returning `isMockData: true` so the panel is fully functional before backend implementation.
-
-- **Progress animation:** Reset API call takes a few seconds; client-side animation cycles through expected steps while fetch is in flight. On response, server-returned step array replaces animation state (avoids SSE/polling dependency for UI progress bar).
-
-- **Status log:** Client-side `LogEntry[]` state appended to on every action. Uses `toLocaleTimeString` for human-readable timestamps. Auto-scrolls to bottom via `ref.scrollIntoView`.
-
-- **Scribe Decisions Merged (2026-05-29):**
-  - Decision #36: UC4 Architecture Sweep — Clean Integration (audit confirming patterns are correct)
-  - Decision #37: Demo Reset API in platform-integration-service (location and scope)
-  - Decision #38: Frontend Demo Control Panel — Backend API Contract (defines expected response shapes, endpoints, defaults)
-
-- **Key file paths:**
-  - `platform-ui/src/app/demo-control/page.tsx` — NEW demo control panel page
-  - `platform-ui/src/app/api/demo/health/route.ts` — NEW health aggregator
-  - `platform-ui/src/app/api/demo/reset/route.ts` — NEW reset mutation (with mock fallback)
-  - `platform-ui/src/app/api/demo/seed/route.ts` — NEW seed mutation (with mock fallback)
-  - `platform-ui/src/app/api/demo/clear/route.ts` — NEW clear mutation (with mock fallback)
-  - `platform-ui/src/app/layout.tsx` — nav link added
-  - `platform-ui/src/app/page.tsx` — homepage card added
-  - `.env.local` — `DEMO_API_URL` defaults to `http://policy-issuance-service:8081` (will update to platform-integration-service:8084 after backend finalizes)
-
-### 2026-05-28 — UC4 Appraisal Documents Demo Shell
-
-- **When the backend service doesn't exist yet, proxy API routes should gracefully fall back to seeded mock data** (return `isMockData: true` in the response) so the UI page is fully functional and demoable without requiring any backend implementation. The `/api/riskid/sagas` route and `/api/riskid/status-update` route both do this — try the real service, catch any error, return typed stub data. This is the "demo shell" pattern.
-
-- **Demo gap visibility is a first-class UI concern.** For UC4, every mock field gets a `⚠️ DEMO GAP` badge inline, an expandable requirements gap panel lists all open PRS developer questions, and the page-level mock data banner summarizes all stubs. This ensures stakeholders immediately understand what is real vs. scaffolded during a demo.
-
-- **Key file paths for UC4:**
-  - Page: `platform-ui/src/app/uc4/page.tsx`
-  - Status update proxy: `platform-ui/src/app/api/riskid/status-update/route.ts`
-  - Sagas list (with mock fallback): `platform-ui/src/app/api/riskid/sagas/route.ts`
-  - Nav link added in: `platform-ui/src/app/layout.tsx`
-  - Homepage card added in: `platform-ui/src/app/page.tsx`
-
-- **SignalR is listed as a demo gap** — the page uses SWR polling (`refreshInterval: 2000`) as the existing platform pattern. Production requires an Azure SignalR Service hub connected to the Appraisal Service. This is documented in both the mock data banner and the requirements gap panel.
-
-- **`INTEGRATION_SERVICE_URL` env var** controls the target for `/api/riskid/*` routes. Defaults to `http://platform-integration-service:8084`. Will need to be updated once the appraisal endpoint is added to that service (or pointed at a new appraisal service).
-
-### 2026-05-27 — Sequence diagram hover tooltips
-
-- **Sequence-diagram hover UX works best when the SVG stays purely for shapes and the tooltip is rendered as an absolutely positioned HTML overlay inside a relatively positioned wrapper.** This keeps the arrow hit area simple, allows Tailwind styling, and avoids SVG text layout constraints for multi-line event details.
-
-- **Live `FlowEvent` records should preserve a richer `details` object from the Loki proxy instead of forcing the UI to re-derive context client-side.** That keeps tooltip copy centralized, typed, and consistent between static fallback steps and real cross-stack `EDA_FLOW` events.
-
-### 2026-05-27 — Dynamic sequence diagram from Loki EDA_FLOW
-
-- **The ops sequence diagram can switch to true live mode by polling a small Next.js proxy route and treating `events.length > 0` as the feature toggle.** When Loki has no `EDA_FLOW` events yet, keep the static topology as the fallback. This allows operators to see the actual message flow topology in real time once backend instrumentation is rolled out.
-
-- **Free-form `EDA_From` / `EDA_To` labels from Loki should still render against the fixed UC1 participant columns by mapping labels to `ParticipantId` values before sending them into the SVG renderer.** This keeps the diagram consistent even when the number of services involved in an issuance flow varies.
-
-- **Next.js 15 dynamic API routes in this repo should keep `params` typed as a `Promise<...>` and await them inside the handler to satisfy the build-time type checks.** The Loki flow proxy route follows this pattern to work correctly with dynamic `[issuanceId]` segments.
-
-- **Cross-stack observability enables live ops dashboards without backend changes to the diagram UI.** By querying Loki and falling back to the static topology, the frontend can render the actual message flow topology from both Java and .NET backends in a single unified sequence diagram with a live/static indicator. This enforces and validates the architecture's pub/subscribe semantics operationally.
-
-### 2026-05-27 — Runtime backend switching + live labels
-
-- **Shared frontend/backend helpers can stay in one module as long as server-only imports are `import type`.** Otherwise client pages pulling display helpers will break the client bundle. The backend selection logic is server-side in `/api/backend` and `/api/policies/[issuanceId]/flow`, keeping client code clean.
-
-- **For runtime stack selection, a cookie-backed `/api/backend` route lets Next API proxies stay server-side while client components fetch the current label and flip the active backend without rebuilds.** The `BackendSwitcher` client island in the top nav uses this to display the active backend and allow operators to compare stacks without redeploying Next.js.
-
-- **If a client page surfaces the active backend label, it should react to the switcher immediately (not just on reload).** A small `backend-changed` window event keeps the nav toggle and ops page copy in sync when the user changes backends at runtime.
-
-### 2026-05-25 — UC3 File Processing Control Plane
-
-- Next.js 15 catch-all API routes (`[...path]`) require `params` to be awaited as a `Promise<{ path: string[] }>` — do NOT destructure synchronously.
-- SWR `refreshInterval` accepts a function `(data) => number` — use this to stop polling when the resource reaches a terminal state (Completed, PartialFailure, Failed, TimedOut).
-- Inline TypeScript types per page (not shared type files) keeps each page self-contained and avoids import overhead — matches the existing codebase style.
-- When proxying to upstream services, use `next: { revalidate: 0 }` on GET fetches to prevent Next.js from caching live status data.
-- Progress bar color should reflect the batch outcome: blue=Processing, green=Completed, orange=PartialFailure, red=Failed.
-### 2026-05-27 — Hover tooltips for sequence diagram arrows (frontend-2 complete)
-
-- **Sequence diagram tooltip UX renders as HTML overlay, not SVG text.** The absolutely positioned HTML wrapper with Tailwind styling keeps hit areas clean, allows multi-line event metadata, and separates concerns between SVG rendering (shapes/arrows) and interaction (tooltips/hover). The tooltip displays event description, topic, direction, stack, and timestamp pulled from the flow endpoint's details object.
-
-- **FlowEventDetails type centralized in Loki proxy response.** Rather than deriving descriptions on the frontend, the /api/policies/[issuanceId]/flow route enriches each FlowEvent with a typed details object including human-readable description, topic, direction, stack, and ISO timestamp. This keeps copy centralized and consistent with the backend observability contract.
-
-- **Verification:** TypeScript clean, build passed, platform-ui container restarted. Live tooltips show EDA_FLOW event metadata on ops page hover. Static UC1_STEPS fallback displays when no live events available yet.
-
-### 2026-05-27 — Flow diagram dedup fix + Java EDAFlowProcessor correction
-
-- **Root cause of static fallback:** The `/api/policies/[issuanceId]/flow/route.ts` existed in source but had never been compiled into the running `platform-ui` container image. The container returned 404 for every flow API request, so `liveSteps.length` was always 0, and the ops page fell back to static UC1_STEPS permanently. **Fix:** Rebuilt the container.
-
-- **Deduplication key was including `direction`, causing published+consumed pairs to appear as two separate arrows.** Every Kafka hop is logged twice — once as `published` (from the sender) and once as `consumed` (from the receiver). The dedup key `messageType|from|to|direction` preserved both, creating a noisy diagram with doubled arrows. **Fix:** Changed key to `messageType|from|to` (removed `direction`). Result: 16 raw Loki entries → 11 deduplicated unique flow edges.
-
-- **`TOPIC_TO_CONSUMER["policy.events.policy-issued"]` was `"PolicyIssuance"` instead of `"Notification"`.** This caused the final UC1 step to render as a self-loop (`PolicyIssuance → PolicyIssuance`) rather than the correct terminal arrow to the Notification service. **Fix:** Changed the mapping in `EDAFlowProcessor.java` and added the missing `compliance.commands.request-compliance-check` mappings for UC3 batch flows. Required Maven rebuild of the Java project using Docker.
-
-- **`HOSTNAME=0.0.0.0` must be set in docker-compose for Next.js standalone to bind to the IPv4 loopback.** Alpine Linux resolves `localhost` to `::1` (IPv6), but Next.js standalone only listens on IPv4. The health check `wget http://localhost:3000/` always failed. **Fix:** Added `HOSTNAME: 0.0.0.0` to platform-ui environment + changed health check to use `http://127.0.0.1:3000/`.
-
-- **Verification:** Flow API at `/api/policies/{id}/flow` returns 11 correctly-shaped events for a completed UC1 issuance. `isLiveMode=true`, diagram shows "📡 Live — from Loki" badge. Final step correctly shows `PolicyIssuance → Notification | PolicyIssuedEvent`. Platform-UI container status: healthy.
-
-### 2026-05-27 — Cross-agent synchronization (Scribe session)
-
-- **qa-1 root cause diagnosis enabled dotnet-4 fix:** QA diagnosed the batch stall as cross-stack JSON serialization mismatch (PascalCase vs. camelCase). Serialization fix in `KafkaBridgeRuntime` enabled batch processing end-to-end. Frontend flow diagram now correctly shows both Java and .NET event streams.
-
-- **dotnet-3 startup ordering pattern established:** Container startup sequencing revealed infrastructure-critical pattern — NServiceBus endpoints must start to create their queue tables. This ensures queue table creation happens before message routing begins. Structural hardening recommendations provided for future sprint.
-
-- **Unified observability contract validated:** Flow diagram dedup fix + TOPIC_TO_CONSUMER corrections unified .NET and Java `EDAFlowProcessor` emissions. Platform-UI now displays true live topology from both stacks in single Loki-backed sequence diagram. Real architecture (pub/subscribe) now matches rendered diagram.
-
-- **Decisions archive:** 4 inbox files merged into unified `.squad/decisions/decisions.md`. Flow diagram conventions (dedup key, topic mappings, Next.js Docker setup) now team-wide reference.
+- **UC4 page rewrite:** `platform-ui/src/app/uc4/page.tsx` completely replaced to showcase the two query-only workflows — GetAppraisalList (scatter-gather) and GetAppraisalDocument (content-based router).
+- **Two new proxy routes:** `/api/appraisals/list/route.ts` and `/api/appraisals/document/route.ts` forward to `prs-appraisal-service:8090` with 35-second timeout (30s MQ scatter-gather + 5s buffer).
+- **Quick-select UX:** List panel shows a row of policy chips (POL-001-TEST, POL-002-TEST, POL-003-TEST) for quick list demo. Document key becomes clickable from the list table, auto-filling the retrieval panel.
+- **Environment config:** `PRS_APPRAISAL_SERVICE_URL` added to `.env.local` pointing to `http://localhost:8090` (dev); docker-compose overrides to `http://prs-appraisal-service:8090`.
+- **Verification:** TypeScript clean (`npx tsc --noEmit` exits 0), build succeeds, both proxy routes work end-to-end with running docker stack.
+- **Key learning (2026-05-31):** Clickable DocumentKey cells that auto-fill the adjacent panel reduce demo friction; users immediately see the content-based routing logic applied (RiskID vs. numeric keys route to different backend systems). The two-panel co-location makes the data flow visible without separate pages.

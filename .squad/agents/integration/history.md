@@ -10,7 +10,7 @@
 ## Learnings
 
 <!-- Append new learnings below. -->
-
+- **2026-05-31:** UC4 DEIPDE07 MQ traffic uses four dedicated queues, not a shared request/reply pair. `prs-appraisal-service` sends `APPRAISAL_LIST|||{policyNumber}|||ACTIVE|||` to `APPRAISAL.LIST.REQUEST` and `APPRAISAL_DOC|||{documentKey}|||` to `APPRAISAL.DOCUMENT.REQUEST`; replies are polled from `APPRAISAL.LIST.REPLY` and `APPRAISAL.DOCUMENT.REPLY` via Spring-configured queue properties. **Key learning (2026-05-31):** Pipe-delimited request format (not KEY=VALUE) enables deterministic parsing in the simulator without regex branching. All 4 queue names configurable via environment variables so docker-compose can override them for CI/testing without code changes.
 ## Summary of Prior Work (2026-05-25 to 2026-05-28)
 
 - **2026-05-26:** Integration coverage matrix research across 5 Chubb BizTalk applications (SCI, PRS, ClaimCare, ECOS, Sanctions); identified IBM MQ, WCF, MSMQ, DB2 as critical adapter patterns; output: `.docs/intel-integration-coverage.md`
