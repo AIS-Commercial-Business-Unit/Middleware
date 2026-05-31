@@ -17,6 +17,7 @@ builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHealthChecks();
 
 // ── UC4 services ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<ICallbackRegistry, CallbackRegistry>();
@@ -56,5 +57,6 @@ var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 
+app.MapHealthChecks("/health");
 app.MapControllers();
 app.Run();
