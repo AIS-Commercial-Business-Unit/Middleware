@@ -36,7 +36,32 @@ type SourceSystem = "AtWork" | "Mainframe";
 type ListState = "idle" | "loading" | "success" | "accepted" | "error";
 type DocumentState = "idle" | "loading" | "success" | "accepted" | "error";
 
-const POLICY_CHIPS = ["POL-001-TEST", "POL-002-TEST", "POL-003-TEST", "POL-TIMEOUT"];
+const POLICY_CHIPS: { value: string; label: string; tooltip: string }[] = [
+  {
+    value: "POL-001-TEST",
+    label: "POL-001-TEST",
+    tooltip:
+      "Full scatter-gather: AtWork returns 2 docs (Insured Full Appraisal + Agent Appraisal Report) and Mainframe MQ sends 3 messages (Full, Exterior, Replacement Cost). Tests multi-message MQ aggregation and merged 5-doc result.",
+  },
+  {
+    value: "POL-002-TEST",
+    label: "POL-002-TEST",
+    tooltip:
+      "Empty results: AtWork returns 0 docs and Mainframe MQ sends 0 messages. Tests the no-documents-found path. MQ listener times out waiting, saga returns partial empty result.",
+  },
+  {
+    value: "POL-003-TEST",
+    label: "POL-003-TEST",
+    tooltip:
+      "Minimal data: AtWork returns 1 Reinspection Report and Mainframe MQ returns 1 Single Property Report. Tests small-dataset merge with one doc from each source.",
+  },
+  {
+    value: "POL-TIMEOUT",
+    label: "⏱ POL-TIMEOUT",
+    tooltip:
+      "Timeout scenario: Mainframe simulator intentionally sleeps 35 seconds (saga timeout is 30s). API returns 202 Accepted / Processing. Tests the async continuation path — workflow continues after API responds.",
+  },
+];
 
 const pageStyle: React.CSSProperties = {
   display: "grid",
@@ -311,12 +336,13 @@ export default function UC4Page() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
               {POLICY_CHIPS.map((chip) => (
                 <button
-                  key={chip}
+                  key={chip.value}
                   type="button"
                   style={chipStyle}
-                  onClick={() => setPolicyNumber(chip)}
+                  title={chip.tooltip}
+                  onClick={() => setPolicyNumber(chip.value)}
                 >
-                  {chip === "POL-TIMEOUT" ? "⏱ POL-TIMEOUT" : chip}
+                  {chip.label}
                 </button>
               ))}
             </div>
