@@ -19,3 +19,19 @@
 - **Environment config:** `PRS_APPRAISAL_SERVICE_URL` added to `.env.local` pointing to `http://localhost:8090` (dev); docker-compose overrides to `http://prs-appraisal-service:8090`.
 - **Verification:** TypeScript clean (`npx tsc --noEmit` exits 0), build succeeds, both proxy routes work end-to-end with running docker stack.
 - **Key learning (2026-05-31):** Clickable DocumentKey cells that auto-fill the adjacent panel reduce demo friction; users immediately see the content-based routing logic applied (RiskID vs. numeric keys route to different backend systems). The two-panel co-location makes the data flow visible without separate pages.
+
+### 2026-05-31T16:58:30.069-04:00 — Dynamic Ops Flow Tracer (frontend)
+
+- Updated `platform-ui/src/app/ops/[issuanceId]/page.tsx` so live mode derives participants directly from `EDA_FLOW` events instead of the old UC1-only label map.
+- Added known UC4 participants (`PrsAppraisal`, `AtWork`, `Mainframe`) plus dynamic participant creation with fallback palette colors for any future flow participants.
+- Preserved static UC1 reference rendering when Loki flow events are absent, while keeping live diagrams generic for UC1, UC4, and future use cases.
+- Refreshed `platform-ui/src/app/ops/page.tsx` copy so the landing page describes correlation IDs, generic flow tracing, and links to both `/` and `/uc4` demos.
+- Verification: `cd platform-ui && npx tsc --noEmit` and `npm run lint` both exited 0.
+
+### 2026-05-31T16:58:30.069Z — Dynamic participant derivation + Decisions merge
+
+- **Decision #45 (Dynamic participant derivation) merged into squad/decisions.md.** Participants now derive from live events with unknown IDs getting fallback colors, enabling generic flow diagrams across UC1, UC4, and future workflows.
+
+- **Flow tracer patterns established:** (1) Live event stream drives participant discovery; (2) known participants pre-registered for stable colors; (3) unknown participants get runtime entries with rotating palette; (4) static UC1 fallback for demos before live logs.
+
+- **Observable cross-checks:** TypeScript + lint clean, build passes.

@@ -24,3 +24,21 @@
 - **@Tag("integration") + Maven profile isolation prevents CI failures during development.** All 12 UC4 integration tests are tagged @Tag("integration") and excluded from the default Maven test phase. This allows the tests to run on-demand (mvn test -Dgroups=integration) once the docker stack is ready, without breaking CI while implementation is in progress.
 
 - **API contract clarity reduces rework.** The UC4TestEvidence.md form documents request/response JSON, HTTP status codes, and error cases upfront. Integration agents and QA both sign off on the contract before implementation. This eliminates "works on my machine" surprises and ensures tests match the actual API behavior.
+
+### 2026-05-31T16:58:30.069-04:00 — UC4 document flow test evidence + EDA_FLOW verification
+
+- **Existing Java UC4 integration tests are legacy-path coverage, not primary-path coverage.** `GetAppraisalListIntegrationTest` and `GetAppraisalDocumentIntegrationTest` still exercise the older Java POST endpoints, while the current `dotnet-prs-appraisal` primary path exposes GET endpoints in `AppraisalDocumentsController`. They remain useful for legacy behavior evidence, but they do not validate the active .NET UC4 implementation directly.
+
+- **There is no dedicated .NET test project for `dotnet-prs-appraisal`.** The only discovered .NET test project is `dotnet/tests/Middleware.Tests.csproj`, which targets `dotnet-policy-issuance`; its 6 NUnit tests passed, but there is no appraisal-documents test suite for the .NET primary path.
+
+- **Current UC4 `EDA_FLOW` logging does not satisfy the frontend Loki parser contract.** `dotnet-prs-appraisal/Behaviors/EDAFlowBehavior.cs` populates `EDA_IssuanceId` from `AppraisalId`, but the UC4 document commands/events are correlated by `RequestId` / `CorrelationId`. Combined with `Program.cs` using `WriteTo.Console()` with no JSON formatter, the current logs are not shaped for `platform-ui/src/app/api/policies/[issuanceId]/flow/route.ts` to parse and filter reliably.
+
+- **Build/test evidence on this date:** `dotnet build dotnet\\dotnet-prs-appraisal\\dotnet-prs-appraisal.csproj` succeeded, `dotnet test dotnet\\tests\\Middleware.Tests.csproj` passed 6/6, and the Java Maven test run could not execute because `mvn` is unavailable in this environment. Evidence captured in `.docs/demo/uc4-integration-test-evidence.md`.
+
+### 2026-05-31T16:58:30.069Z — UC4 observability gaps + Decisions merge
+
+- **Decision #46 (UC4 observability gaps — test coverage and EDAFlowBehavior fallback) merged into squad/decisions.md.** This formalizes the team's acknowledgment of three release-significant gaps: missing .NET test project, missing correlation fallback, and missing JSON logging.
+
+- **Gap acceptance pattern:** Document gaps in decisions/recommendations before claiming a feature is complete. This prevents future "we thought it was done" surprises and creates an explicit action list for the responsible agent.
+
+- **Observable evidence captured:** UC4 test evidence, correlation requirement analysis, and logging contract mismatch all recorded in `.docs/demo/uc4-integration-test-evidence.md` and reinforced in Decision #46.

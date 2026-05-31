@@ -2,85 +2,6 @@
 
 ## Active Decisions
 
-### 1. Persistence Package Convention
-- All MongoDB-specific code lives in `persistence/` subpackage within each domain service
-- Domain classes remain infrastructure-free (no Spring/MongoDB annotations)
-- Repository interfaces defined in domain, implemented as adapters in persistence layer
-- **Impact:** Can swap MongoDB for PostgreSQL/Cassandra without touching domain code
-
-### 2. DLQ Topic Naming: `{domain}.dlq.{route-name}`
-- Standard pattern across all services
-- Replaces inconsistent naming (`*-failures`, `check-failures`)
-- Retry policy: 3 attempts with 1-2 second base delay, exponential backoff (2x multiplier)
-- **Decision drivers:** Consistency, traceability, standardized error handling
-
-### 3. Atomic Join Condition in IssuanceSagaRoute
-- MongoDB `findAndModify()` with `returnNew(true)` ensures exactly one thread sees both flags set
-- CAS on status field prevents duplicate `PolicyIssued` events
-- **Impact:** Eliminates race condition where concurrent billing + customer events would cause saga to hang
-
-### 4. Topic Naming: `file.events.*` (not `fileprocessing.*`)
-- Single-word domain segments across all services
-- Consistent with `policy`, `compliance`, `customer`, `billing`, `integration`, `notification`
-- Migrated from `fileprocessing.events.*` to `file.events.*`
-
-### 5. File Polling Rate: `maxMessagesPerPoll=10`
-- Prevents heap exhaustion on startup or burst file arrival
-- Processes at most 10 files per 5-second poll cycle
-- Allows downstream Kafka consumers time to drain
-
-### 6. Non-Root Containers
-- All 14 Java service Dockerfiles + stubs run as non-root `appuser`
-- Security hardening across entire container fleet
-- Applied consistently across domain services, stubs, and platform-ui
-
-### 7. Health Checks + Dependency Ordering
-- All services have `healthcheck:` blocks with appropriate probes
-- `depends_on` uses `condition: service_healthy` for startup order
-- `kafka-setup` pre-creates 24 topics before domain services start
-- Spring Boot services use 60s start period for JVM warm-up
-
-### 8. Grafana Admin Password via Environment Variable
-- `GF_SECURITY_ADMIN_PASSWORD` can be overridden via `.env`
-- Defaults to `admin` for local development
-- Documented in `.env.example`
-
-### 9. Frontend: UC3 File Processing Proxy with `[...path]`
-- Catch-all route segment for file-processing API forwarding
-- Supports GET/POST; PUT/DELETE/PATCH to be added if service requires them
-- Batch detail page uses SWR `refreshInterval` as function to stop polling at terminal state
-
-### 10. MDC Context in All Routes
-- `issuanceId` (or `correlationId` in satellite services) now populated in all route entry points
-- Enables distributed tracing across service logs via structured JSON output
-- Applied to BillingAssociationRoute, ComplianceCheckRoute, AccountServiceRoute
-
-### 11. MongoDB Indexes on Query Fields
-- Added `@Indexed` to: `BatchRecordDocument.batchId`, `BatchRecordDocument.correlationId` (unique), `IssuanceSagaDocument.batchId`, `ComplianceCheckDocument.correlationId`
-- Eliminates full collection scans on frequently-queried fields
-- Performance improvement for all lookups from RenewalBatchRoute and other consumers
-
-### 12. Kafka Auto-Create Disabled, Explicit Setup Service
-- `KAFKA_AUTO_CREATE_TOPICS_ENABLE: false` prevents uncontrolled topic creation
-- `kafka-setup` service now owns topic creation (24 topics, 3 partitions, RF=1, all DLQ topics)
-- Deterministic, audit-able topic provisioning
-
-### 13. ProducerTemplate Lifecycle Management
-- Injected as singleton bean (not per-call `createProducerTemplate()`)
-- Prevents resource leaks under load
-- Applied to RecordOutcomeRoute and FileArrivalRoute
-
-### 14. Global Exception Handler for REST APIs
-- `@RestControllerAdvice` added to platform-file-processing-service and policy-issuance-service
-- Standardizes error response format (400/500 with `{"error": "..."}`)
-- Handles IllegalArgumentException, MethodArgumentNotValidException, and catch-all Exception
-
-### 15. NServiceBus Saga Persistence: MongoDB (Not SQL Server)
-- MongoDB persists .NET/NServiceBus saga state (same as Java stack)
-- SQL Server is used only as NServiceBus transport for message queuing
-- Clarification: Both Camel and NServiceBus stacks use MongoDB for saga/domain persistence
-- **Decision drivers:** Unified persistence model across tech stacks, SQL Server relegated to transport
-
 ### 16. EDA Events vs Commands Discipline (2026-05-27)
 - A service NEVER commands another service to do what it should subscribe to. Use Publish → Subscribe, not Send → Handle.
 - Commands are for entry points only: user-facing API → first domain service. Never between domain services.
@@ -750,4 +671,30 @@ HTTP 404
   - Document retrieval: `APPRAISAL_DOC|||{documentKey}|||`
 - Both services read these queue names from explicit Spring properties / environment variables so local Docker and future deployments can override them without code changes.
 - Separate listeners in the simulator make each flow own its response queue explicitly and avoid shared-queue branching logic.
+
+### 44. Comprehensive UC4 EDA_FLOW hop logging in dotnet-prs-appraisal (2026-05-31)
+- `dotnet-prs-appraisal` must emit a structured `EDA_FLOW` log entry for every sender→receiver hop in the UC4 appraisal document flow
+- Update `EDAFlowBehavior` correlation extraction: try `AppraisalId`, then `CorrelationId`, then `RequestId`
+- Extend `AppraisalParticipantMap` with UC4 document message destinations plus `AtWork` / `Mainframe` participant labels
+- Add explicit `LogEdaFlow` helpers in HTTP controller, document sagas, and Artemis reply listeners for hops outside NServiceBus pipeline boundary
+- Every entry standardized on observability contract: `EDA_Event`, `EDA_IssuanceId`, `EDA_MessageType`, `EDA_From`, `EDA_To`, `EDA_Direction`, `EDA_Stack`, `EDA_Topic`
+- **Rationale:** Platform-ui flow tracer builds live sequence diagrams directly from Loki `EDA_FLOW` entries. UC4 document messages use `CorrelationId` / `RequestId` instead of `AppraisalId`, and critical hops happen outside NServiceBus behaviors, so tracer cannot render real flow unless every hop is logged with shared structured contract.
+
+### 45. Dynamic participant derivation for Ops Flow Tracer (2026-05-31)
+- Ops Flow Tracer keeps curated UC1 topology only as static fallback reference diagram
+- When live `EDA_FLOW` events exist, sequence diagram derives participants directly from event `from` and `to` values instead of UC1-only mapping
+- Pre-register known UC1 and UC4 participants in `PARTICIPANTS` for stable labels/colors
+- Remove `LABEL_TO_ID`; live mode uses raw event participant IDs end-to-end
+- Build `visibleParticipants` from unique participant IDs present in live events; unknown participants get runtime entries with rotating fallback colors
+- Keep static mode on curated UC1 reference diagram for demo readability before live logs arrive
+- Update `/ops` landing page copy to position tracer as generic correlation-driven flow viewer, not UC1-only issuance tool
+- **Rationale:** UC4 and future flows introduce participant IDs not part of original UC1-only hardcoded list. Mapping unknown participants to `API` breaks diagram topology; participant identity must come from live event stream while preserving UC1 fallback for demos.
+
+### 46. UC4 observability gaps — test coverage and EDAFlowBehavior fallback (2026-05-31)
+- Identified release-significant gaps in UC4 observability acceptance for `dotnet-prs-appraisal`
+- Existing Java UC4 integration tests are legacy-path only (target `POST /api/appraisals/list`, `POST /api/appraisals/document`)
+- Current .NET primary path uses `GET /api/policies/{policyNumber}/appraisals/documents` and `GET /api/appraisals/documents/{documentKey}` with no dedicated test project
+- `EDAFlowBehavior` currently only emits `EDA_IssuanceId` from `AppraisalId`, missing UC4 document messages that correlate by `RequestId` / `CorrelationId`
+- Current `dotnet-prs-appraisal/Program.cs` uses plain-text console logging; frontend Loki route expects JSON with `EDA_*` fields parseable from top level or `Properties`
+- **Action:** Add .NET UC4 tests for appraisal document endpoints; update `EDAFlowBehavior` to fall back to `CorrelationId` / `RequestId` for UC4 document messages; emit JSON console logs so platform-ui can parse `EDA_*` fields reliably
 
