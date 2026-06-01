@@ -129,6 +129,68 @@ PolicyLifecycle waits for both completion events (join pattern) before publishin
 - DLQ patterns: Retry with exponential backoff + DLQ for all saga routes
 
 **Cleanup Applied:**
+ - MongoDB init script corrected: pre-creates `file_processing_db` and `prs_appraisal_db`
+ - .NET gateway stubs acceptable in current demo location; relocation to `Infrastructure/` deferred to production
+ - Cross-database operations for demo reset centralized in platform-integration-service
+
+### 2026-05-31: EDA Compliance Review — All 6 Violations Resolved
+
+**Status:** ✅ Complete. Both Java and .NET UC4 stacks fully EDA-compliant.
+
+**Violations Fixed This Session:**
+- **C3 (DocumentRetrievalSaga AtWork Path):** Converted from sync infrastructure call to async pub/sub. Saga publishes `Uc4AppraisalDocumentRetrievalRequestedEvent` → new `AtWorkDocumentRetrievalHandler` → `Uc4AtWorkDocumentRetrievedEvent` reply. Saga waits for reply using same `TryComplete` pattern as DocumentListSaga.
+- **I1 (MainframeListAggregatorSaga Startup):** Removed command-bridge ceremony. Saga now starts directly from `Uc4AppraisalDocumentListRequestedEvent` instead of being commanded via `StartMainframeListAggregationCommand` from a handler that had no domain logic.
+
+**All 6 Violations Status:**
+| Violation | Type | Finding | Resolution | Status |
+|-----------|------|---------|------------|--------|
+| C1 | Command | DocumentListSaga AtWork path sync call | Event-driven AtWork handler | ✅ Prior |
+| C2 | Command | Mainframe sub-saga not event-driven | MainframeListAggregatorSaga started by event | ✅ Prior |
+| C3 | Command | DocumentRetrievalSaga AtWork path sync call | Event-driven AtWorkDocumentRetrievalHandler | ✅ This session |
+| I1 | Initialization | MainframeListAggregatorSaga started by command | Direct event startup | ✅ This session |
+| I2 | Infrastructure | Infrastructure imports in domain layer | Gateways isolated in adapter layer | ✅ Prior |
+| I3 | Messaging | Missing completion events | DocumentRetrievedEvent added | ✅ Prior |
+
+**Key Conventions Established:**
+1. **Saga-to-Infrastructure Rule:** Any saga path that calls an external system must route via pub/sub: publish event → create handler → handler calls infrastructure → publishes reply event → saga handles reply. No direct infrastructure calls from saga handlers.
+2. **Command-Bridge Elimination:** If a handler's only logic is "subscribe to event X, send command Y to self", collapse to "saga started by event X directly". Events flow to all interested subscribers (saga routing); commands represent imperative intent at entry points only.
+
+**Verification:** 20/20 tests pass, 0 errors. Commit 96914d6.
+
+**Decision Recorded:** `.squad/decisions.md` — UC4 EDA Compliance — C3 AtWork Async Retrieval + I1 Saga Event Subscription
+
+---
+
+## Learnings Summary (2026-05-31)
+
+### Architecture Principles Solidified
+
+1. **DDD + Abstract Layer:** Domain layer must never import infrastructure technology (Kafka, MongoDB, Spring, NServiceBus). All infrastructure is isolated in adapter layers. Gateway pattern ensures domain logic is portable and testable.
+
+2. **EDA Discipline (Udi Dahan):** 
+   - Commands for entry points only (user-facing API → first domain service)
+   - Never between domain services; use pub/sub events
+   - Saga orchestrators publish events and wait for completion events; they never command known participants
+   - Saga-to-infrastructure: all external calls route via pub/sub (event → handler → reply event)
+
+3. **Cross-Stack Parity:** Both Java (Camel) and .NET (NServiceBus) implement UC1 and UC4 identically — same saga patterns, same gateway abstraction, same EDA observability. Frontend can switch backends at runtime.
+
+4. **Observability Integration:** EDA_FLOW structured logging unified across both stacks. Real-time ops sequence diagrams render from Loki events with fallback to static topology diagrams.
+
+### UC4 Architectural Outcomes
+
+- **Scope Clarified:** POC targets GetAppraisalList (scatter-gather) and GetAppraisalDocument (content-based routing) only. No UpdateStatus saga in scope.
+- **Gateway Abstraction:** 5 gateways (RiskIDMQ, @Work SQL, DEIPDE07 MQ, RiskID WCF, PLUW/PLAPR/Masterpiece) isolated from saga logic; stubs replace easily when schemas are known.
+- **EDA Compliance:** All 6 violations (C1-C3, I1-I3) resolved. Both stacks fully compliant.
+
+### Team Conventions Established
+
+- Gateway interfaces in domain layer; implementations in adapter layer
+- Saga paths calling external systems: event → handler → reply event (no direct calls)
+- Command-bridge elimination: if handler only forwards to self, collapse to direct event-to-saga routing
+- `.squad/decisions/inbox/` drop-box pattern for team alignment
+- Demo gap markers (`⚠️ STUBBED`, `⚠️ DEMO GAP`) for visibility
+- Verification standard: build + tests + container rebuild + runtime check before done
 - Fixed `observability/mongo-init.js` — added `file_processing_db` and `prs_appraisal_db` (were auto-created but not in init script)
 
 **Advisory (Non-Blocking):**

@@ -521,6 +521,61 @@ When the real IBM MQ endpoint is available:
 2. **GetAppraisalDocument** (`GetAppraisalDocumentRoute`) — content-based router
    - `POST /api/appraisals/document` with `{"documentKey": "..."}`
    - Routes by key format: `_RiskID_I` → WCF insured, `_RiskID_A` → WCF agent, `^[0-9]{10,15}$` → DEIPDE07 MQ
+
+
+# Decision: UC4 EDA Compliance — C3 AtWork Async Retrieval + I1 Saga Event Subscription
+
+**Author:** DotNet  
+**Date:** 2026-05-31T20:03:13-04:00  
+**Status:** Implemented & verified (commit 96914d6)
+
+---
+
+## Summary
+
+This decision completes the Architect's EDA compliance review for `dotnet-prs-appraisal`. Two remaining violations (C3 and I1) have been fully resolved.
+
+---
+
+## C3 Pattern — Async AtWork Retrieval via Pub/Sub
+
+**Problem:** `DocumentRetrievalSaga` called `AtWorkFixture.BuildRetrievalResult()` inline on the AtWork path — synchronous infrastructure call inside a saga, causing temporal coupling.
+
+**Fix:**  
+- `DocumentRetrievalSaga` publishes `Uc4AppraisalDocumentRetrievalRequestedEvent` instead of calling the fixture inline.  
+- New `AtWorkDocumentRetrievalHandler` subscribes to the event, calls the fixture, publishes `Uc4AtWorkDocumentRetrievedEvent`.  
+- `DocumentRetrievalSaga` handles `Uc4AtWorkDocumentRetrievedEvent` via `TryCompleteAtWorkAsync()`, using the same TryComplete guard pattern as `DocumentListSaga`.
+
+**Team convention established:** Any saga path that calls an external system must route via pub/sub event → handler → reply event. No direct infrastructure calls from saga handlers.
+
+---
+
+## I1 Pattern — Saga Started by Event, Not Command
+
+**Problem:** `MainframeListAggregatorSaga` was started by `StartMainframeListAggregationCommand` sent by `MainframeDocumentListAdapterHandler`. The adapter handler subscribed to `Uc4AppraisalDocumentListRequestedEvent` and immediately forwarded a command — pure ceremony with no domain logic.
+
+**Fix:**  
+- `MainframeListAggregatorSaga` is now started directly by `Uc4AppraisalDocumentListRequestedEvent`.  
+- `MainframeDocumentListAdapterHandler` deleted.  
+- `StartMainframeListAggregationCommand` deleted.  
+- `Program.cs` routing and `EDAFlowBehavior` participant map updated accordingly.
+
+**Team convention established:** If a handler's only logic is "subscribe to event X, send command Y to myself", collapse to "saga started by event X directly". Commands exist for imperative intent; pub/sub events flow to all interested subscribers including sagas.
+
+---
+
+## Architect's EDA Review — All Violations Resolved
+
+| ID | Finding | Status |
+|----|---------|--------|
+| C1 | DocumentListSaga AtWork inline call | ✅ Fixed prior session |
+| C2 | Mainframe sub-saga not event-driven | ✅ Fixed prior session |
+| C3 | DocumentRetrievalSaga AtWork inline call | ✅ Fixed this session |
+| I1 | MainframeListAggregatorSaga started by command | ✅ Fixed this session |
+| I2 | Infrastructure in domain layer | ✅ Fixed prior session |
+| I3 | Missing completion event | ✅ Fixed prior session |
+
+All 6 identified violations are resolved. `dotnet-prs-appraisal` is now fully EDA-compliant.
    - DEIPDE07 path: multi-message chunk aggregation via `PdfChunkMqPoller`; strips `\r\n` EBCDIC artifacts; detects `||END-OF-DOCUMENT||` sentinel
    - Returns `{"documentKey": "...", "base64Pdf": "...", "contentType": "application/pdf"}`
 
