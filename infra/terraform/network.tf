@@ -102,6 +102,58 @@ resource "azurerm_network_security_group" "apim" {
     destination_address_prefix = "VirtualNetwork"
   }
 
+  # Outbound: APIM → Azure Storage (config, logs, metrics)
+  security_rule {
+    name                       = "AllowStorageOutbound"
+    priority                   = 100
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "Storage"
+  }
+
+  # Outbound: APIM → Azure SQL (internal config store)
+  security_rule {
+    name                       = "AllowSqlOutbound"
+    priority                   = 110
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "1433"
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "Sql"
+  }
+
+  # Outbound: APIM → Azure AD (authentication)
+  security_rule {
+    name                       = "AllowAADOutbound"
+    priority                   = 120
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "AzureActiveDirectory"
+  }
+
+  # Outbound: APIM → Azure Monitor (diagnostics, metrics)
+  security_rule {
+    name                       = "AllowAzureMonitorOutbound"
+    priority                   = 130
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_ranges    = ["443", "1886"]
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "AzureMonitor"
+  }
+
   tags = local.common_tags
 }
 

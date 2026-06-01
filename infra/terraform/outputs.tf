@@ -94,6 +94,11 @@ output "log_analytics_workspace_id" {
   value       = azurerm_log_analytics_workspace.main.id
 }
 
+output "appgw_public_fqdn" {
+  description = "Application Gateway public FQDN for the UI."
+  value       = azurerm_public_ip.appgw.fqdn
+}
+
 output "workload_identity_client_id" {
   description = "Client ID for the workload managed identity. Use in K8s ServiceAccount annotation."
   value       = azurerm_user_assigned_identity.workload.client_id
