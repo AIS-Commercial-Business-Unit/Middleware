@@ -56,7 +56,7 @@ variable "aks_node_vm_size" {
 variable "aks_kubernetes_version" {
   description = "Kubernetes version for AKS."
   type        = string
-  default     = "1.30"
+  default     = "1.31"
 }
 
 # ------------------------------------------------------------------------------
