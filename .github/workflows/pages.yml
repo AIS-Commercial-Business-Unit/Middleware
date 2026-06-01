@@ -1,0 +1,73 @@
+# Deploy Requirements Site to GitHub Pages
+# Source: site/ directory on main branch
+# Note: All actions should be pinned to commit SHAs in production environments.
+#       Current tags (v4/v5) are used here for readability; replace with SHAs before hardening.
+#       Example: actions/checkout@v4 → actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+name: Deploy Requirements Site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.pages_site/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate Site Files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify site directory exists and contains files
+        run: |
+          if [ ! -d "./.pages_site" ]; then
+            echo "::error::.pages_site/ directory does not exist"
+            exit 1
+          fi
+
+          file_count=$(find ./.pages_site -type f | wc -l)
+          echo "Found $file_count file(s) in .pages_site/"
+
+          if [ "$file_count" -lt 1 ]; then
+            echo "::error::.pages_site/ directory is empty — nothing to deploy"
+            exit 1
+          fi
+
+          echo "::notice::Site validation passed. $file_count file(s) ready for deployment."
+
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: validate
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './.pages_site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
