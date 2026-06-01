@@ -1,31 +1,6 @@
 name: Build and Push Container Images
 
 on:
-  push:
-    paths:
-      - "java/policy-issuance-service/**"
-      - "java/customer-identity-service/**"
-      - "java/platform-compliance-service/**"
-      - "java/platform-integration-service/**"
-      - "java/billing-finance-service/**"
-      - "java/platform-notification-service/**"
-      - "java/platform-file-processing-service/**"
-      - "java/prs-appraisal-service/**"
-      - "java/stubs/**"
-      - "java/common/**"
-      - "java/pom.xml"
-      - "dotnet/dotnet-policy-issuance/**"
-      - "dotnet/dotnet-customer-identity/**"
-      - "dotnet/dotnet-platform-compliance/**"
-      - "dotnet/dotnet-platform-integration/**"
-      - "dotnet/dotnet-billing-finance/**"
-      - "dotnet/dotnet-platform-notification/**"
-      - "dotnet/dotnet-file-processing/**"
-      - "dotnet/dotnet-kafka-bridge/**"
-      - "dotnet/dotnet-prs-appraisal/**"
-      - "dotnet/Middleware.Contracts/**"
-      - "dotnet/Directory.Build.props"
-      - "platform-ui/**"
   workflow_dispatch:
     inputs:
       services:

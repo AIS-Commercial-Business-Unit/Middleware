@@ -15,9 +15,6 @@ on:
         description: "Image tag to deploy (git SHA or 'latest')"
         required: true
         default: "latest"
-  workflow_run:
-    workflows: ["Build and Push Container Images"]
-    types: [completed]
 
 permissions:
   id-token: write
