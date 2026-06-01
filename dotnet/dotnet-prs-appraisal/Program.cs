@@ -4,6 +4,9 @@ using Microsoft.Data.SqlClient;
 using Middleware.Contracts.Commands;
 using MongoDB.Driver;
 using NServiceBus;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using Azure.Monitor.OpenTelemetry.Exporter;
 using Serilog;
 using Serilog.Formatting.Json;
 
@@ -19,6 +22,20 @@ builder.Host.UseSerilog();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHealthChecks();
+
+var serviceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "dotnet-prs-appraisal";
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(serviceName))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddOtlpExporter();
+        var appInsightsCs = builder.Configuration["ApplicationInsights:ConnectionString"];
+        if (!string.IsNullOrEmpty(appInsightsCs))
+            tracing.AddAzureMonitorTraceExporter(o => o.ConnectionString = appInsightsCs);
+    });
 
 // ── UC4 services ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IArtemisAdapter, ArtemisAdapter>();

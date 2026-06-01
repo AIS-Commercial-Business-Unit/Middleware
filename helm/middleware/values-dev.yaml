@@ -1,0 +1,56 @@
+##############################################################################
+# Middleware Umbrella Chart — Dev Environment Overrides
+##############################################################################
+
+global:
+  registry: acrmiddlewaredev.azurecr.io
+  namespace: middleware
+  workloadIdentity:
+    clientId: ""  # Injected by deploy workflow via --set
+  keyvault:
+    name: kv-middleware-dev
+    tenantId: ""  # Injected by deploy workflow via --set
+  eventhubs:
+    bootstrapServers: evhns-middleware-dev.servicebus.windows.net:9093
+  otel:
+    endpoint: "http://otel-collector.observability.svc:4317"
+  apim:
+    gatewayUrl: "https://apim-middleware-dev.azure-api.net"
+  azure:
+    tenantId: ""  # Injected by deploy workflow via --set
+    clientId: ""  # Injected by deploy workflow via --set
+    eventhubsNamespace: "evhns-middleware-dev"
+    storageAccountName: "stmiddlewaredevfiles"
+    sqlServerFqdn: "sql-middleware-dev.database.windows.net"
+  ingress:
+    internalHost: "api.middleware.internal"
+    staticIp: "10.0.16.10"
+    ilbSubnetName: "snet-aks-ilb"
+
+##############################################################################
+# Enable Java Stubs for dev/testing
+##############################################################################
+
+duckcreek-commercial-stub:
+  enabled: true
+
+duckcreek-personal-stub:
+  enabled: true
+
+forefront-stub:
+  enabled: true
+
+rsk3x3-compliance-stub:
+  enabled: true
+
+erm7x1-account-stub:
+  enabled: true
+
+crm40x1-customer-stub:
+  enabled: true
+
+crm19x1-billing-stub:
+  enabled: true
+
+deipde07-mq-simulator:
+  enabled: true

@@ -1,0 +1,127 @@
+apiVersion: v2
+name: middleware
+description: Umbrella Helm chart for the Middleware platform
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  # --- Java Services ---
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: policy-issuance-service
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: customer-identity-service
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: platform-compliance-service
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: platform-integration-service
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: billing-finance-service
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: platform-notification-service
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: platform-file-processing-service
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: prs-appraisal-service
+
+  # --- Java Stubs (disabled by default) ---
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: duckcreek-commercial-stub
+    condition: duckcreek-commercial-stub.enabled
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: duckcreek-personal-stub
+    condition: duckcreek-personal-stub.enabled
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: forefront-stub
+    condition: forefront-stub.enabled
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: rsk3x3-compliance-stub
+    condition: rsk3x3-compliance-stub.enabled
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: erm7x1-account-stub
+    condition: erm7x1-account-stub.enabled
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: crm40x1-customer-stub
+    condition: crm40x1-customer-stub.enabled
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: crm19x1-billing-stub
+    condition: crm19x1-billing-stub.enabled
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: deipde07-mq-simulator
+    condition: deipde07-mq-simulator.enabled
+
+  # --- .NET Services ---
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: dotnet-policy-issuance
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: dotnet-customer-identity
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: dotnet-platform-compliance
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: dotnet-platform-integration
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: dotnet-billing-finance
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: dotnet-platform-notification
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: dotnet-file-processing
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: dotnet-kafka-bridge
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: dotnet-prs-appraisal
+
+  # --- Frontend ---
+  - name: microservice
+    version: "0.1.0"
+    repository: "file://../charts/microservice"
+    alias: platform-ui

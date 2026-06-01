@@ -1,0 +1,1086 @@
+##############################################################################
+# Middleware Umbrella Chart — Global Defaults
+##############################################################################
+
+global:
+  registry: ""  # ACR login server, e.g. acrmiddlewaredev.azurecr.io
+  namespace: middleware
+  workloadIdentity:
+    clientId: ""  # From terraform output: workload identity client ID
+  keyvault:
+    name: ""      # From terraform output: kv-middleware-dev
+    tenantId: ""  # Azure AD tenant ID
+  eventhubs:
+    bootstrapServers: ""  # e.g. evhns-middleware-dev.servicebus.windows.net:9093
+  otel:
+    endpoint: "http://otel-collector.observability.svc:4317"
+  apim:
+    gatewayUrl: ""  # From terraform output: APIM gateway URL
+  azure:
+    tenantId: ""              # Set per-environment in values-dev.yaml
+    clientId: ""              # Workload identity client ID from terraform output
+    eventhubsNamespace: ""    # e.g., evhns-middleware-dev
+    storageAccountName: ""    # e.g., stmiddlewaredevfiles
+    sqlServerFqdn: ""         # e.g., sql-middleware-dev.database.windows.net
+  ingress:
+    internalHost: "api.middleware.internal"  # Private DNS zone for APIM → AKS
+    publicHost: ""                          # Public DNS (if UI exposed directly)
+    staticIp: "10.0.16.10"                  # Reserved from snet-aks-ilb subnet
+    ilbSubnetName: "snet-aks-ilb"           # Subnet where ILB gets deployed
+
+##############################################################################
+# Java Services
+##############################################################################
+
+policy-issuance-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: policy-issuance-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: policy-issuance-service
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 40
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "api.middleware.internal"
+    paths:
+      - path: /api/policy
+        pathType: Prefix
+
+customer-identity-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: customer-identity-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: customer-identity-service
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 40
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+platform-compliance-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: platform-compliance-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: platform-compliance-service
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 40
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+platform-integration-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: platform-integration-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: platform-integration-service
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 40
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+billing-finance-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: billing-finance-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: billing-finance-service
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 40
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+platform-notification-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: platform-notification-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: platform-notification-service
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 40
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+platform-file-processing-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: platform-file-processing-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    AZURE_STORAGE_ACCOUNT_NAME: "{{ .Values.global.azure.storageAccountName }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: platform-file-processing-service
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 40
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "api.middleware.internal"
+    paths:
+      - path: /api/files
+        pathType: Prefix
+
+prs-appraisal-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: prs-appraisal-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: prs-appraisal-service
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 40
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+##############################################################################
+# Java Stubs (disabled by default)
+##############################################################################
+
+duckcreek-commercial-stub:
+  enabled: false
+  stack: java
+  port: 8082
+  image:
+    repository: duckcreek-commercial-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8082"
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+duckcreek-personal-stub:
+  enabled: false
+  stack: java
+  port: 8083
+  image:
+    repository: duckcreek-personal-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8083"
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+forefront-stub:
+  enabled: false
+  stack: java
+  port: 8084
+  image:
+    repository: forefront-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8084"
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+rsk3x3-compliance-stub:
+  enabled: false
+  stack: java
+  port: 8085
+  image:
+    repository: rsk3x3-compliance-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8085"
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+erm7x1-account-stub:
+  enabled: false
+  stack: java
+  port: 8086
+  image:
+    repository: erm7x1-account-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8086"
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+crm40x1-customer-stub:
+  enabled: false
+  stack: java
+  port: 8087
+  image:
+    repository: crm40x1-customer-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8087"
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+crm19x1-billing-stub:
+  enabled: false
+  stack: java
+  port: 8088
+  image:
+    repository: crm19x1-billing-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8088"
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+deipde07-mq-simulator:
+  enabled: false
+  stack: java
+  port: 8089
+  image:
+    repository: deipde07-mq-simulator
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8089"
+  healthCheck:
+    enabled: true
+    path: /actuator/health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+##############################################################################
+# .NET Services
+##############################################################################
+
+dotnet-policy-issuance:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-policy-issuance
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-policy-issuance
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-customer-identity:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-customer-identity
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-customer-identity
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-platform-compliance:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-platform-compliance
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-platform-compliance
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-platform-integration:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-platform-integration
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-platform-integration
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-billing-finance:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-billing-finance
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-billing-finance
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-platform-notification:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-platform-notification
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-platform-notification
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-file-processing:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-file-processing
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    Azure__StorageAccountName: "{{ .Values.global.azure.storageAccountName }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-file-processing
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-kafka-bridge:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-kafka-bridge
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-kafka-bridge
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-prs-appraisal:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-prs-appraisal
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-prs-appraisal
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 5
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+##############################################################################
+# Frontend
+##############################################################################
+
+platform-ui:
+  enabled: true
+  stack: ui
+  port: 3000
+  image:
+    repository: platform-ui
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    NODE_ENV: "production"
+    NEXT_PUBLIC_API_BASE: "{{ .Values.global.apim.gatewayUrl }}"
+  healthCheck:
+    enabled: true
+    path: /
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+  ingress:
+    enabled: true
+    internal: false
+    host: "ui.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix

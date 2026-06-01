@@ -58,3 +58,34 @@ logging:
     com.ais.middleware: DEBUG
     org.apache.camel: INFO
     org.apache.activemq: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: azure
+  kafka:
+    bootstrap-servers: ${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net:9093
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: OAUTHBEARER
+      sasl.login.callback.handler.class: org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler
+      sasl.oauthbearer.token.endpoint.url: https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token
+      sasl.jaas.config: >-
+        org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required
+        clientId="${AZURE_CLIENT_ID}"
+        scope="https://${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net/.default";
+
+camel:
+  component:
+    kafka:
+      brokers: ${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net:9093
+      additional-properties:
+        security.protocol: SASL_SSL
+        sasl.mechanism: OAUTHBEARER
+        sasl.login.callback.handler.class: org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler
+        sasl.oauthbearer.token.endpoint.url: https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token
+        sasl.jaas.config: >-
+          org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required
+          clientId="${AZURE_CLIENT_ID}"
+          scope="https://${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net/.default";

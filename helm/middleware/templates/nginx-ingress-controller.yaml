@@ -1,0 +1,23 @@
+{{/*
+NginxIngressController — configures Web App Routing to deploy a SECOND nginx
+controller with an Internal Load Balancer and static IP from the ILB subnet.
+
+Uses a custom ingressClassName ("nginx-internal") so it doesn't conflict with
+the default "webapprouting.kubernetes.azure.com" controller.
+*/}}
+{{- if .Values.global.ingress }}
+apiVersion: approuting.kubernetes.azure.com/v1alpha1
+kind: NginxIngressController
+metadata:
+  name: nginx-internal
+spec:
+  ingressClassName: nginx-internal
+  controllerNamePrefix: nginx-internal
+  loadBalancerAnnotations:
+    # Internal load balancer (not internet-facing)
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    # Deploy LB in the ILB subnet
+    service.beta.kubernetes.io/azure-load-balancer-internal-subnet: {{ .Values.global.ingress.ilbSubnetName | quote }}
+    # Static IP from the ILB subnet
+    service.beta.kubernetes.io/azure-load-balancer-ipv4: {{ .Values.global.ingress.staticIp | quote }}
+{{- end }}

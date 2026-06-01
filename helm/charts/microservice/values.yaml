@@ -1,0 +1,73 @@
+# Default values for the reusable microservice subchart.
+# These are overridden by the umbrella chart's values.yaml per service.
+
+enabled: true
+
+replicaCount: 1
+
+image:
+  repository: ""
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+stack: java  # java | dotnet | ui
+
+port: 8081
+
+service:
+  type: ClusterIP
+  port: 80
+
+serviceAccount:
+  create: false  # Shared SA created by umbrella chart; set true only for unique SAs
+  name: middleware-workload
+  annotations: {}
+  labels: {}
+
+workloadIdentity:
+  enabled: true
+  clientId: ""
+
+keyvault:
+  enabled: true
+  name: ""
+  tenantId: ""
+  secretProviderClassName: ""
+  secrets: []
+  # - objectName: cosmos-mongodb-connection-string
+  #   secretKey: SPRING_DATA_MONGODB_URI
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+    cpu: "250m"
+
+env: {}
+# KEY: value
+
+envFromSecrets: {}
+# ENV_VAR_NAME: secretKeyRef
+
+healthCheck:
+  enabled: true
+  path: /actuator/health
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+ingress:
+  enabled: false
+  internal: true              # Use internal LB (APIM → AKS)
+  host: ""                    # e.g., api.middleware.internal
+  annotations: {}
+  paths:
+    - path: /
+      pathType: Prefix
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
