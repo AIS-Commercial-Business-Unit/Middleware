@@ -39,5 +39,3 @@ Selector labels
 app.kubernetes.io/name: {{ include "microservice.fullname" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
-{{- end }}
-{{- end }}
