@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "displayName": "PRS Appraisal API",
+    "description": "Property appraisal document retrieval and processing",
+    "path": "prs-appraisal",
+    "serviceUrl": "https://api.middleware.internal/api/appraisals",
+    "protocols": ["https"],
+    "subscriptionRequired": true,
+    "apiVersion": "v1",
+    "isCurrent": true
+  }
+}

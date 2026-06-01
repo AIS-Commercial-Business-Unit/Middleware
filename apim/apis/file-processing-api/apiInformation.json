@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "displayName": "File Processing API",
+    "description": "Batch file upload and processing workflows",
+    "path": "file-processing",
+    "serviceUrl": "https://api.middleware.internal/api/v1",
+    "protocols": ["https"],
+    "subscriptionRequired": true,
+    "apiVersion": "v1",
+    "isCurrent": true
+  }
+}

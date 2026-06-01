@@ -27,6 +27,11 @@ output "apim_gateway_url" {
   value       = azurerm_api_management.main.gateway_url
 }
 
+output "apim_name" {
+  description = "APIM instance name."
+  value       = azurerm_api_management.main.name
+}
+
 output "sql_server_fqdn" {
   description = "Azure SQL Server FQDN."
   value       = azurerm_mssql_server.main.fully_qualified_domain_name

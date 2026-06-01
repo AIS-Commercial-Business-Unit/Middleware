@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "displayName": "Platform Integration API",
+    "description": "RiskID MQ gateway and demo/reset endpoints",
+    "path": "platform-integration",
+    "serviceUrl": "https://api.middleware.internal/api",
+    "protocols": ["https"],
+    "subscriptionRequired": true,
+    "apiVersion": "v1",
+    "isCurrent": true
+  }
+}

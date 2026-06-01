@@ -1,0 +1,14 @@
+##############################################################################
+# APIOps Configuration
+# Defines the APIM instance and global settings for API deployments.
+##############################################################################
+
+apimServiceName: # Injected at deploy time via --set-var
+environment: dev
+backend:
+  url: https://api.middleware.internal
+  title: AKS Internal Ingress
+  description: Internal load balancer routing to AKS NGINX ingress controller
+  tls:
+    validateCertificateChain: false
+    validateCertificateName: false

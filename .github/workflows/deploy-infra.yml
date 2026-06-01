@@ -15,7 +15,7 @@ on:
 permissions:
   id-token: write
   contents: read
-  actions: write      # Required to set repository variables via gh CLI
+  variables: write    # Required to set repository variables via gh CLI
 
 jobs:
   plan:
@@ -131,6 +131,7 @@ jobs:
           ACR_SERVER=$(terraform output -raw acr_login_server)
           KEYVAULT_NAME=$(terraform output -raw keyvault_name)
           SQL_FQDN=$(terraform output -raw sql_server_fqdn)
+          APIM_NAME=$(terraform output -raw apim_name)
 
           # Save as GitHub repository variables (for deploy-apps workflow)
           gh variable set AKS_CLUSTER_NAME --body "$AKS_NAME"
@@ -139,6 +140,7 @@ jobs:
           gh variable set ACR_LOGIN_SERVER --body "$ACR_SERVER"
           gh variable set KEYVAULT_NAME --body "$KEYVAULT_NAME"
           gh variable set SQL_SERVER_FQDN --body "$SQL_FQDN"
+          gh variable set APIM_NAME --body "$APIM_NAME"
 
           echo "### Terraform Outputs Saved" >> $GITHUB_STEP_SUMMARY
           echo "| Variable | Value |" >> $GITHUB_STEP_SUMMARY
@@ -149,3 +151,4 @@ jobs:
           echo "| ACR_LOGIN_SERVER | $ACR_SERVER |" >> $GITHUB_STEP_SUMMARY
           echo "| KEYVAULT_NAME | $KEYVAULT_NAME |" >> $GITHUB_STEP_SUMMARY
           echo "| SQL_SERVER_FQDN | $SQL_FQDN |" >> $GITHUB_STEP_SUMMARY
+          echo "| APIM_NAME | $APIM_NAME |" >> $GITHUB_STEP_SUMMARY

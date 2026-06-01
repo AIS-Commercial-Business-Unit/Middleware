@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "displayName": "Policy Issuance API",
+    "description": "Manages end-to-end policy issuance workflows",
+    "path": "policy-issuance",
+    "serviceUrl": "https://api.middleware.internal/api/v1/policies",
+    "protocols": ["https"],
+    "subscriptionRequired": true,
+    "apiVersion": "v1",
+    "isCurrent": true
+  }
+}
