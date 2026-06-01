@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UC4: Get Document | Middleware POC</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="brand">Middleware POC</a>
+  <a href="index.html">Home</a>
+  <a href="uc4-list.html">UC4: List Appraisals</a>
+  <a href="uc4-document.html" class="active">UC4: Get Document</a>
+  <a href="comparison.html">Stack Comparison</a>
+  <a href="azure-services.html">Azure Services</a>
+  <a href="patterns-scope.html">Pattern Scope</a>
+  <a href="patterns-detail.html">Pattern Detail</a>
+  <a href="decisions.html">5 Questions</a>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>UC4 — GetAppraisalDocument</h1>
+    <p>Content-based routing on <code>DocumentKey</code> format. RiskID keys route to WCF. Numeric keys route to DEIPDE07 IBM MQ with multi-message chunk aggregation.</p>
+  </div>
+
+  <div class="callout">
+    <strong>Try it:</strong>
+    <code>GET /api/appraisal/document?documentKey=INS001_RiskID_I</code>
+    &nbsp;or&nbsp;
+    <code>documentKey=12345678901</code>
+    &nbsp;·&nbsp; Flow Tracer: <a href="http://localhost:3000" target="_blank">localhost:3000</a><code>/ops/{correlationId}</code>
+  </div>
+
+  <h2>Architecture</h2>
+  <div class="card" style="text-align:center; padding: 24px 0;">
+    <img src="uc4-architecture-ListAppraisals.drawio.svg"
+         alt="GetAppraisalDocument architecture diagram"
+         style="max-width:100%; height:auto; border:1px solid #e0e6ed; border-radius:6px;" />
+  </div>
+
+  <h2>Routing Decision</h2>
+  <div class="card">
+    <p>The <code>DocumentKey</code> returned by GetAppraisalList encodes the source system. No lookup table. No configuration file.</p>
+    <table style="margin-top:12px">
+      <thead><tr><th>Key Format</th><th>Example</th><th>Route</th><th>Mechanism</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="label">Contains <code>_RiskID_</code></td>
+          <td><code>INS001_RiskID_I</code></td>
+          <td>RiskID WCF Service</td>
+          <td>Single synchronous WCF call. Response is a base64-encoded PDF.</td>
+        </tr>
+        <tr>
+          <td class="label">Numeric only</td>
+          <td><code>12345678901</code></td>
+          <td>DEIPDE07 IBM MQ</td>
+          <td>Fire-and-forget MQ request. Multiple reply messages reassembled into one PDF.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>DEIPDE07 Chunk Aggregation</h2>
+  <div class="card-grid">
+    <div class="card-sm">
+      <h3>Message Format</h3>
+      <p>Each MQ reply is exactly 64 bytes of base64-encoded PDF content with EBCDIC newlines appended. A position indicator on each message (<em>N of M</em>) tells the aggregator the total expected count.</p>
+    </div>
+    <div class="card-sm">
+      <h3>Assembly</h3>
+      <p>
+        <code>MqDocumentChunkAggregator</code> collects chunks in order, strips EBCDIC artifacts (<code>0x0D 0x25</code>), and concatenates into the final PDF byte stream.
+        A 10–20 MB production document may produce hundreds of chunks.
+      </p>
+    </div>
+    <div class="card-sm">
+      <h3>Completion Signal</h3>
+      <p>The final message carries <code>endOfMessage=true</code>. The aggregator publishes <code>MqDocumentRetrievedEvent</code> with the assembled document bytes.</p>
+    </div>
+    <div class="card-sm">
+      <h3>Timeout</h3>
+      <p>If DEIPDE07 does not complete within 30 seconds the saga aborts cleanly. A partial document is <em>not</em> returned — it would be corrupt. The log entry includes how many chunks were received before the timeout.</p>
+    </div>
+  </div>
+
+  <h2>Demo Scenarios</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>Document Key</th><th>Route</th><th>Expected Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="label"><code>INS001_RiskID_I</code></td>
+          <td>RiskID WCF</td>
+          <td>PDF returned. Single WCF call. Route decision logged as <code>RiskIDWCF</code>.</td>
+        </tr>
+        <tr>
+          <td class="label"><code>12345678901</code></td>
+          <td>DEIPDE07 MQ</td>
+          <td>PDF assembled from 5 chunks. Position indicators "1 of 5" … "5 of 5" visible in Flow Tracer.</td>
+        </tr>
+        <tr>
+          <td class="label"><code>99999999999</code></td>
+          <td>DEIPDE07 MQ</td>
+          <td>Timeout after 30 s. Error response with chunk count received. No corrupt document returned.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Structured Log — Mainframe Path (12345678901)</h2>
+  <details>
+    <summary>Show expected log output</summary>
+    <div class="card" style="margin-top:12px">
+      <pre style="font-size:12px; overflow-x:auto; margin:0">ContentRouter.Decision             correlationId=xxx  documentKey=12345678901  route=DEIPDE07MQ
+DEIPDE07.MQ.Send                   correlationId=xxx  queue=DOC_REQUEST
+DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=1  position="1 of 5"
+DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=2  position="2 of 5"
+DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=3  position="3 of 5"
+DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=4  position="4 of 5"
+DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=5  position="5 of 5"  endOfMessage=true
+DEIPDE07.Aggregation.EBCDICStrip   correlationId=xxx  charsRemoved=10
+DEIPDE07.Aggregation.Complete      correlationId=xxx  totalChunks=5  assembledSizeBytes=320
+DocumentRetrieved                  correlationId=xxx  sourceSystem=DEIPDE07  sizeBytes=320</pre>
+    </div>
+  </details>
+
+  <details>
+    <summary>Show RiskID path log output</summary>
+    <div class="card" style="margin-top:12px">
+      <pre style="font-size:12px; overflow-x:auto; margin:0">ContentRouter.Decision             correlationId=xxx  documentKey=INS001_RiskID_I  route=RiskIDWCF
+RiskID.WCF.Called                  correlationId=xxx  inspectionID=INS001  pdfType=Abiz
+RiskID.WCF.ResponseReceived        correlationId=xxx  durationMs=120  sizeBytes=4200
+DocumentRetrieved                  correlationId=xxx  sourceSystem=RiskID  sizeBytes=4200</pre>
+    </div>
+  </details>
+
+  <div class="callout" style="margin-top:24px">
+    <strong>BizTalk comparison:</strong> The original BizTalk implementation handled chunk aggregation in a .NET helper class with no observability.
+    Here every chunk arrival, the EBCDIC strip, and the final assembly are separate structured log entries — visible in real time in the Flow Tracer.
+  </div>
+
+</div>
+</body>
+</html>

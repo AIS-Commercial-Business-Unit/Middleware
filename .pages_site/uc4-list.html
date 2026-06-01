@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UC4: List Appraisals | Middleware POC</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="brand">Middleware POC</a>
+  <a href="index.html">Home</a>
+  <a href="uc4-list.html" class="active">UC4: List Appraisals</a>
+  <a href="uc4-document.html">UC4: Get Document</a>
+  <a href="comparison.html">Stack Comparison</a>
+  <a href="azure-services.html">Azure Services</a>
+  <a href="patterns-scope.html">Pattern Scope</a>
+  <a href="patterns-detail.html">Pattern Detail</a>
+  <a href="decisions.html">5 Questions</a>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>UC4 — GetAppraisalList</h1>
+    <p>Scatter-gather fan-out to @Work (SQL) and DEIPDE07 (IBM MQ mainframe) in parallel. Results merged, deduplicated, and returned — partial on timeout.</p>
+  </div>
+
+  <div class="callout">
+    <strong>Try it:</strong>
+    <code>GET /api/appraisal/list?policyNumber=POL-BOTH-001</code>
+    &nbsp;·&nbsp; Flow Tracer: <a href="http://localhost:3000" target="_blank">localhost:3000</a><code>/ops/{correlationId}</code>
+  </div>
+
+  <h2>Architecture</h2>
+  <div class="card" style="text-align:center; padding: 24px 0;">
+    <img src="uc4-architecture-GetAppraisals.drawio.svg"
+         alt="GetAppraisalList architecture diagram"
+         style="max-width:100%; height:auto; border:1px solid #e0e6ed; border-radius:6px;" />
+  </div>
+
+  <h2>How It Works</h2>
+  <div class="card-grid">
+    <div class="card-sm">
+      <h3>Fan-Out</h3>
+      <p>
+        <code>DocumentListSaga</code> receives <code>GetAppraisalDocumentListCommand</code> and immediately sends two messages:
+        <code>GetAtWorkDocumentListCommand</code> and a fire-and-forget to the DEIPDE07 IBM MQ stub via <code>ArtemisAdapter</code>.
+        Both branches run in parallel — neither waits for the other.
+      </p>
+    </div>
+    <div class="card-sm">
+      <h3>@Work Branch</h3>
+      <p>
+        <code>AtWorkDocumentListHandler</code> queries SQL Server, publishes <code>AtWorkDocumentListCompletedEvent</code> back to the saga.
+        Typically completes in &lt;100ms.
+      </p>
+    </div>
+    <div class="card-sm">
+      <h3>DEIPDE07 Branch</h3>
+      <p>
+        The IBM MQ stub sends one or more reply messages, each with a position indicator (<em>N of M</em>).
+        <code>ArtemisListReplyListener</code> (always-on BackgroundService) receives them and publishes <code>MainframeDocumentListCompletedEvent</code>.
+      </p>
+    </div>
+    <div class="card-sm">
+      <h3>Merge &amp; Timeout</h3>
+      <p>
+        Once both branches complete, the saga merges and deduplicates by <code>documentkey</code>.
+        If DEIPDE07 does not respond within the timeout, the saga completes with <code>partialResult=true</code> using only @Work data.
+      </p>
+    </div>
+  </div>
+
+  <h2>Demo Scenarios</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>Policy Number</th><th>Expected Result</th><th>What to Show</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="label">POL-BOTH-001</td>
+          <td>4 records · <code>partialResult=false</code></td>
+          <td>Both branches complete. @Work returns 2 RiskID records, DEIPDE07 returns 2 numeric records. Position indicators: "1 of 2", "2 of 2".</td>
+        </tr>
+        <tr>
+          <td class="label">POL-SQL-001</td>
+          <td>3 records · <code>partialResult=false</code></td>
+          <td>DEIPDE07 returns 0 messages. @Work-only result. No error raised.</td>
+        </tr>
+        <tr>
+          <td class="label">POL-MQ-001</td>
+          <td>0 records · <code>partialResult=false</code></td>
+          <td>Mainframe-only result. All records have numeric document keys.</td>
+        </tr>
+        <tr>
+          <td class="label">POL-TIMEOUT-001</td>
+          <td>2 records · <code>partialResult=true</code></td>
+          <td>DEIPDE07 times out. @Work results returned immediately. Timeout logged with elapsed time.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Structured Log — Happy Path (POL-BOTH-001)</h2>
+  <details>
+    <summary>Show expected log output</summary>
+    <div class="card" style="margin-top:12px">
+      <pre style="font-size:12px; overflow-x:auto; margin:0">ScatterGather.FanOut.Started       correlationId=xxx  policyNumber=POL-BOTH-001
+AtWork.Query.Started               correlationId=xxx
+DEIPDE07.MQ.Send                   correlationId=xxx  queue=REQUEST
+AtWork.Query.Completed             correlationId=xxx  rowCount=2  durationMs=45
+DEIPDE07.MQ.MessageReceived        correlationId=xxx  position="1 of 2"
+DEIPDE07.MQ.MessageReceived        correlationId=xxx  position="2 of 2"
+Aggregator.Merge.Started           correlationId=xxx  atWorkCount=2  deipde07Count=2
+Aggregator.Deduplicate             correlationId=xxx  duplicatesRemoved=0
+Aggregator.Merge.Completed         correlationId=xxx  totalCount=4
+AppraisalListRetrieved             correlationId=xxx  recordCount=4  partialResult=false</pre>
+    </div>
+  </details>
+
+  <details>
+    <summary>Show timeout log output (POL-TIMEOUT-001)</summary>
+    <div class="card" style="margin-top:12px">
+      <pre style="font-size:12px; overflow-x:auto; margin:0">ScatterGather.FanOut.Started       correlationId=xxx  policyNumber=POL-TIMEOUT-001
+AtWork.Query.Completed             correlationId=xxx  rowCount=2  durationMs=38
+DEIPDE07.MQ.Timeout                correlationId=xxx  timeoutMs=1000
+Aggregator.Merge.Completed         correlationId=xxx  totalCount=2  partialResult=true
+AppraisalListRetrieved             correlationId=xxx  recordCount=2  partialResult=true</pre>
+    </div>
+  </details>
+
+  <div class="callout" style="margin-top:24px">
+    <strong>BizTalk comparison:</strong> In BizTalk the fan-out is inside orchestration shapes with no queryable state.
+    A timeout either crashes the orchestration or is swallowed silently.
+    Here the timeout is handled gracefully and every step is a structured log entry.
+  </div>
+
+</div>
+</body>
+</html>
