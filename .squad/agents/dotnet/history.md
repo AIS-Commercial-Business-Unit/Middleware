@@ -32,9 +32,16 @@
 - EDAFlowBehavior correlation fallback: AppraisalId → CorrelationId → RequestId
 - EC4 spans both Java (prs-appraisal-service) and .NET (dotnet-prs-appraisal); cross-stack parity
 
-## Detailed Learnings
+### 2026-05-31 — UC4 EDAFlowBehavior Handler Invocation Logging (dotnet-eda-flow-subscribers)
 
-### 2026-05-27 — UC1 EDA Architecture (Condensed Summary)
+- **Handler-level logging:** `AppraisalEDAFlowHandlerInvokeBehavior` added at `IInvokeHandlerContext` stage to emit `EDA_Direction = "handled"` for each subscriber invocation, not just `consumed` at the dispatcher level.
+- **Participant resolution:** Extended `AppraisalParticipantMap` with `HandlerToParticipant(HandlerType)` to map handler classes to readable participant names (e.g., `InvokeAppraisalHandler` → `InvokeAppraisal`).
+- **EDA_Handler field:** All handler invocation logs now include `EDA_Handler` with the handler class name, enabling ops UI hover tooltips to identify which subscriber processed each event.
+- **Fan-out visibility:** Incoming `consumed` + outgoing `published` logs unchanged; new `handled` entries render as distinct subscriber arrows for fan-out topology. Ops UI preserves `handled` entries (not deduped) for accurate multi-subscriber diagrams.
+- **Build status:** 20/20 tests passing. No regression on UC1 or document path flows.
+- **Key design:** Behavior registration in `Program.cs` keeps logging layer separate from saga/handler domain code; if observability tool changes, only pipeline configuration affected.
+
+
 - EDA_FLOW pipeline logging: `EDAFlowBehavior` emits Serilog properties for Loki sequence diagrams
 - ParticipantMap: endpoint names translated to UI labels for consistent rendering
 - Cross-service via pub/sub events (not direct commands); fan-out point: `PolicyAdminSystemResponseReceivedEvent`
@@ -110,3 +117,11 @@
 - **`EDAFlowBehavior.AppraisalParticipantMap` updated:** `"mainframeadapter"` removed; `"atworkdocumentretrievalhandler" → "AtWork Retrieval"` added. `StartMainframeListAggregationCommand` removed from message→subscriber map; `Uc4AppraisalDocumentRetrievalRequestedEvent` and `Uc4AtWorkDocumentRetrievedEvent` added.
 
 - **20/20 tests pass post-fix.** New tests: `AtWorkDocumentRetrievalHandlerTests` (2 cases), `DocumentRetrievalSagaTests` (5 cases). `MainframeListAggregatorSagaTests` updated to use event (4 existing + 1 new). Build: 0 errors, 0 warnings.
+
+### 2026-05-31T21:09:38.779-04:00 — UC4 handler-invocation EDA_FLOW fan-out logging
+
+- **`EDAFlowBehavior` now logs one `handled` entry per subscriber invocation using `Behavior<IInvokeHandlerContext>`.** `AppraisalEDAFlowHandlerInvokeBehavior` resolves `context.MessageHandler.HandlerType.Name` through `AppraisalParticipantMap.ResolveHandler(...)`, so fan-out events like `Uc4AppraisalDocumentListRequestedEvent` render separate arrows for `AtWorkDocumentListHandler` and `MainframeListAggregatorSaga` instead of a single generic `PrsAppraisal` receive.
+
+- **`AppraisalParticipantMap` now has a handler-to-participant map and outgoing logs include `EDA_Handler`.** Handler-level logs emit the raw handler class in `EDA_Handler`; outgoing pipeline logs emit `EDA_Handler = "n/a"` so the frontend can distinguish publish arrows from subscriber-handled arrows while keeping the existing incoming `consumed` logs for fallback/dedup.
+
+- **Verification:** `dotnet build dotnet\\dotnet-prs-appraisal\\dotnet-prs-appraisal.csproj -nologo` succeeded and `dotnet test dotnet\\Middleware.sln -nologo` passed (20/20).

@@ -753,3 +753,22 @@ HTTP 404
 - Current `dotnet-prs-appraisal/Program.cs` uses plain-text console logging; frontend Loki route expects JSON with `EDA_*` fields parseable from top level or `Properties`
 - **Action:** Add .NET UC4 tests for appraisal document endpoints; update `EDAFlowBehavior` to fall back to `CorrelationId` / `RequestId` for UC4 document messages; emit JSON console logs so platform-ui can parse `EDA_*` fields reliably
 
+### 47. UC4 handler-invocation EDA_FLOW logging for subscriber fan-out (2026-05-31)
+- For `dotnet-prs-appraisal`, subscriber-side `EDA_FLOW` observability will log at the NServiceBus `IInvokeHandlerContext` stage in addition to the existing incoming and outgoing pipeline behaviors
+- `IIncomingLogicalMessageContext` fires once per received message, which collapses pub/sub fan-out into a single inbound edge. UC4 needs the ops sequence diagram to show the actual subscribers that handled an event
+- Add `AppraisalEDAFlowHandlerInvokeBehavior : Behavior<IInvokeHandlerContext>`
+- Resolve `EDA_To` from `context.MessageHandler.HandlerType.Name` through `AppraisalParticipantMap.ResolveHandler(...)`
+- Emit `EDA_Direction = "handled"` and include raw handler class in `EDA_Handler`
+- Keep existing incoming `consumed` and outgoing `published` logs; frontend can prefer `handled` entries when both exist
+- Outgoing logs emit `EDA_Handler = "n/a"` to distinguish publish arrows from subscriber invocation arrows
+- **Rationale:** Loki-backed flow tracer can render one arrow per actual subscriber for fan-out events without removing existing log streams or changing message contracts
+
+### 48. UC4 Saga Panel from Flow Events (2026-05-31)
+- When the standard policy saga endpoint returns no saga record but the live EDA flow matches UC4 appraisal traffic, the Ops flow tracer should derive the right-hand saga panel directly from Loki flow events instead of leaving the panel empty
+- UC4 appraisal traces do not have useful data in the existing UC1 saga endpoint
+- The live flow already contains enough milestones to show operator-friendly progress: request start, scatter-gather fan-out, branch completion, retrieval progress, and active handlers/subscribers
+- Parse `EDA_Handler` and retain `handled` entries as first-class flow events
+- Render separate subscriber arrows for handled fan-out deliveries and group consecutive sibling rows with a subtle fan-out bracket
+- Show a ServicePulse-style compact timeline plus sub-saga summaries for UC4 when `saga == null && isUc4Flow(events)`
+- **Rationale:** Keeps the UX useful while preserving the existing UC1 saga card for policy issuance flows
+

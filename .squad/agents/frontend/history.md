@@ -35,3 +35,21 @@
 - **Flow tracer patterns established:** (1) Live event stream drives participant discovery; (2) known participants pre-registered for stable colors; (3) unknown participants get runtime entries with rotating palette; (4) static UC1 fallback for demos before live logs.
 
 - **Observable cross-checks:** TypeScript + lint clean, build passes.
+
+### 2026-05-31T21:09:38.779-04:00 — UC4 flow tracer fan-out + saga panel (frontend)
+
+- Added `handled` flow support end-to-end: `platform-ui/src/app/api/policies/[issuanceId]/flow/route.ts` now parses `EDA_Handler`, keeps handler-level fan-out entries distinct, and suppresses redundant consumed hops when handled detail is present.
+- Updated `platform-ui/src/app/ops/[issuanceId]/page.tsx` live sequence diagram to keep separate subscriber arrows, annotate handled branches, and show a left-side fan-out bracket for consecutive sibling deliveries.
+- Extracted the UC1 saga card into `Uc1SagaPanel` and added a ServicePulse-style `Uc4SagaPanel` that derives timeline, current stage, sub-saga status, and key saga fields directly from live flow events when the policy saga endpoint is empty.
+- Verification: `cd platform-ui && npx tsc --noEmit` and `npm run lint` both exited 0.
+
+### 2026-05-31T21:09:38.779-04:00 — UC4 saga panel + fan-out grouping refinement (frontend-eda-flow-subscribers)
+
+- **Saga panel derivation:** When policy saga endpoint returns null but flow contains UC4 participants + `handled` entries, render `Uc4SagaPanel` instead of empty card. Derives saga timeline directly from Loki events (scatter → distribute → handle → gather sequence).
+- **Fan-out grouping:** Live diagram groups consecutive sibling `handled` entries with a left-side bracket annotation. Each subscriber arrow labeled with handler class name from `EDA_Handler` field, enabling operators to trace events to specific subscribers.
+- **Flow API dedup:** Refactored `platform-ui/src/app/api/policies/[issuanceId]/flow/route.ts` dedup logic to preserve fan-out: `handled` entries never deduped, `consumed` entries deduplicated only if no corresponding `handled` entry exists for that (from, to, topic) triple.
+- **UC4 detection:** `isUc4Flow()` checks for presence of UC4 participant names (`PrsAppraisal`, `AtWork`, etc.) in live events; frontend automatically switches to UC4-specific rendering without manual config.
+- **Verification:** TypeScript clean, lint passed. End-to-end: backend handler-invocation logs → Loki → frontend flow API → live diagram with individual subscriber arrows.
+- **Integration note:** Backend must emit JSON console logs with `EDA_Handler` at top level or in `Properties` object for platform-ui Loki parser to extract. Fallback: `EDA_Handler = "n/a"` for non-handler events (publish/consume edges).
+
+
