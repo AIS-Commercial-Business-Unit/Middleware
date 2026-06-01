@@ -29,7 +29,7 @@
 
   <div class="callout">
     <strong>Try it:</strong>
-    <code>GET /api/appraisal/list?policyNumber=POL-BOTH-001</code>
+    <code>GET /api/appraisals/list?policyNumber=POL-001-TEST</code>
     &nbsp;·&nbsp; Flow Tracer: <a href="http://localhost:3000" target="_blank">localhost:3000</a><code>/ops/{correlationId}</code>
   </div>
 
@@ -94,6 +94,16 @@
           <td class="label">POL-003-TEST</td>
           <td>2 records · <code>partialResult=false</code></td>
           <td>Minimal data. @Work returns 1 Reinspection Report. Mainframe MQ sends 1 Single Property Report ("1 of 1"). Small-dataset merge.</td>
+        </tr>
+        <tr>
+          <td class="label">POL-AW-ONLY</td>
+          <td>2 records · <code>partialResult=false</code></td>
+          <td>AtWork-only result. @Work returns 2 docs (Comprehensive Property Review, Market Value Assessment). Mainframe MQ listener times out — 0 MQ records. Shows scatter-gather completing cleanly when only the SQL branch has data.</td>
+        </tr>
+        <tr>
+          <td class="label">POL-MF-ONLY</td>
+          <td>2 records · <code>partialResult=false</code></td>
+          <td>Mainframe-only result. @Work returns 0 docs. Mainframe MQ sends 2 messages ("1 of 2", "2 of 2"): Structural Assessment, Interior Inspection Report. Shows scatter-gather completing cleanly when only the IBM MQ branch has data.</td>
         </tr>
         <tr>
           <td class="label">POL-TIMEOUT</td>

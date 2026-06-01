@@ -52,6 +52,8 @@ file static class AppraisalParticipantMap
         ["DocumentRetrievalSaga"]              = "DocumentRetrievalSaga",
         ["MainframeListAggregatorSaga"]        = "MainframeListAggregator",
         ["MainframeDocumentAggregatorSaga"]    = "MainframeDocumentAggregator",
+        ["MainframeListAccumulatorHandler"]    = "MainframeListAggregator",
+        ["MainframeDocumentAccumulatorHandler"] = "MainframeDocumentAggregator",
         ["AtWorkDocumentListHandler"]          = "AtWorkDocumentListHandler",
         ["AtWorkDocumentRetrievalHandler"]     = "AtWorkDocumentRetrievalHandler",
         ["AppraisalStatusUpdateHandler"]       = "AppraisalDocumentsController",
@@ -70,11 +72,13 @@ file static class AppraisalParticipantMap
         ["AppraisalDocumentRetrievalRequestedEvent"] = "AtWorkDocumentRetrievalHandler",
         ["AtWorkDocumentListCompletedEvent"]         = "DocumentListSaga",
         ["AtWorkDocumentRetrievedEvent"]             = "DocumentRetrievalSaga",
-        ["StartMainframeDocumentAggregationCommand"]    = "MainframeDocumentAggregator",
-        ["MainframeAppraisalListPartReceivedEvent"]     = "MainframeListAggregator",
-        ["MainframeDocumentChunkReceivedEvent"]         = "MainframeDocumentAggregator",
-        ["MainframeDocumentListCompletedEvent"]      = "DocumentListSaga",
-        ["AppraisalDocumentRetrievedEvent"]          = "DocumentRetrievalSaga",
+        ["StartMainframeDocumentAggregationCommand"]       = "MainframeDocumentAggregator",
+        ["MainframeAppraisalListPartReceivedEvent"]        = "MainframeListAggregator",
+        ["MainframeListAccumulationCompleteEvent"]         = "MainframeListAggregator",
+        ["MainframeDocumentChunkReceivedEvent"]            = "MainframeDocumentAggregator",
+        ["MainframeDocumentAccumulationCompleteEvent"]     = "MainframeDocumentAggregator",
+        ["MainframeDocumentListCompletedEvent"]            = "DocumentListSaga",
+        ["AppraisalDocumentRetrievedEvent"]                = "DocumentRetrievalSaga",
     };
 
     private static readonly HashSet<string> SuppressedOutgoing = new(StringComparer.OrdinalIgnoreCase)

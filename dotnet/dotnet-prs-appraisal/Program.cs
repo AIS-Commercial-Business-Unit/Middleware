@@ -20,8 +20,12 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHealthChecks();
 
+var nServiceBusConnectionString = builder.Configuration.GetConnectionString("NServiceBus")
+    ?? throw new InvalidOperationException("ConnectionStrings:NServiceBus is required.");
+
 // ── UC4 services ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IArtemisAdapter, ArtemisAdapter>();
+builder.Services.AddSingleton<IAccumulatorRepository>(_ => new AccumulatorRepository(nServiceBusConnectionString));
 builder.Services.AddHostedService<ArtemisListReplyListener>();
 builder.Services.AddHostedService<ArtemisDocumentReplyListener>();
 
@@ -37,11 +41,9 @@ builder.Services.AddSingleton<IDocumentRetrievalRequestRepository>(sp =>
 builder.Host.UseNServiceBus(_ =>
 {
     var endpointConfiguration = new EndpointConfiguration("dotnet-prs-appraisal");
-    var connectionString = builder.Configuration.GetConnectionString("NServiceBus")
-        ?? throw new InvalidOperationException("ConnectionStrings:NServiceBus is required.");
 
     var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
-    transport.ConnectionString(connectionString);
+    transport.ConnectionString(nServiceBusConnectionString);
     transport.DefaultSchema("dbo");
 
     var routing = transport.Routing();
@@ -51,7 +53,7 @@ builder.Host.UseNServiceBus(_ =>
 
     var persistence = endpointConfiguration.UsePersistence<SqlPersistence>();
     persistence.SqlDialect<SqlDialect.MsSqlServer>();
-    persistence.ConnectionBuilder(() => new SqlConnection(connectionString));
+    persistence.ConnectionBuilder(() => new SqlConnection(nServiceBusConnectionString));
 
     endpointConfiguration.EnableInstallers();
     endpointConfiguration.UseSerialization<SystemJsonSerializer>();
@@ -64,6 +66,7 @@ builder.Host.UseNServiceBus(_ =>
 });
 
 var app = builder.Build();
+await app.Services.GetRequiredService<IAccumulatorRepository>().EnsureCreatedAsync();
 
 app.UseSerilogRequestLogging();
 

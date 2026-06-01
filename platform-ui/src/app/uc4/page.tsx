@@ -61,6 +61,18 @@ const POLICY_CHIPS: { value: string; label: string; tooltip: string }[] = [
     tooltip:
       "Timeout scenario: Mainframe simulator intentionally sleeps 35 seconds (saga timeout is 30s). API returns 202 Accepted / Processing. Tests the async continuation path — workflow continues after API responds.",
   },
+  {
+    value: "POL-AW-ONLY",
+    label: "POL-AW-ONLY",
+    tooltip:
+      "AtWork only: AtWork returns 2 documents (Comprehensive Property Review + Market Value Assessment). Mainframe MQ returns 0 messages — consumer times out. Tests the scatter-gather when only the SQL branch has results.",
+  },
+  {
+    value: "POL-MF-ONLY",
+    label: "POL-MF-ONLY",
+    tooltip:
+      "Mainframe only: AtWork returns 0 documents. Mainframe MQ sends 2 messages (Structural Assessment + Interior Inspection Report). Tests the scatter-gather when only the IBM MQ branch has results.",
+  },
 ];
 
 const pageStyle: React.CSSProperties = {

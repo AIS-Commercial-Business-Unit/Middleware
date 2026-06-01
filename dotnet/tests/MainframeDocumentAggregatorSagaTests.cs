@@ -1,4 +1,3 @@
-using System.Text;
 using dotnet_prs_appraisal.Sagas;
 using Microsoft.Extensions.Logging.Abstractions;
 using Middleware.Contracts.Commands;
@@ -12,62 +11,84 @@ namespace Middleware.Tests;
 public sealed class MainframeDocumentAggregatorSagaTests
 {
     [Test]
-    public async Task WhenFinalChunkArrives_SagaPublishesAssembledBase64Document()
+    public async Task WhenStarted_SagaRequestsDocumentFromMainframe()
     {
         var adapter = new FakeArtemisAdapter();
         var saga = new MainframeDocumentAggregatorSaga(adapter, NullLogger<MainframeDocumentAggregatorSaga>.Instance);
         var context = new TestableMessageHandlerContext();
-        var command = CreateStartCommand();
 
-        await saga.Handle(command, context);
-        await saga.Handle(CreateChunk(command.RequestId, "chunk-1", isFinal: false), context);
-        await saga.Handle(CreateChunk(command.RequestId, "chunk-2", isFinal: false), context);
-        await saga.Handle(CreateChunk(command.RequestId, "chunk-3", isFinal: true), context);
+        await saga.Handle(new StartMainframeDocumentAggregationCommand
+        {
+            RequestId = "REQ-DOC-1",
+            DocumentKey = "DOC-123",
+            RequestedAt = DateTimeOffset.UtcNow
+        }, context);
 
-        Assert.That(adapter.DocumentRequests, Is.EqualTo(1));
-        var completed = context.PublishedMessages
-            .Select(message => message.Message<AppraisalDocumentRetrievedEvent>())
-            .LastOrDefault(message => message is not null);
-
-        Assert.That(completed, Is.Not.Null);
-        Assert.That(completed!.DocumentKey, Is.EqualTo(command.DocumentKey));
-        Assert.That(completed.ContentType, Is.EqualTo("application/pdf"));
-        Assert.That(completed.ContentBase64, Is.EqualTo(Convert.ToBase64String(Encoding.UTF8.GetBytes("chunk-1chunk-2chunk-3"))));
+        Assert.That(adapter.DocumentRequestCount, Is.EqualTo(1));
+        Assert.That(context.PublishedMessages, Is.Empty);
     }
 
     [Test]
-    public async Task WhenTimeoutOccursWithoutFinalChunk_SagaPublishesEmptyCompletion()
+    public async Task WhenAccumulationCompletes_SagaPublishesRetrievedDocument()
     {
-        var saga = new MainframeDocumentAggregatorSaga(new FakeArtemisAdapter(), NullLogger<MainframeDocumentAggregatorSaga>.Instance);
+        var adapter = new FakeArtemisAdapter();
+        var saga = new MainframeDocumentAggregatorSaga(adapter, NullLogger<MainframeDocumentAggregatorSaga>.Instance);
         var context = new TestableMessageHandlerContext();
-        var command = CreateStartCommand();
 
-        await saga.Handle(command, context);
-        await saga.Handle(CreateChunk(command.RequestId, "chunk-1", isFinal: false), context);
-        await saga.Timeout(new MainframeDocumentAggregatorTimeoutMessage { RequestId = command.RequestId }, context);
+        await saga.Handle(new StartMainframeDocumentAggregationCommand
+        {
+            RequestId = "REQ-DOC-2",
+            DocumentKey = "DOC-456",
+            RequestedAt = DateTimeOffset.UtcNow
+        }, context);
 
-        var completed = context.PublishedMessages
-            .Select(message => message.Message<AppraisalDocumentRetrievedEvent>())
-            .LastOrDefault(message => message is not null);
+        await saga.Handle(new MainframeDocumentAccumulationCompleteEvent
+        {
+            RequestId = "REQ-DOC-2",
+            DocumentKey = "DOC-456",
+            ContentBase64 = "BBBB"
+        }, context);
 
-        Assert.That(completed, Is.Not.Null);
-        Assert.That(completed!.DocumentKey, Is.EqualTo(command.DocumentKey));
-        Assert.That(completed.ContentBase64, Is.EqualTo(string.Empty));
-        Assert.That(completed.ContentType, Is.EqualTo(string.Empty));
-        Assert.That(completed.FileName, Is.EqualTo(string.Empty));
+        var published = context.PublishedMessages
+            .Select(entry => entry.Message<AppraisalDocumentRetrievedEvent>())
+            .SingleOrDefault(message => message is not null);
+
+        Assert.That(published, Is.Not.Null);
+        Assert.That(published!.RequestId, Is.EqualTo("REQ-DOC-2"));
+        Assert.That(published.DocumentKey, Is.EqualTo("DOC-456"));
+        Assert.That(published.SourceSystem, Is.EqualTo("Mainframe"));
+        Assert.That(published.ContentType, Is.EqualTo("application/pdf"));
+        Assert.That(published.ContentBase64, Is.EqualTo("BBBB"));
+        Assert.That(published.FileName, Is.EqualTo("appraisal-DOC-456.pdf"));
     }
 
-    private static StartMainframeDocumentAggregationCommand CreateStartCommand() => new()
+    [Test]
+    public async Task WhenTimeoutFires_SagaPublishesEmptyDocument()
     {
-        RequestId = "REQ-DOC-1",
-        DocumentKey = "MF-DOC-1",
-        RequestedAt = DateTimeOffset.UtcNow
-    };
+        var adapter = new FakeArtemisAdapter();
+        var saga = new MainframeDocumentAggregatorSaga(adapter, NullLogger<MainframeDocumentAggregatorSaga>.Instance);
+        var context = new TestableMessageHandlerContext();
 
-    private static MainframeDocumentChunkReceivedEvent CreateChunk(string requestId, string payload, bool isFinal) => new()
-    {
-        RequestId = requestId,
-        ChunkPayload = payload,
-        IsFinal = isFinal
-    };
+        await saga.Handle(new StartMainframeDocumentAggregationCommand
+        {
+            RequestId = "REQ-DOC-3",
+            DocumentKey = "DOC-EMPTY",
+            RequestedAt = DateTimeOffset.UtcNow
+        }, context);
+
+        await saga.Timeout(new MainframeDocumentAggregatorTimeoutMessage
+        {
+            RequestId = "REQ-DOC-3"
+        }, context);
+
+        var published = context.PublishedMessages
+            .Select(entry => entry.Message<AppraisalDocumentRetrievedEvent>())
+            .SingleOrDefault(message => message is not null);
+
+        Assert.That(published, Is.Not.Null);
+        Assert.That(published!.RequestId, Is.EqualTo("REQ-DOC-3"));
+        Assert.That(published.DocumentKey, Is.EqualTo("DOC-EMPTY"));
+        Assert.That(published.ContentBase64, Is.EqualTo(string.Empty));
+        Assert.That(published.ContentType, Is.EqualTo(string.Empty));
+    }
 }

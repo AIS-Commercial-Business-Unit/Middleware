@@ -125,3 +125,12 @@
 - **`AppraisalParticipantMap` now has a handler-to-participant map and outgoing logs include `EDA_Handler`.** Handler-level logs emit the raw handler class in `EDA_Handler`; outgoing pipeline logs emit `EDA_Handler = "n/a"` so the frontend can distinguish publish arrows from subscriber-handled arrows while keeping the existing incoming `consumed` logs for fallback/dedup.
 
 - **Verification:** `dotnet build dotnet\\dotnet-prs-appraisal\\dotnet-prs-appraisal.csproj -nologo` succeeded and `dotnet test dotnet\\Middleware.sln -nologo` passed (20/20).
+
+## Learnings
+
+### 2026-06-01T14:40:05.325-04:00 — MQ accumulation moved off saga rows
+
+- **Mainframe list/document part fan-in now uses SQL side tables instead of saga JSON blobs.** `AccumulatorRepository` writes list parts to `mf_list_headers` + `mf_list_parts` and document chunks to `mf_document_headers` + `mf_document_chunks`, so concurrent MQ replies no longer contend on NServiceBus SQL persistence row versions.
+- **The saga contract is now kickoff + timeout + downstream completion only.** `MainframeListAggregatorSaga` handles `MainframeListAccumulationCompleteEvent` and reads partial list state from the accumulator store on timeout; `MainframeDocumentAggregatorSaga` handles `MainframeDocumentAccumulationCompleteEvent` and keeps the timeout-owned empty fallback.
+- **Accumulator storage is startup-managed from the app itself.** `Program.cs` registers `IAccumulatorRepository` on the same `ConnectionStrings:NServiceBus` SQL connection and calls `EnsureCreatedAsync()` before the ASP.NET host starts, avoiding a separate migration path for this internal infrastructure.
+- **Verification:** `dotnet build dotnet\\Middleware.Contracts\\Middleware.Contracts.csproj -nologo`, `dotnet build dotnet\\dotnet-prs-appraisal\\dotnet-prs-appraisal.csproj -nologo`, and `dotnet test dotnet\\Middleware.sln -nologo` all succeeded (19/19 tests).

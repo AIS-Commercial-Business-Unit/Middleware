@@ -8,11 +8,5 @@ public sealed class MainframeListAggregatorSagaData : ContainSagaData
 
     public string PolicyNumber { get; set; } = string.Empty;
 
-    public int ExpectedTotal { get; set; }
-
-    public int ReceivedCount { get; set; }
-
-    public string AccumulatedDocumentsJson { get; set; } = string.Empty;
-
     public DateTimeOffset StartedAt { get; set; }
 }

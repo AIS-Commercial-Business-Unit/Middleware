@@ -1,4 +1,3 @@
-using System.Text.Json;
 using dotnet_prs_appraisal.Infrastructure;
 using Middleware.Contracts.Events;
 using Middleware.Contracts.Models;
@@ -12,18 +11,19 @@ namespace dotnet_prs_appraisal.Sagas;
 public sealed class MainframeListAggregatorSaga :
     Saga<MainframeListAggregatorSagaData>,
     IAmStartedByMessages<AppraisalDocumentListRequestedEvent>,
-    IHandleMessages<MainframeAppraisalListPartReceivedEvent>,
+    IHandleMessages<MainframeListAccumulationCompleteEvent>,
     IHandleTimeouts<MainframeListAggregatorTimeoutMessage>
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
+    private readonly IAccumulatorRepository _accumulatorRepository;
     private readonly IArtemisAdapter _artemisAdapter;
     private readonly ILogger<MainframeListAggregatorSaga> _logger;
 
     public MainframeListAggregatorSaga(
+        IAccumulatorRepository accumulatorRepository,
         IArtemisAdapter artemisAdapter,
         ILogger<MainframeListAggregatorSaga> logger)
     {
+        _accumulatorRepository = accumulatorRepository;
         _artemisAdapter = artemisAdapter;
         _logger = logger;
     }
@@ -32,16 +32,23 @@ public sealed class MainframeListAggregatorSaga :
     {
         mapper.MapSaga(sagaData => sagaData.RequestId)
             .ToMessage<AppraisalDocumentListRequestedEvent>(message => message.RequestId)
-            .ToMessage<MainframeAppraisalListPartReceivedEvent>(message => message.RequestId)
+            .ToMessage<MainframeListAccumulationCompleteEvent>(message => message.RequestId)
             .ToMessage<MainframeListAggregatorTimeoutMessage>(message => message.RequestId);
     }
 
     public async Task Handle(AppraisalDocumentListRequestedEvent message, IMessageHandlerContext context)
     {
+        var isRetry = Data?.RequestId == message.RequestId;
         Data ??= new MainframeListAggregatorSagaData();
         Data.RequestId = message.RequestId;
         Data.PolicyNumber = message.PolicyNumber;
         Data.StartedAt = message.RequestedAt;
+
+        if (isRetry)
+        {
+            _logger.LogWarning("Duplicate AppraisalDocumentListRequestedEvent for {RequestId} — skipping MQ send.", message.RequestId);
+            return;
+        }
 
         await RequestTimeout(context, TimeSpan.FromSeconds(18), new MainframeListAggregatorTimeoutMessage
         {
@@ -59,61 +66,32 @@ public sealed class MainframeListAggregatorSaga :
         }
     }
 
-    public async Task Handle(MainframeAppraisalListPartReceivedEvent message, IMessageHandlerContext context)
+    public Task Handle(MainframeListAccumulationCompleteEvent message, IMessageHandlerContext context)
+        => PublishCompletionAsync(context, message.RequestId, message.Documents);
+
+    public async Task Timeout(MainframeListAggregatorTimeoutMessage state, IMessageHandlerContext context)
     {
-        Data ??= new MainframeListAggregatorSagaData();
-        Data.ExpectedTotal = Math.Max(Data.ExpectedTotal, message.TotalExpected);
+        var requestId = string.IsNullOrWhiteSpace(Data?.RequestId) ? state.RequestId : Data.RequestId;
+        var documents = await _accumulatorRepository
+            .GetListDocumentsAsync(requestId, context.CancellationToken)
+            .ConfigureAwait(false);
 
-        var accumulatedDocuments = GetAccumulatedDocuments();
-        var existing = accumulatedDocuments.FirstOrDefault(item => item.SequenceNumber == message.SequenceNumber);
-        if (existing is null)
-        {
-            accumulatedDocuments.Add(new AccumulatedDocument
-            {
-                SequenceNumber = message.SequenceNumber,
-                Document = message.Document
-            });
-        }
-        else
-        {
-            existing.Document = message.Document;
-        }
-
-        accumulatedDocuments = accumulatedDocuments
-            .OrderBy(item => item.SequenceNumber)
-            .ToList();
-
-        Data.ReceivedCount = accumulatedDocuments.Count;
-        Data.AccumulatedDocumentsJson = JsonSerializer.Serialize(accumulatedDocuments, JsonOptions);
-
-        if (Data.ExpectedTotal > 0 && Data.ReceivedCount >= Data.ExpectedTotal)
-        {
-            await PublishCompletionAsync(context, accumulatedDocuments).ConfigureAwait(false);
-        }
+        await PublishCompletionAsync(context, requestId, documents).ConfigureAwait(false);
     }
 
-    public Task Timeout(MainframeListAggregatorTimeoutMessage state, IMessageHandlerContext context)
-        => PublishCompletionAsync(context, GetAccumulatedDocuments());
-
-    private async Task PublishCompletionAsync(IMessageHandlerContext context, List<AccumulatedDocument> accumulatedDocuments)
+    private async Task PublishCompletionAsync(
+        IMessageHandlerContext context,
+        string requestId,
+        IReadOnlyCollection<AppraisalDocumentSummary> documents)
     {
-        var orderedDocuments = accumulatedDocuments
-            .OrderBy(item => item.SequenceNumber)
-            .Select(item => item.Document)
-            .ToList();
-
         await context.Publish(new MainframeDocumentListCompletedEvent
         {
-            RequestId = Data.RequestId,
-            Documents = orderedDocuments
+            RequestId = requestId,
+            Documents = documents.ToList()
         }).ConfigureAwait(false);
 
         MarkAsComplete();
     }
-
-    private List<AccumulatedDocument> GetAccumulatedDocuments() => string.IsNullOrWhiteSpace(Data.AccumulatedDocumentsJson)
-        ? []
-        : JsonSerializer.Deserialize<List<AccumulatedDocument>>(Data.AccumulatedDocumentsJson, JsonOptions) ?? [];
 
     private void LogEdaFlow(string requestId, string messageType, string from, string to, string topic, string direction = "consumed")
     {
@@ -126,12 +104,5 @@ public sealed class MainframeListAggregatorSaga :
         using var _7 = LogContext.PushProperty("EDA_Stack", "dotnet");
         using var _8 = LogContext.PushProperty("EDA_Topic", topic);
         _logger.LogInformation("EDA_FLOW {EDA_MessageType} {EDA_From} -> {EDA_To}", messageType, from, to);
-    }
-
-    private sealed class AccumulatedDocument
-    {
-        public int SequenceNumber { get; set; }
-
-        public AppraisalDocumentSummary Document { get; set; } = new();
     }
 }

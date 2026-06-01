@@ -19,23 +19,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <span className="font-bold text-lg tracking-tight" style={{ color: "var(--accent-light)" }}>
             AIS Middleware
           </span>
-          <Link href="/" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
-            Issue Policy
-          </Link>
           <Link href="/ops" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
             Operations
           </Link>
-          <Link href="/events" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
-            Live Events
-          </Link>
-          <Link href="/batches" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
-            Batches
-          </Link>
           <Link href="/uc4" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
             Appraisals
-          </Link>
-          <Link href="/demo-control" className="text-sm hover:text-white transition-colors font-semibold" style={{ color: "#f59e0b" }}>
-            🎛️ Demo
           </Link>
           <div className="ml-auto flex items-center gap-4">
             <a
