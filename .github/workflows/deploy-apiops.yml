@@ -1,0 +1,87 @@
+name: APIOps - Publish APIs to APIM
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+  push:
+    branches: [main, dev]
+    paths:
+      - "apim/**"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  APIOPS_VERSION: "v6.0.2"
+
+jobs:
+  publish:
+    name: Publish APIs to APIM
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get APIM instance name
+        id: apim
+        run: |
+          # Get APIM name from the resource group (matches Terraform naming)
+          APIM_NAME=$(az apim list \
+            --resource-group "rg-middleware-${{ steps.env.outputs.environment }}" \
+            --query "[0].name" -o tsv)
+          echo "name=${APIM_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Found APIM: ${APIM_NAME}"
+
+      - name: Download APIOps Publisher
+        run: |
+          curl -sL "https://github.com/Azure/apiops/releases/download/${{ env.APIOPS_VERSION }}/publisher-linux-x64.zip" \
+            -o publisher.zip
+          unzip -q publisher.zip -d publisher
+          chmod +x publisher/publisher
+
+      - name: Run APIOps Publisher
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_RESOURCE_GROUP_NAME: "rg-middleware-${{ steps.env.outputs.environment }}"
+          API_MANAGEMENT_SERVICE_NAME: ${{ steps.apim.outputs.name }}
+          API_MANAGEMENT_SERVICE_OUTPUT_FOLDER_PATH: apim
+        run: |
+          ./publisher/publisher
+
+      - name: Publish Summary
+        run: |
+          echo "### APIOps Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **APIM Instance:** ${{ steps.apim.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ steps.env.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **APIs Published:**" >> $GITHUB_STEP_SUMMARY
+          for dir in apim/apis/*/; do
+            api_name=$(basename "$dir")
+            echo "  - ${api_name}" >> $GITHUB_STEP_SUMMARY
+          done
