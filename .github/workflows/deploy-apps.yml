@@ -1,0 +1,158 @@
+name: Deploy Applications to AKS
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      image_tag:
+        description: "Image tag to deploy (git SHA or 'latest')"
+        required: true
+        default: "latest"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  HELM_CHART_PATH: helm/middleware
+  RELEASE_NAME: middleware
+  NAMESPACE: middleware
+
+jobs:
+  deploy:
+    name: Deploy to AKS
+    runs-on: ubuntu-latest
+    # Only run on successful build completion or manual dispatch
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ vars.AKS_RESOURCE_GROUP }} \
+            --name ${{ vars.AKS_CLUSTER_NAME }} \
+            --overwrite-existing
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.14.0"
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            # Use the SHA from the triggering workflow
+            echo "tag=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update Helm dependencies
+        run: |
+          helm dependency update ${{ env.HELM_CHART_PATH }}
+
+      - name: Deploy with Helm
+        run: |
+          ENV="${{ steps.env.outputs.environment }}"
+          TAG="${{ steps.tag.outputs.tag }}"
+          VALUES_FILE="${{ env.HELM_CHART_PATH }}/values-${ENV}.yaml"
+
+          HELM_ARGS=(
+            upgrade --install ${{ env.RELEASE_NAME }}
+            ${{ env.HELM_CHART_PATH }}
+            --namespace ${{ env.NAMESPACE }}
+            --create-namespace
+            --values "${{ env.HELM_CHART_PATH }}/values.yaml"
+            --set-string global.workloadIdentity.clientId="${{ vars.WORKLOAD_IDENTITY_CLIENT_ID }}"
+            --set-string global.keyvault.tenantId="${{ secrets.AZURE_TENANT_ID }}"
+            --set-string global.keyvault.name="${{ vars.KEYVAULT_NAME }}"
+            --set-string global.azure.tenantId="${{ secrets.AZURE_TENANT_ID }}"
+            --set-string global.azure.clientId="${{ vars.WORKLOAD_IDENTITY_CLIENT_ID }}"
+            --set-string global.azure.sqlServerFqdn="${{ vars.SQL_SERVER_FQDN }}"
+          )
+
+          # Apply environment-specific values if file exists
+          if [[ -f "$VALUES_FILE" ]]; then
+            HELM_ARGS+=(--values "$VALUES_FILE")
+          fi
+
+          # Override all image tags with the deployment tag
+          HELM_ARGS+=(
+            --set "policy-issuance-service.image.tag=${TAG}"
+            --set "customer-identity-service.image.tag=${TAG}"
+            --set "platform-compliance-service.image.tag=${TAG}"
+            --set "platform-integration-service.image.tag=${TAG}"
+            --set "billing-finance-service.image.tag=${TAG}"
+            --set "platform-notification-service.image.tag=${TAG}"
+            --set "platform-file-processing-service.image.tag=${TAG}"
+            --set "prs-appraisal-service.image.tag=${TAG}"
+            --set "dotnet-policy-issuance.image.tag=${TAG}"
+            --set "dotnet-customer-identity.image.tag=${TAG}"
+            --set "dotnet-platform-compliance.image.tag=${TAG}"
+            --set "dotnet-platform-integration.image.tag=${TAG}"
+            --set "dotnet-billing-finance.image.tag=${TAG}"
+            --set "dotnet-platform-notification.image.tag=${TAG}"
+            --set "dotnet-file-processing.image.tag=${TAG}"
+            --set "dotnet-kafka-bridge.image.tag=${TAG}"
+            --set "dotnet-prs-appraisal.image.tag=${TAG}"
+            --set "platform-ui.image.tag=${TAG}"
+          )
+
+          # Set stub image tags only for dev
+          if [[ "$ENV" == "dev" ]]; then
+            HELM_ARGS+=(
+              --set "duckcreek-commercial-stub.image.tag=${TAG}"
+              --set "duckcreek-personal-stub.image.tag=${TAG}"
+              --set "forefront-stub.image.tag=${TAG}"
+              --set "rsk3x3-compliance-stub.image.tag=${TAG}"
+              --set "erm7x1-account-stub.image.tag=${TAG}"
+              --set "crm40x1-customer-stub.image.tag=${TAG}"
+              --set "crm19x1-billing-stub.image.tag=${TAG}"
+              --set "deipde07-mq-simulator.image.tag=${TAG}"
+            )
+          fi
+
+          HELM_ARGS+=(
+            --timeout 10m
+            --wait
+          )
+
+          helm "${HELM_ARGS[@]}"
+
+      - name: Deployment Summary
+        run: |
+          echo "### Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ steps.env.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag:** ${{ steps.tag.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Namespace:** ${{ env.NAMESPACE }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Deployed Services" >> $GITHUB_STEP_SUMMARY
+          helm list -n ${{ env.NAMESPACE }} --output table >> $GITHUB_STEP_SUMMARY
