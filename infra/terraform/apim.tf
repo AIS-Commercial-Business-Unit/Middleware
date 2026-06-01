@@ -21,6 +21,8 @@ resource "azurerm_api_management" "main" {
     subnet_id = azurerm_subnet.apim.id
   }
 
+  depends_on = [azurerm_subnet_network_security_group_association.apim]
+
   tags = local.common_tags
 }
 

@@ -93,8 +93,10 @@ jobs:
             --values "${{ env.HELM_CHART_PATH }}/values.yaml"
             --set-string global.workloadIdentity.clientId="${{ vars.WORKLOAD_IDENTITY_CLIENT_ID }}"
             --set-string global.keyvault.tenantId="${{ secrets.AZURE_TENANT_ID }}"
+            --set-string global.keyvault.name="${{ vars.KEYVAULT_NAME }}"
             --set-string global.azure.tenantId="${{ secrets.AZURE_TENANT_ID }}"
             --set-string global.azure.clientId="${{ vars.WORKLOAD_IDENTITY_CLIENT_ID }}"
+            --set-string global.azure.sqlServerFqdn="${{ vars.SQL_SERVER_FQDN }}"
           )
 
           # Apply environment-specific values if file exists

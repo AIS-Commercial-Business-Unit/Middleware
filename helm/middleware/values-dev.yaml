@@ -8,7 +8,7 @@ global:
   workloadIdentity:
     clientId: ""  # Injected by deploy workflow via --set
   keyvault:
-    name: kv-middleware-dev
+    name: ""  # Injected by deploy workflow via --set (Terraform output: keyvault_name)
     tenantId: ""  # Injected by deploy workflow via --set
   eventhubs:
     bootstrapServers: evhns-middleware-dev.servicebus.windows.net:9093
@@ -21,7 +21,7 @@ global:
     clientId: ""  # Injected by deploy workflow via --set
     eventhubsNamespace: "evhns-middleware-dev"
     storageAccountName: "stmiddlewaredevfiles"
-    sqlServerFqdn: "sql-middleware-dev.database.windows.net"
+    sqlServerFqdn: ""  # Injected by deploy workflow via --set (Terraform output: sql_server_fqdn)
   ingress:
     internalHost: "api.middleware.internal"
     staticIp: "10.0.16.10"

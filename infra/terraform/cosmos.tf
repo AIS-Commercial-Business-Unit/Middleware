@@ -3,7 +3,7 @@
 ##############################################################################
 
 resource "azurerm_cosmosdb_account" "main" {
-  name                = "cosmos-${local.name_prefix}"
+  name                = "cosmos-${local.name_prefix}-${local.unique_suffix}"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   offer_type          = "Standard"

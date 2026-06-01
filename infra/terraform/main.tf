@@ -27,7 +27,8 @@ terraform {
 provider "azurerm" {
   features {
     key_vault {
-      purge_soft_delete_on_destroy = false
+      purge_soft_delete_on_destroy    = false
+      recover_soft_deleted_key_vaults = true
     }
   }
 }
@@ -44,6 +45,16 @@ resource "azurerm_resource_group" "main" {
 }
 
 ##############################################################################
+# Random suffix for globally-unique resource names
+##############################################################################
+
+resource "random_string" "suffix" {
+  length  = 4
+  special = false
+  upper   = false
+}
+
+##############################################################################
 # Locals
 ##############################################################################
 
@@ -54,5 +65,6 @@ locals {
     managed_by  = "terraform"
   }
 
-  name_prefix = "${var.project}-${var.environment}"
+  name_prefix    = "${var.project}-${var.environment}"
+  unique_suffix  = random_string.suffix.result
 }

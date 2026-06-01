@@ -58,6 +58,21 @@ output "keyvault_uri" {
   value       = azurerm_key_vault.main.vault_uri
 }
 
+output "keyvault_name" {
+  description = "Key Vault name."
+  value       = azurerm_key_vault.main.name
+}
+
+output "sql_server_name" {
+  description = "Azure SQL Server name."
+  value       = azurerm_mssql_server.main.name
+}
+
+output "cosmos_account_name" {
+  description = "Cosmos DB account name."
+  value       = azurerm_cosmosdb_account.main.name
+}
+
 output "appconfig_endpoint" {
   description = "App Configuration endpoint."
   value       = azurerm_app_configuration.main.endpoint

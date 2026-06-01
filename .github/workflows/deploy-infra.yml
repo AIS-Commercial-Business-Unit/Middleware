@@ -129,12 +129,16 @@ jobs:
           RG_NAME=$(terraform output -raw resource_group_name)
           WORKLOAD_CLIENT_ID=$(terraform output -raw workload_identity_client_id)
           ACR_SERVER=$(terraform output -raw acr_login_server)
+          KEYVAULT_NAME=$(terraform output -raw keyvault_name)
+          SQL_FQDN=$(terraform output -raw sql_server_fqdn)
 
           # Save as GitHub repository variables (for deploy-apps workflow)
           gh variable set AKS_CLUSTER_NAME --body "$AKS_NAME"
           gh variable set AKS_RESOURCE_GROUP --body "$RG_NAME"
           gh variable set WORKLOAD_IDENTITY_CLIENT_ID --body "$WORKLOAD_CLIENT_ID"
           gh variable set ACR_LOGIN_SERVER --body "$ACR_SERVER"
+          gh variable set KEYVAULT_NAME --body "$KEYVAULT_NAME"
+          gh variable set SQL_SERVER_FQDN --body "$SQL_FQDN"
 
           echo "### Terraform Outputs Saved" >> $GITHUB_STEP_SUMMARY
           echo "| Variable | Value |" >> $GITHUB_STEP_SUMMARY
@@ -143,3 +147,5 @@ jobs:
           echo "| AKS_RESOURCE_GROUP | $RG_NAME |" >> $GITHUB_STEP_SUMMARY
           echo "| WORKLOAD_IDENTITY_CLIENT_ID | $WORKLOAD_CLIENT_ID |" >> $GITHUB_STEP_SUMMARY
           echo "| ACR_LOGIN_SERVER | $ACR_SERVER |" >> $GITHUB_STEP_SUMMARY
+          echo "| KEYVAULT_NAME | $KEYVAULT_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| SQL_SERVER_FQDN | $SQL_FQDN |" >> $GITHUB_STEP_SUMMARY

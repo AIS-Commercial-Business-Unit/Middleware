@@ -8,7 +8,7 @@ global:
   workloadIdentity:
     clientId: ""  # From terraform output: workload identity client ID
   keyvault:
-    name: ""      # From terraform output: kv-middleware-dev
+    name: ""      # From terraform output: keyvault_name (globally unique, includes random suffix)
     tenantId: ""  # Azure AD tenant ID
   eventhubs:
     bootstrapServers: ""  # e.g. evhns-middleware-dev.servicebus.windows.net:9093
@@ -21,7 +21,7 @@ global:
     clientId: ""              # Workload identity client ID from terraform output
     eventhubsNamespace: ""    # e.g., evhns-middleware-dev
     storageAccountName: ""    # e.g., stmiddlewaredevfiles
-    sqlServerFqdn: ""         # e.g., sql-middleware-dev.database.windows.net
+    sqlServerFqdn: ""         # From terraform output: sql_server_fqdn (globally unique, includes random suffix)
   ingress:
     internalHost: "api.middleware.internal"  # Private DNS zone for APIM → AKS
     publicHost: ""                          # Public DNS (if UI exposed directly)
