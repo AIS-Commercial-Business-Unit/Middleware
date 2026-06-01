@@ -96,3 +96,17 @@
 - **Replaced homegrown `ICallbackRegistry`/`CallbackRegistry` with NServiceBus.Callbacks 4.0.3.** Updated `PolicyIssuanceController` to use `messageSession.Request<T>()` for callback-style messaging. All sagas now use `context.Reply()` instead of custom registry calls. Removed dead files: `CallbackRegistry.cs`, `ICallbackRegistry.cs`, `DocumentListResult.cs`. **Commit:** 2e7d9b5
 
 - **UC4 EDA compliance review findings documented by Architect.** 3 critical violations (scatter-gather not published, temporal coupling, inline AtWork calls) — all fixed by this session's scatter-gather implementation. 3 important issues (command vs event pattern I1, infrastructure in domain layer I2, missing completion event I3) — fixed in commits above. Decision merged to `decisions.md` for team reference. Next: Review whether DocumentRetrievalSaga needs same scatter-gather pattern (C3 priority).
+
+### 2026-05-31T20:03:13-04:00 — UC4 EDA Compliance: C3 + I1 Final Fixes
+
+- **C3 (DocumentRetrievalSaga AtWork inline call) eliminated.** `DocumentRetrievalSaga` now publishes `Uc4AppraisalDocumentRetrievalRequestedEvent` instead of calling `AtWorkFixture.BuildRetrievalResult()` inline. Created `AtWorkDocumentRetrievalHandler` subscribing to that event, calling the fixture, and publishing `Uc4AtWorkDocumentRetrievedEvent`. Saga handles the async reply via `Handle(Uc4AtWorkDocumentRetrievedEvent)` with a `TryCompleteAtWorkAsync()` guard (same `TryComplete` pattern as `DocumentListSaga`). Saga state additions: `AtWorkPending`, `AtWorkDone`, `AtWorkContent`, `AtWorkMimeType`. New contracts: `Uc4AppraisalDocumentRetrievalRequestedEvent`, `Uc4AtWorkDocumentRetrievedEvent`. **Commit:** 96914d6
+
+- **I1 (MainframeListAggregatorSaga started by command) fixed.** `MainframeListAggregatorSaga` is now started by `Uc4AppraisalDocumentListRequestedEvent` directly, eliminating `MainframeDocumentListAdapterHandler` and `StartMainframeListAggregationCommand` which were pure ceremony. Routing entry and `mainframeadapter` participant map entry removed. **Commit:** 96914d6
+
+- **Pattern: Sagas started by events, not commands, wherever the trigger is a pub/sub notification.** If a saga's sole purpose is to receive an event and forward a command to itself, collapse them — the saga subscribes to the event directly. This removes an adapter hop with no domain logic.
+
+- **Pattern: All saga `Handle(startMessage)` methods use `Data ??= new SagaData()` for test-harness compatibility.** NServiceBus.Testing does not auto-initialize saga `Data`; this guard enables direct unit testing without additional setup.
+
+- **`EDAFlowBehavior.AppraisalParticipantMap` updated:** `"mainframeadapter"` removed; `"atworkdocumentretrievalhandler" → "AtWork Retrieval"` added. `StartMainframeListAggregationCommand` removed from message→subscriber map; `Uc4AppraisalDocumentRetrievalRequestedEvent` and `Uc4AtWorkDocumentRetrievedEvent` added.
+
+- **20/20 tests pass post-fix.** New tests: `AtWorkDocumentRetrievalHandlerTests` (2 cases), `DocumentRetrievalSagaTests` (5 cases). `MainframeListAggregatorSagaTests` updated to use event (4 existing + 1 new). Build: 0 errors, 0 warnings.
