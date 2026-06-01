@@ -1,0 +1,242 @@
+name: Build and Push Container Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "Comma-separated list of services to build (or 'all')"
+        required: false
+        default: "all"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ACR_NAME: acrmiddlewaredev
+  ACR_REGISTRY: acrmiddlewaredev.azurecr.io
+
+jobs:
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Determine services to build
+        id: set-matrix
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.services }}" != "all" ]]; then
+            # Manual trigger with specific services
+            IFS=',' read -ra SERVICES <<< "${{ inputs.services }}"
+            MATRIX="["
+            for svc in "${SERVICES[@]}"; do
+              svc=$(echo "$svc" | xargs)  # trim whitespace
+              MATRIX="${MATRIX}{\"service\":\"${svc}\"},"
+            done
+            MATRIX="${MATRIX%,}]"
+            echo "matrix={\"include\":${MATRIX}}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Auto-detect from changed files
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD)
+          SERVICES=()
+
+          # Java services
+          declare -A JAVA_SERVICES=(
+            ["java/policy-issuance-service"]="policy-issuance-service"
+            ["java/customer-identity-service"]="customer-identity-service"
+            ["java/platform-compliance-service"]="platform-compliance-service"
+            ["java/platform-integration-service"]="platform-integration-service"
+            ["java/billing-finance-service"]="billing-finance-service"
+            ["java/platform-notification-service"]="platform-notification-service"
+            ["java/platform-file-processing-service"]="platform-file-processing-service"
+            ["java/prs-appraisal-service"]="prs-appraisal-service"
+          )
+
+          # Check if common Java files changed (rebuild all Java)
+          JAVA_COMMON_CHANGED=false
+          if echo "$CHANGED" | grep -qE "^java/(common|pom\.xml)"; then
+            JAVA_COMMON_CHANGED=true
+          fi
+
+          for path in "${!JAVA_SERVICES[@]}"; do
+            svc="${JAVA_SERVICES[$path]}"
+            if [[ "$JAVA_COMMON_CHANGED" == "true" ]] || echo "$CHANGED" | grep -q "^${path}/"; then
+              SERVICES+=("$svc")
+            fi
+          done
+
+          # Java stubs
+          declare -A STUB_SERVICES=(
+            ["java/stubs/duckcreek-commercial-stub"]="duckcreek-commercial-stub"
+            ["java/stubs/duckcreek-personal-stub"]="duckcreek-personal-stub"
+            ["java/stubs/forefront-stub"]="forefront-stub"
+            ["java/stubs/rsk3x3-compliance-stub"]="rsk3x3-compliance-stub"
+            ["java/stubs/erm7x1-account-stub"]="erm7x1-account-stub"
+            ["java/stubs/crm40x1-customer-stub"]="crm40x1-customer-stub"
+            ["java/stubs/crm19x1-billing-stub"]="crm19x1-billing-stub"
+            ["java/stubs/deipde07-mq-simulator"]="deipde07-mq-simulator"
+          )
+
+          for path in "${!STUB_SERVICES[@]}"; do
+            svc="${STUB_SERVICES[$path]}"
+            if [[ "$JAVA_COMMON_CHANGED" == "true" ]] || echo "$CHANGED" | grep -q "^${path}/"; then
+              SERVICES+=("$svc")
+            fi
+          done
+
+          # .NET services
+          DOTNET_COMMON_CHANGED=false
+          if echo "$CHANGED" | grep -qE "^dotnet/(Middleware\.Contracts|Directory\.Build\.props)"; then
+            DOTNET_COMMON_CHANGED=true
+          fi
+
+          declare -A DOTNET_SERVICES=(
+            ["dotnet/dotnet-policy-issuance"]="dotnet-policy-issuance"
+            ["dotnet/dotnet-customer-identity"]="dotnet-customer-identity"
+            ["dotnet/dotnet-platform-compliance"]="dotnet-platform-compliance"
+            ["dotnet/dotnet-platform-integration"]="dotnet-platform-integration"
+            ["dotnet/dotnet-billing-finance"]="dotnet-billing-finance"
+            ["dotnet/dotnet-platform-notification"]="dotnet-platform-notification"
+            ["dotnet/dotnet-file-processing"]="dotnet-file-processing"
+            ["dotnet/dotnet-kafka-bridge"]="dotnet-kafka-bridge"
+            ["dotnet/dotnet-prs-appraisal"]="dotnet-prs-appraisal"
+          )
+
+          for path in "${!DOTNET_SERVICES[@]}"; do
+            svc="${DOTNET_SERVICES[$path]}"
+            if [[ "$DOTNET_COMMON_CHANGED" == "true" ]] || echo "$CHANGED" | grep -q "^${path}/"; then
+              SERVICES+=("$svc")
+            fi
+          done
+
+          # Platform UI
+          if echo "$CHANGED" | grep -q "^platform-ui/"; then
+            SERVICES+=("platform-ui")
+          fi
+
+          # Build all on manual dispatch with 'all'
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.services }}" == "all" ]]; then
+            SERVICES=(
+              policy-issuance-service customer-identity-service platform-compliance-service
+              platform-integration-service billing-finance-service platform-notification-service
+              platform-file-processing-service prs-appraisal-service
+              duckcreek-commercial-stub duckcreek-personal-stub forefront-stub
+              rsk3x3-compliance-stub erm7x1-account-stub crm40x1-customer-stub
+              crm19x1-billing-stub deipde07-mq-simulator
+              dotnet-policy-issuance dotnet-customer-identity dotnet-platform-compliance
+              dotnet-platform-integration dotnet-billing-finance dotnet-platform-notification
+              dotnet-file-processing dotnet-kafka-bridge dotnet-prs-appraisal
+              platform-ui
+            )
+          fi
+
+          # Build matrix JSON
+          if [[ ${#SERVICES[@]} -eq 0 ]]; then
+            echo "matrix={\"include\":[]}" >> "$GITHUB_OUTPUT"
+          else
+            MATRIX="["
+            for svc in "${SERVICES[@]}"; do
+              MATRIX="${MATRIX}{\"service\":\"${svc}\"},"
+            done
+            MATRIX="${MATRIX%,}]"
+            echo "matrix={\"include\":${MATRIX}}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.matrix != '{"include":[]}' }}
+    strategy:
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Determine Dockerfile path
+        id: dockerfile
+        run: |
+          SERVICE="${{ matrix.service }}"
+
+          # Java main services
+          if [[ -d "java/${SERVICE}" ]]; then
+            echo "context=java" >> "$GITHUB_OUTPUT"
+            echo "dockerfile=java/${SERVICE}/Dockerfile" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Java stubs
+          if [[ -d "java/stubs/${SERVICE}" ]]; then
+            echo "context=java" >> "$GITHUB_OUTPUT"
+            echo "dockerfile=java/stubs/${SERVICE}/Dockerfile" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # .NET services
+          if [[ -d "dotnet/${SERVICE}" ]]; then
+            echo "context=dotnet" >> "$GITHUB_OUTPUT"
+            echo "dockerfile=dotnet/${SERVICE}/Dockerfile" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Platform UI
+          if [[ "$SERVICE" == "platform-ui" ]]; then
+            echo "context=platform-ui" >> "$GITHUB_OUTPUT"
+            echo "dockerfile=platform-ui/Dockerfile" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          echo "::error::Dockerfile not found for service ${SERVICE}"
+          exit 1
+
+      - name: Build and push image
+        if: steps.dockerfile.outputs.found == 'true'
+        run: |
+          IMAGE="${ACR_REGISTRY}/${{ matrix.service }}"
+          TAG="${{ github.sha }}"
+
+          docker build \
+            -t "${IMAGE}:${TAG}" \
+            -t "${IMAGE}:latest" \
+            -f "${{ steps.dockerfile.outputs.dockerfile }}" \
+            "${{ steps.dockerfile.outputs.context }}"
+
+          docker push "${IMAGE}:${TAG}"
+          docker push "${IMAGE}:latest"
+
+  notify-deploy:
+    name: Trigger Deployment
+    runs-on: ubuntu-latest
+    needs: build
+    if: success()
+    steps:
+      - name: Summary
+        run: |
+          echo "### Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "All images pushed to ACR with tag: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Trigger deploy-apps workflow to deploy to AKS." >> $GITHUB_STEP_SUMMARY
