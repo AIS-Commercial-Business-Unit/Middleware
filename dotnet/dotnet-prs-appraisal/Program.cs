@@ -45,6 +45,7 @@ builder.Host.UseNServiceBus(_ =>
     var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
     transport.ConnectionString(nServiceBusConnectionString);
     transport.DefaultSchema("dbo");
+    transport.Transactions(TransportTransactionMode.SendsAtomicWithReceive);
 
     var routing = transport.Routing();
     routing.RouteToEndpoint(typeof(GetAppraisalDocumentListCommand), "dotnet-prs-appraisal");

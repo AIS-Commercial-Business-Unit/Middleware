@@ -58,6 +58,7 @@ internal static class AtWorkFixture
             }
         ],
         ["POL-MF-ONLY"] = [],
+        ["POL-NO-DOCS"] = [],
         ["POL-003-TEST"] =
         [
             new DocumentSummary

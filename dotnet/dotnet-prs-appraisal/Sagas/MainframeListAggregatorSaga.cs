@@ -38,17 +38,16 @@ public sealed class MainframeListAggregatorSaga :
 
     public async Task Handle(AppraisalDocumentListRequestedEvent message, IMessageHandlerContext context)
     {
-        var isRetry = Data?.RequestId == message.RequestId;
-        Data ??= new MainframeListAggregatorSagaData();
-        Data.RequestId = message.RequestId;
         Data.PolicyNumber = message.PolicyNumber;
         Data.StartedAt = message.RequestedAt;
 
-        if (isRetry)
+        if (Data.MqSendInitiated)
         {
             _logger.LogWarning("Duplicate AppraisalDocumentListRequestedEvent for {RequestId} — skipping MQ send.", message.RequestId);
             return;
         }
+
+        Data.MqSendInitiated = true;
 
         await RequestTimeout(context, TimeSpan.FromSeconds(18), new MainframeListAggregatorTimeoutMessage
         {

@@ -9,4 +9,6 @@ public sealed class MainframeDocumentAggregatorSagaData : ContainSagaData
     public string DocumentKey { get; set; } = string.Empty;
 
     public DateTimeOffset StartedAt { get; set; }
+
+    public bool MqSendInitiated { get; set; }
 }

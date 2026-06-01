@@ -9,4 +9,6 @@ public sealed class MainframeListAggregatorSagaData : ContainSagaData
     public string PolicyNumber { get; set; } = string.Empty;
 
     public DateTimeOffset StartedAt { get; set; }
+
+    public bool MqSendInitiated { get; set; }
 }

@@ -35,17 +35,16 @@ public sealed class MainframeDocumentAggregatorSaga :
 
     public async Task Handle(StartMainframeDocumentAggregationCommand message, IMessageHandlerContext context)
     {
-        var isRetry = Data?.RequestId == message.RequestId;
-        Data ??= new MainframeDocumentAggregatorSagaData();
-        Data.RequestId = message.RequestId;
         Data.DocumentKey = message.DocumentKey;
         Data.StartedAt = message.RequestedAt;
 
-        if (isRetry)
+        if (Data.MqSendInitiated)
         {
             _logger.LogWarning("Duplicate StartMainframeDocumentAggregationCommand for {RequestId} — skipping MQ send.", message.RequestId);
             return;
         }
+
+        Data.MqSendInitiated = true;
 
         await RequestTimeout(context, TimeSpan.FromSeconds(18), new MainframeDocumentAggregatorTimeoutMessage
         {

@@ -41,7 +41,8 @@ public class AppraisalListResponder {
             "POL-MF-ONLY",  List.of(
                     new AppraisalRecord("APR-MF1", "POL-MF-ONLY", "100 MAIN STREET", "CHICAGO",     "IL", "60601", "2024-05-01", "APPRAISAL", "Structural Assessment",        "10000000005"),
                     new AppraisalRecord("APR-MF2", "POL-MF-ONLY", "200 ELM AVENUE",  "CHICAGO",     "IL", "60602", "2024-05-02", "APPRAISAL", "Interior Inspection Report",   "10000000006")
-            )
+            ),
+            "POL-NO-DOCS",  List.of() // both branches return 0 docs
             // POL-TIMEOUT handled separately via special-case logic below
     );
 
