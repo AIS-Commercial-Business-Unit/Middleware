@@ -27,12 +27,6 @@
     <p>UC4 · PRS Appraisal Query Services — scatter-gather fan-out and content-based routing with mainframe chunk aggregation, running end-to-end.</p>
   </div>
 
-  <div class="callout">
-    <strong>Live app:</strong> <a href="http://localhost:3000" target="_blank">http://localhost:3000</a>
-    &nbsp;·&nbsp; Flow Tracer: <code>/ops/{correlationId}</code>
-    <span class="muted" style="margin-left:8px">(update URL before demo)</span>
-  </div>
-
   <h2>UC4 — What Was Built</h2>
   <div class="card">
     <p>
@@ -56,7 +50,77 @@
     </table>
   </div>
 
-  <h2>POC Criteria</h2>
+  <h2>Technology Stack</h2>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:24%">Capability</th>
+          <th style="width:38%">Running Local (this demo)</th>
+          <th style="width:38%">Deployed to Azure</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="label">Container Runtime</td>
+          <td>Rancher Desktop · Docker Compose</td>
+          <td>Azure Kubernetes Service (AKS)</td>
+        </tr>
+        <tr>
+          <td class="label">Messaging / Saga Bus</td>
+          <td>NServiceBus · ActiveMQ Artemis (embedded)</td>
+          <td>NServiceBus · Azure Service Bus <span class="muted">(or RabbitMQ, SQS, etc. — NServiceBus is transport-agnostic)</span></td>
+        </tr>
+        <tr>
+          <td class="label">Saga State</td>
+          <td>SQL Server (LocalDB / Docker)</td>
+          <td>Azure SQL Database</td>
+        </tr>
+        <tr>
+          <td class="label">Integration State &amp; Flow Tracing</td>
+          <td>MongoDB (Docker)</td>
+          <td>MongoDB Atlas on Azure <span class="muted">(or self-hosted in AKS)</span></td>
+        </tr>
+        <tr>
+          <td class="label">Event Streaming</td>
+          <td>Confluent Kafka (Docker)</td>
+          <td>Confluent Kafka (Azure Marketplace)</td>
+        </tr>
+        <tr>
+          <td class="label">IBM MQ / Mainframe</td>
+          <td>ActiveMQ Artemis + <code>deipde07-mq-simulator</code> stub · sends real MQ wire format, fake data</td>
+          <td>Real IBM MQ on-premises (DEIPDE07) · same adapter, no code change</td>
+        </tr>
+        <tr>
+          <td class="label">@Work / RiskID</td>
+          <td>In-memory fixture (<code>AtWorkFixture</code>) · seeded document keys</td>
+          <td>Real @Work / RiskID WCF endpoints via APIM</td>
+        </tr>
+        <tr>
+          <td class="label">API Gateway</td>
+          <td>Next.js reverse proxy (<code>localhost:3000</code>)</td>
+          <td>Azure API Management (APIM)</td>
+        </tr>
+        <tr>
+          <td class="label">Secrets &amp; Config</td>
+          <td><code>appsettings.json</code> / environment variables</td>
+          <td>Azure Key Vault + Azure App Configuration</td>
+        </tr>
+        <tr>
+          <td class="label">Observability</td>
+          <td>Grafana + Prometheus + Tempo (Docker) · custom EDA Flow Tracer UI</td>
+          <td>Azure Monitor · Application Insights · EDA Flow Tracer</td>
+        </tr>
+        <tr>
+          <td class="label">Identity</td>
+          <td>No auth (local)</td>
+          <td>Entra ID Managed Identities · no stored credentials</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+
   <div class="card-grid">
     <div class="card-sm">
       <h3>Functional Correctness</h3>

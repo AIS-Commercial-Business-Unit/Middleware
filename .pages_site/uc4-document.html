@@ -29,9 +29,9 @@
 
   <div class="callout">
     <strong>Try it:</strong>
-    <code>GET /api/appraisal/document?documentKey=INS001_RiskID_I</code>
+    <code>GET /api/appraisals/document?documentKey=DOC_RiskID_I_TEST001&amp;sourceSystem=AtWork</code>
     &nbsp;or&nbsp;
-    <code>documentKey=12345678901</code>
+    <code>documentKey=10000000001&amp;sourceSystem=Mainframe</code>
     &nbsp;·&nbsp; Flow Tracer: <a href="http://localhost:3000" target="_blank">localhost:3000</a><code>/ops/{correlationId}</code>
   </div>
 
@@ -50,15 +50,15 @@
       <tbody>
         <tr>
           <td class="label">Contains <code>_RiskID_</code></td>
-          <td><code>INS001_RiskID_I</code></td>
-          <td>RiskID WCF Service</td>
-          <td>Single synchronous WCF call. Response is a base64-encoded PDF.</td>
+          <td><code>DOC_RiskID_I_TEST001</code></td>
+          <td>AtWork / RiskID System</td>
+          <td>Single call to AtWork gateway. Response is a base64-encoded PDF.</td>
         </tr>
         <tr>
           <td class="label">Numeric only</td>
-          <td><code>12345678901</code></td>
+          <td><code>10000000001</code></td>
           <td>DEIPDE07 IBM MQ</td>
-          <td>Fire-and-forget MQ request. Multiple reply messages reassembled into one PDF.</td>
+          <td>Fire-and-forget MQ request. Multiple reply chunks reassembled into one PDF.</td>
         </tr>
       </tbody>
     </table>
@@ -95,48 +95,51 @@
       </thead>
       <tbody>
         <tr>
-          <td class="label"><code>INS001_RiskID_I</code></td>
-          <td>RiskID WCF</td>
-          <td>PDF returned. Single WCF call. Route decision logged as <code>RiskIDWCF</code>.</td>
+          <td class="label"><code>DOC_RiskID_I_TEST001</code></td>
+          <td>AtWork / RiskID</td>
+          <td>PDF returned (Insured Full Appraisal). Single AtWork call. Route decision logged as <code>AtWorkRiskID</code>.</td>
         </tr>
         <tr>
-          <td class="label"><code>12345678901</code></td>
-          <td>DEIPDE07 MQ</td>
-          <td>PDF assembled from 5 chunks. Position indicators "1 of 5" … "5 of 5" visible in Flow Tracer.</td>
+          <td class="label"><code>DOC_RiskID_A_TEST002</code></td>
+          <td>AtWork / RiskID</td>
+          <td>PDF returned (Agent Appraisal Report). Single AtWork call. Different inspection type.</td>
         </tr>
         <tr>
-          <td class="label"><code>99999999999</code></td>
+          <td class="label"><code>10000000001</code></td>
           <td>DEIPDE07 MQ</td>
-          <td>Timeout after 30 s. Error response with chunk count received. No corrupt document returned.</td>
+          <td>PDF assembled from chunks. Position indicators visible in Flow Tracer. Route decision logged as <code>DEIPDE07MQ</code>.</td>
+        </tr>
+        <tr>
+          <td class="label"><code>10000000002</code></td>
+          <td>DEIPDE07 MQ</td>
+          <td>PDF assembled from chunks (Exterior Appraisal). Same MQ path, different document.</td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <h2>Structured Log — Mainframe Path (12345678901)</h2>
+  <h2>Structured Log — Mainframe Path (10000000001)</h2>
   <details>
     <summary>Show expected log output</summary>
     <div class="card" style="margin-top:12px">
-      <pre style="font-size:12px; overflow-x:auto; margin:0">ContentRouter.Decision             correlationId=xxx  documentKey=12345678901  route=DEIPDE07MQ
-DEIPDE07.MQ.Send                   correlationId=xxx  queue=DOC_REQUEST
-DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=1  position="1 of 5"
-DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=2  position="2 of 5"
-DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=3  position="3 of 5"
-DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=4  position="4 of 5"
-DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=5  position="5 of 5"  endOfMessage=true
-DEIPDE07.Aggregation.EBCDICStrip   correlationId=xxx  charsRemoved=10
-DEIPDE07.Aggregation.Complete      correlationId=xxx  totalChunks=5  assembledSizeBytes=320
-DocumentRetrieved                  correlationId=xxx  sourceSystem=DEIPDE07  sizeBytes=320</pre>
+      <pre style="font-size:12px; overflow-x:auto; margin:0">ContentRouter.Decision             correlationId=xxx  documentKey=10000000001  route=DEIPDE07MQ
+DEIPDE07.MQ.Send                   correlationId=xxx  queue=APPRAISAL.DOC.REQUEST
+DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=1  position="1 of N"
+DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=2  position="2 of N"
+DEIPDE07.Chunk.Received            correlationId=xxx  chunkIndex=N  position="N of N"  endOfMessage=true
+DEIPDE07.Aggregation.EBCDICStrip   correlationId=xxx  charsRemoved=N
+DEIPDE07.Aggregation.Complete      correlationId=xxx  totalChunks=N  assembledSizeBytes=N
+DocumentRetrieved                  correlationId=xxx  sourceSystem=Mainframe  sizeBytes=N</pre>
     </div>
   </details>
 
   <details>
-    <summary>Show RiskID path log output</summary>
+    <summary>Show AtWork / RiskID path log output</summary>
     <div class="card" style="margin-top:12px">
-      <pre style="font-size:12px; overflow-x:auto; margin:0">ContentRouter.Decision             correlationId=xxx  documentKey=INS001_RiskID_I  route=RiskIDWCF
-RiskID.WCF.Called                  correlationId=xxx  inspectionID=INS001  pdfType=Abiz
-RiskID.WCF.ResponseReceived        correlationId=xxx  durationMs=120  sizeBytes=4200
-DocumentRetrieved                  correlationId=xxx  sourceSystem=RiskID  sizeBytes=4200</pre>
+      <pre style="font-size:12px; overflow-x:auto; margin:0">ContentRouter.Decision             correlationId=xxx  documentKey=DOC_RiskID_I_TEST001  route=AtWorkRiskID
+AtWork.Retrieval.Started           correlationId=xxx  documentKey=DOC_RiskID_I_TEST001
+AtWork.Retrieval.Completed         correlationId=xxx  durationMs=120  sizeBytes=4200
+DocumentRetrieved                  correlationId=xxx  sourceSystem=AtWork  sizeBytes=4200</pre>
     </div>
   </details>
 

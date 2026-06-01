@@ -69,13 +69,13 @@
       <tr><td colspan="4" style="background:var(--navy);color:#fff;font-weight:600;padding:8px 12px;font-size:13px">Messaging &amp; Events</td></tr>
       <tr>
         <td class="label">Azure Service Bus (Premium)</td>
-        <td class="dash">—</td><td class="check">✓</td>
-        <td>Primary message broker. Sagas, commands, events, dead-letter queues. Premium tier required for virtual network integration.</td>
+        <td class="dash">—</td><td class="check">Optional</td>
+        <td>Message broker for sagas, commands, events, dead-letter queues. Premium tier required for virtual network integration. Standard tier is sufficient for non-VNet environments.</td>
       </tr>
       <tr>
-        <td class="label">Azure Event Hubs / Confluent Kafka</td>
-        <td class="check">✓</td><td class="dash">—</td>
-        <td>Java/Camel stack uses Confluent Kafka (available on Azure Marketplace) as the event streaming backbone. Azure Event Hubs provides a Kafka-compatible surface as an alternative.</td>
+        <td class="label">Confluent Kafka</td>
+        <td class="check">✓</td><td class="check">✓</td>
+        <td>Event streaming backbone. Java/Camel stack uses Confluent Kafka as the primary broker. AIS+ stack integrates via Confluent Kafka for event streaming workloads. Available on Azure Marketplace.</td>
       </tr>
       <tr>
         <td class="label">Azure Event Grid</td>
@@ -91,9 +91,9 @@
         <td>Saga state persistence in AIS+. NServiceBus writes durable workflow state to SQL. Serverless tier available for dev/test.</td>
       </tr>
       <tr>
-        <td class="label">Azure Cosmos DB (MongoDB API)</td>
+        <td class="label">MongoDB</td>
         <td class="check">Optional</td><td class="dash">—</td>
-        <td>Java/Camel stack may use MongoDB for integration state or document storage. Cosmos DB for MongoDB API provides a managed service option.</td>
+        <td>Java/Camel stack uses MongoDB for integration state and document storage. Runs as a container in AKS or via MongoDB Atlas on Azure.</td>
       </tr>
       <tr>
         <td class="label">Azure Blob Storage</td>
@@ -156,19 +156,19 @@
       </tr>
       <tr>
         <td class="label">NServiceBus ServiceControl / ServicePulse</td>
-        <td class="dash">—</td><td class="check">✓</td>
-        <td>AIS+ only. Provides message-level monitoring: error queue management, SLA breach alerts, message audit, conversation tracing, endpoint health. Runs as a container in AKS. No equivalent in the Java/Camel stack without custom implementation.</td>
+        <td class="dash">—</td><td class="dash">—</td>
+        <td>Not included. Message-level monitoring handled via Application Insights and Azure Monitor for both stacks.</td>
       </tr>
 
       <!-- CI/CD -->
       <tr><td colspan="4" style="background:var(--navy);color:#fff;font-weight:600;padding:8px 12px;font-size:13px">CI/CD &amp; IaC</td></tr>
       <tr>
-        <td class="label">GitHub Actions</td>
+        <td class="label">Azure DevOps Pipelines</td>
         <td class="check">✓</td><td class="check">✓</td>
-        <td>Build, test, deploy pipelines. Both stacks use GitHub Actions.</td>
+        <td>Build, test, deploy pipelines. Both stacks use Azure DevOps Pipelines.</td>
       </tr>
       <tr>
-        <td class="label">Bicep / Terraform (IaC)</td>
+        <td class="label">Terraform (IaC)</td>
         <td class="check">✓</td><td class="check">✓</td>
         <td>Infrastructure as code. Environment provisioning from a single pipeline run.</td>
       </tr>
@@ -191,14 +191,14 @@
         <tbody>
           <tr><td>AKS (3–6 node cluster)</td><td>$18K–$45K</td></tr>
           <tr><td>Confluent Kafka (Azure Marketplace)</td><td>$12K–$36K</td></tr>
-          <tr><td>Azure Cosmos DB or MongoDB Atlas</td><td>$3K–$12K</td></tr>
+          <tr><td>MongoDB Atlas (Azure)</td><td>$3K–$12K</td></tr>
           <tr><td>APIM (Developer/Standard)</td><td>$1.8K–$18K</td></tr>
           <tr><td>Key Vault, App Config, Blob, Monitor</td><td>$2K–$5K</td></tr>
           <tr><td>Container Registry, Event Grid</td><td>&lt;$1K</td></tr>
           <tr style="font-weight:700;background:var(--ltblue)"><td>Estimated Range</td><td>$37K–$117K/yr</td></tr>
         </tbody>
       </table>
-      <p class="muted" style="margin-top:10px">Note: Confluent Kafka is the second-largest cost driver after AKS. Azure Event Hubs (Kafka-compatible) is a lower-cost alternative at $0.03–$0.06/million events.</p>
+      <p class="muted" style="margin-top:10px">Note: Confluent Kafka is the second-largest cost driver after AKS.</p>
     </div>
     <div class="card stack-ais">
       <div class="stack-label-ais">AIS+ (.NET / NServiceBus)</div>
@@ -206,7 +206,8 @@
         <thead><tr><th>Service</th><th>Est. Annual</th></tr></thead>
         <tbody>
           <tr><td>AKS (3–6 node cluster)</td><td>$18K–$45K</td></tr>
-          <tr><td>Azure Service Bus (Premium)</td><td>$10K–$20K</td></tr>
+          <tr><td>Confluent Kafka (Azure Marketplace)</td><td>$12K–$36K</td></tr>
+          <tr><td>Azure Service Bus (Optional)</td><td>$0–$20K</td></tr>
           <tr><td>Azure SQL (Saga state)</td><td>$1.5K–$6K</td></tr>
           <tr><td>APIM (Developer/Standard)</td><td>$1.8K–$18K</td></tr>
           <tr><td>Logic Apps Standard (optional)</td><td>$0–$6K</td></tr>

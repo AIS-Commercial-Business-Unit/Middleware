@@ -42,6 +42,79 @@
     </p>
   </div>
 
+  <!-- ── UC4 (Built) ── -->
+  <details open>
+    <summary>UC4 — PRS Appraisal Query Services &nbsp;<span class="badge badge-green" style="font-weight:normal;font-size:12px">POC Built</span>&nbsp;<span class="muted" style="font-weight:normal;font-size:12px">GetAppraisalList + GetAppraisalDocument · 5 integration patterns · IBM MQ simulation</span></summary>
+    <div class="details-body">
+      <p style="margin-bottom:12px">
+        This use case was built end-to-end as the primary POC for the PRS domain.
+        It demonstrates the highest-complexity patterns in the BizTalk estate: multi-source scatter-gather over IBM MQ, multi-message aggregation, synchronous-to-asynchronous bridging, content-based routing, and EBCDIC mainframe decode.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:22%">Pattern</th>
+            <th style="width:10%">Criticality</th>
+            <th style="width:24%">BizTalk Implementation</th>
+            <th style="width:10%">POC</th>
+            <th>AIS+ Implementation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label">Scatter-Gather Fan-out (GetAppraisalList)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>Fan-out to @Work SQL SP and DEIPDE07 IBM MQ simultaneously. Correlation via MQMD_CorrelId / MQMD_MsgId. BizTalk orchestration merges both response branches.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td><strong>DocumentListSaga</strong> fans out: sends <code>GetAtWorkDocumentListCommand</code> and <code>GetMainframeDocumentListCommand</code> in parallel. Saga waits for both <code>AtWorkDocumentListCompletedEvent</code> and <code>MainframeDocumentListCompletedEvent</code>. Merge + dedup on <code>DocumentKey</code>. Partial result path if one branch times out. Every step is a structured log entry visible in the Flow Tracer.</td>
+          </tr>
+          <tr>
+            <td class="label">Multi-message MQ Aggregator</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>DEIPDE07 sends N reply messages per request, each with a position indicator (N of M). BizTalk correlation set collects all parts before continuing the orchestration.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td><strong>MainframeListAggregatorSaga</strong> subscribes to <code>MainframeAppraisalListPartReceivedEvent</code>. Each event carries <code>Sequence</code> and <code>Total</code>. Saga tracks received count; completes when sequence == total. Timeout on <code>MainframeListAggregatorTimeoutMessage</code>. Same pattern handles document chunk aggregation in <strong>MainframeDocumentAggregatorSaga</strong>.</td>
+          </tr>
+          <tr>
+            <td class="label">Sync-to-Async Conversion (HTTP → MQ → HTTP)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>BizTalk exposes synchronous HTTP endpoint. Internally drives async MQ correlation. Caller blocks until BizTalk orchestration completes and returns HTTP response.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td>HTTP GET controller writes a <code>DocumentListRequestRecord</code> to MongoDB, publishes <code>GetAppraisalDocumentListCommand</code> via NServiceBus, then polls MongoDB every 1 second (up to 30 s). Saga writes result to MongoDB on completion. Controller returns 200 when record is found; 202 Accepted if timeout. No blocking thread held — standard async/await throughout.</td>
+          </tr>
+          <tr>
+            <td class="label">IBM MQ / ActiveMQ Artemis Bridge</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>BizTalk MQSeries adapter sends request to DEIPDE07 request queue and listens on reply queue using MQMD_CorrelId correlation. All MQ protocol details hidden inside BizTalk adapter.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td><strong>ArtemisAdapter</strong> formats EBCDIC-style text messages (<code>APPRAISAL_LIST|||{policyNumber}|||ACTIVE|||</code>) and sends to ActiveMQ Artemis (IBM MQ compatible). <strong>ArtemisListReplyListener</strong> is an always-on <code>BackgroundService</code> that parses reply messages and publishes <code>MainframeAppraisalListPartReceivedEvent</code> back into NServiceBus. Clean separation: MQ adapter never touches saga logic.</td>
+          </tr>
+          <tr>
+            <td class="label">Content-Based Routing (GetAppraisalDocument)</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>BizTalk decision shape inspects DocumentKey. RiskID-format → RiskID WCF call; numeric → DEIPDE07 MQ chunk request. Routing decision buried in orchestration XML shapes.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td><strong>DocumentRetrievalSaga</strong> uses a C# switch on <code>DocumentKey</code> format. Contains <code>_RiskID_</code> → sends <code>GetAtWorkDocumentCommand</code>; numeric → sends <code>GetMainframeDocumentCommand</code>. Routing decision is readable, testable code — one line. New document source = one new case. No BizTalk decision shape required.</td>
+          </tr>
+          <tr>
+            <td class="label">EBCDIC Decode &amp; MQ Text Parsing</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>BizTalk pipeline component strips EBCDIC newlines (0x0D 0x25) from DEIPDE07 reply messages. Field parsing via BizTalk flat-file schema — positional.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td><code>ArtemisListReplyListener</code> parses the SEQUENCE header regex, splits key=value lines, and strips EBCDIC artifacts. No BizTalk flat-file pipeline needed — standard C# string parsing. Document chunk reassembly handles EBCDIC newline stripping before base64 decode.</td>
+          </tr>
+          <tr>
+            <td class="label">Pub/Sub NServiceBus Commands &amp; Events</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>BizTalk send/receive ports with correlation sets. Tightly coupled orchestration-to-orchestration calls via WCF. No true pub/sub — all routing in BizTalk engine.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td>All saga-to-handler communication via typed NServiceBus commands and events in <code>Middleware.Contracts</code>. Commands: <code>GetAppraisalDocumentListCommand</code>, <code>GetAtWorkDocumentListCommand</code>, <code>GetMainframeDocumentListCommand</code>. Events: <code>AtWorkDocumentListCompletedEvent</code>, <code>MainframeAppraisalListPartReceivedEvent</code>, <code>MainframeDocumentListCompletedEvent</code>. Each message type is a named C# class — no magic strings.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
   <!-- ── SCI ── -->
   <details open>
     <summary>SCI — Small Commercial Insurance &nbsp;<span class="muted" style="font-weight:normal;font-size:12px">18 apps · 167 orchestrations · 309 maps</span></summary>
@@ -158,15 +231,15 @@
             <td class="label">Scatter-gather (GetAppraisalList)</td>
             <td><span class="badge badge-red">High</span></td>
             <td>Fan-out to @Work SQL SP and DEIPDE07 simultaneously using MQSC correlation sets (MQMD_CorrelId / MQMD_MsgId). Merge both responses.</td>
-            <td><span class="badge badge-amber">Documented</span></td>
-            <td>Platform.Integration dispatches <code>GetAppraisalData</code> to @Work SQL adapter and DEIPDE07 adapter simultaneously. Service Bus session-based correlation replaces MQMD correlation. Aggregates both responses; returns partial result with <code>PartialResult=true</code> if one backend times out. Identical pattern to NServiceBus scatter-gather.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td>See UC4 section above for full implementation detail. <strong>DocumentListSaga</strong> + <strong>MainframeListAggregatorSaga</strong>. Service Bus session-based correlation replaces MQMD. Partial result path included.</td>
           </tr>
           <tr>
             <td class="label">Content-based routing (GetAppraisalDocument)</td>
             <td><span class="badge badge-red">High</span></td>
             <td>Routes on DocumentKey format: RiskID-format → RiskID system; ACE-format → RSVP; other → DEIPDE08. Decision in BizTalk orchestration code.</td>
-            <td><span class="badge badge-amber">Documented</span></td>
-            <td>C# switch statement on DocumentKey format in the Appraisal domain message handler. Routes to RiskID adapter, RSVP adapter, or DEIPDE08 adapter in Platform.Integration. Readable, testable code — not a BizTalk decision shape.</td>
+            <td><span class="badge badge-green">POC Built</span></td>
+            <td>See UC4 section above for full implementation detail. <strong>DocumentRetrievalSaga</strong> + <strong>MainframeDocumentAggregatorSaga</strong>. C# switch on DocumentKey format. Readable, testable, extensible.</td>
           </tr>
           <tr>
             <td class="label">DB2-triggered integration (AtWorkImport, PlusNotes)</td>
