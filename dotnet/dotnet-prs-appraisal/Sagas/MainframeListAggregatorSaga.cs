@@ -1,6 +1,5 @@
 using System.Text.Json;
 using dotnet_prs_appraisal.Infrastructure;
-using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using Middleware.Contracts.Models;
 using NServiceBus;
@@ -12,7 +11,7 @@ namespace dotnet_prs_appraisal.Sagas;
 [SqlSaga(tableSuffix: "MfListAggregator")]
 public sealed class MainframeListAggregatorSaga :
     Saga<MainframeListAggregatorSagaData>,
-    IAmStartedByMessages<StartMainframeListAggregationCommand>,
+    IAmStartedByMessages<Uc4AppraisalDocumentListRequestedEvent>,
     IHandleMessages<MainframeAppraisalListPartReceivedEvent>,
     IHandleTimeouts<Uc4MainframeListAggregatorTimeoutMessage>
 {
@@ -32,12 +31,12 @@ public sealed class MainframeListAggregatorSaga :
     protected override void ConfigureHowToFindSaga(SagaPropertyMapper<MainframeListAggregatorSagaData> mapper)
     {
         mapper.MapSaga(sagaData => sagaData.RequestId)
-            .ToMessage<StartMainframeListAggregationCommand>(message => message.RequestId)
+            .ToMessage<Uc4AppraisalDocumentListRequestedEvent>(message => message.RequestId)
             .ToMessage<MainframeAppraisalListPartReceivedEvent>(message => message.RequestId)
             .ToMessage<Uc4MainframeListAggregatorTimeoutMessage>(message => message.RequestId);
     }
 
-    public async Task Handle(StartMainframeListAggregationCommand message, IMessageHandlerContext context)
+    public async Task Handle(Uc4AppraisalDocumentListRequestedEvent message, IMessageHandlerContext context)
     {
         Data ??= new MainframeListAggregatorSagaData();
         Data.RequestId = message.RequestId;

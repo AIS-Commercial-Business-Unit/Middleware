@@ -1,7 +1,6 @@
 using dotnet_prs_appraisal.Infrastructure;
 using dotnet_prs_appraisal.Sagas;
 using Microsoft.Extensions.Logging.Abstractions;
-using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using Middleware.Contracts.Models;
 using NServiceBus.Testing;
@@ -18,12 +17,12 @@ public sealed class MainframeListAggregatorSagaTests
         var adapter = new FakeArtemisAdapter();
         var saga = new MainframeListAggregatorSaga(adapter, NullLogger<MainframeListAggregatorSaga>.Instance);
         var context = new TestableMessageHandlerContext();
-        var command = CreateStartCommand();
+        var startEvent = CreateStartEvent();
 
-        await saga.Handle(command, context);
-        await saga.Handle(CreatePart(command.RequestId, 1, 3, "DOC-1"), context);
-        await saga.Handle(CreatePart(command.RequestId, 2, 3, "DOC-2"), context);
-        await saga.Handle(CreatePart(command.RequestId, 3, 3, "DOC-3"), context);
+        await saga.Handle(startEvent, context);
+        await saga.Handle(CreatePart(startEvent.RequestId, 1, 3, "DOC-1"), context);
+        await saga.Handle(CreatePart(startEvent.RequestId, 2, 3, "DOC-2"), context);
+        await saga.Handle(CreatePart(startEvent.RequestId, 3, 3, "DOC-3"), context);
 
         Assert.That(adapter.ListRequests, Is.EqualTo(1));
         var completed = context.PublishedMessages
@@ -39,12 +38,12 @@ public sealed class MainframeListAggregatorSagaTests
     {
         var saga = new MainframeListAggregatorSaga(new FakeArtemisAdapter(), NullLogger<MainframeListAggregatorSaga>.Instance);
         var context = new TestableMessageHandlerContext();
-        var command = CreateStartCommand();
+        var startEvent = CreateStartEvent();
 
-        await saga.Handle(command, context);
-        await saga.Handle(CreatePart(command.RequestId, 1, 3, "DOC-1"), context);
-        await saga.Handle(CreatePart(command.RequestId, 2, 3, "DOC-2"), context);
-        await saga.Timeout(new Uc4MainframeListAggregatorTimeoutMessage { RequestId = command.RequestId }, context);
+        await saga.Handle(startEvent, context);
+        await saga.Handle(CreatePart(startEvent.RequestId, 1, 3, "DOC-1"), context);
+        await saga.Handle(CreatePart(startEvent.RequestId, 2, 3, "DOC-2"), context);
+        await saga.Timeout(new Uc4MainframeListAggregatorTimeoutMessage { RequestId = startEvent.RequestId }, context);
 
         var completed = context.PublishedMessages
             .Select(message => message.Message<Uc4MainframeDocumentListCompletedEvent>())
@@ -59,12 +58,12 @@ public sealed class MainframeListAggregatorSagaTests
     {
         var saga = new MainframeListAggregatorSaga(new FakeArtemisAdapter(), NullLogger<MainframeListAggregatorSaga>.Instance);
         var context = new TestableMessageHandlerContext();
-        var command = CreateStartCommand();
+        var startEvent = CreateStartEvent();
 
-        await saga.Handle(command, context);
-        await saga.Handle(CreatePart(command.RequestId, 3, 3, "DOC-3"), context);
-        await saga.Handle(CreatePart(command.RequestId, 1, 3, "DOC-1"), context);
-        await saga.Handle(CreatePart(command.RequestId, 2, 3, "DOC-2"), context);
+        await saga.Handle(startEvent, context);
+        await saga.Handle(CreatePart(startEvent.RequestId, 3, 3, "DOC-3"), context);
+        await saga.Handle(CreatePart(startEvent.RequestId, 1, 3, "DOC-1"), context);
+        await saga.Handle(CreatePart(startEvent.RequestId, 2, 3, "DOC-2"), context);
 
         var completed = context.PublishedMessages
             .Select(message => message.Message<Uc4MainframeDocumentListCompletedEvent>())
@@ -79,12 +78,12 @@ public sealed class MainframeListAggregatorSagaTests
     {
         var saga = new MainframeListAggregatorSaga(new FakeArtemisAdapter(), NullLogger<MainframeListAggregatorSaga>.Instance);
         var context = new TestableMessageHandlerContext();
-        var command = CreateStartCommand(totalExpected: 2);
+        var startEvent = CreateStartEvent(totalExpected: 2);
 
-        await saga.Handle(command, context);
-        await saga.Handle(CreatePart(command.RequestId, 1, 2, "DOC-OLD", "Old name"), context);
-        await saga.Handle(CreatePart(command.RequestId, 1, 2, "DOC-NEW", "Updated name"), context);
-        await saga.Handle(CreatePart(command.RequestId, 2, 2, "DOC-2"), context);
+        await saga.Handle(startEvent, context);
+        await saga.Handle(CreatePart(startEvent.RequestId, 1, 2, "DOC-OLD", "Old name"), context);
+        await saga.Handle(CreatePart(startEvent.RequestId, 1, 2, "DOC-NEW", "Updated name"), context);
+        await saga.Handle(CreatePart(startEvent.RequestId, 2, 2, "DOC-2"), context);
 
         var completed = context.PublishedMessages
             .Select(message => message.Message<Uc4MainframeDocumentListCompletedEvent>())
@@ -96,7 +95,19 @@ public sealed class MainframeListAggregatorSagaTests
         Assert.That(completed.Documents[0].DocumentName, Is.EqualTo("Updated name"));
     }
 
-    private static StartMainframeListAggregationCommand CreateStartCommand(int totalExpected = 3) => new()
+    [Test]
+    public async Task WhenStartedByEvent_SagaSendsArtemisListRequest()
+    {
+        var adapter = new FakeArtemisAdapter();
+        var saga = new MainframeListAggregatorSaga(adapter, NullLogger<MainframeListAggregatorSaga>.Instance);
+        var context = new TestableMessageHandlerContext();
+
+        await saga.Handle(CreateStartEvent(), context);
+
+        Assert.That(adapter.ListRequests, Is.EqualTo(1));
+    }
+
+    private static Uc4AppraisalDocumentListRequestedEvent CreateStartEvent(int totalExpected = 3) => new()
     {
         RequestId = $"REQ-LIST-{totalExpected}",
         PolicyNumber = "POL-001-TEST",

@@ -25,7 +25,7 @@ file static class AppraisalParticipantMap
         ["mainframelistaggregator"] = "MainframeListAggregator",
         ["mainframedocumentaggregator"] = "MainframeDocumentAggregator",
         ["atworkhandler"] = "AtWorkHandler",
-        ["mainframeadapter"] = "MainframeAdapter",
+        ["atworkdocumentretrievalhandler"] = "AtWork Retrieval",
     };
 
     private static readonly Dictionary<string, string> MessageTypeToPrimarySubscriber = new(StringComparer.OrdinalIgnoreCase)
@@ -40,8 +40,9 @@ file static class AppraisalParticipantMap
         ["GetAppraisalDocumentListCommand"] = "DocumentListSaga",
         ["RetrieveAppraisalDocumentCommand"] = "DocumentRetrievalSaga",
         ["Uc4AppraisalDocumentListRequestedEvent"] = "broadcast",
+        ["Uc4AppraisalDocumentRetrievalRequestedEvent"] = "AtWork Retrieval",
         ["Uc4AtWorkDocumentListCompletedEvent"] = "DocumentListSaga",
-        ["StartMainframeListAggregationCommand"] = "MainframeListAggregator",
+        ["Uc4AtWorkDocumentRetrievedEvent"] = "DocumentRetrievalSaga",
         ["StartMainframeDocumentAggregationCommand"] = "MainframeDocumentAggregator",
         ["MainframeAppraisalListPartReceivedEvent"] = "MainframeListAggregator",
         ["MainframeDocumentChunkReceivedEvent"] = "MainframeDocumentAggregator",

@@ -1,4 +1,3 @@
-using dotnet_prs_appraisal.Domain;
 using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using Middleware.Contracts.Messages;
@@ -10,6 +9,7 @@ namespace dotnet_prs_appraisal.Sagas;
 public sealed class DocumentRetrievalSaga :
     Saga<DocumentRetrievalSagaData>,
     IAmStartedByMessages<RetrieveAppraisalDocumentCommand>,
+    IHandleMessages<Uc4AtWorkDocumentRetrievedEvent>,
     IHandleMessages<Uc4AppraisalDocumentRetrievedEvent>,
     IHandleTimeouts<Uc4DocumentRetrievalSagaTimeoutMessage>
 {
@@ -24,11 +24,13 @@ public sealed class DocumentRetrievalSaga :
     {
         mapper.MapSaga(sagaData => sagaData.RequestId)
             .ToMessage<RetrieveAppraisalDocumentCommand>(message => message.RequestId)
+            .ToMessage<Uc4AtWorkDocumentRetrievedEvent>(message => message.RequestId)
             .ToMessage<Uc4AppraisalDocumentRetrievedEvent>(message => message.RequestId);
     }
 
     public async Task Handle(RetrieveAppraisalDocumentCommand message, IMessageHandlerContext context)
     {
+        Data ??= new DocumentRetrievalSagaData();
         Data.RequestId = message.RequestId;
         Data.DocumentKey = message.DocumentKey;
         Data.SourceSystem = message.SourceSystem;
@@ -42,20 +44,14 @@ public sealed class DocumentRetrievalSaga :
         if (string.Equals(message.SourceSystem, "AtWork", StringComparison.OrdinalIgnoreCase)
             || message.DocumentKey.Contains("_RiskID_", StringComparison.OrdinalIgnoreCase))
         {
-            LogEdaFlow(message.RequestId, "AtWorkDocumentRetrieve", "PrsAppraisal", "AtWork", "atwork.retrieve.document", "published");
-            var fixture = AtWorkFixture.BuildRetrievalResult(message.RequestId, message.DocumentKey);
-            LogEdaFlow(message.RequestId, "AtWorkDocumentResponse", "AtWork", "PrsAppraisal", "atwork.retrieve.document", "consumed");
-            await context.Reply(new RetrieveAppraisalDocumentResponse
+            Data.AtWorkPending = true;
+            LogEdaFlow(message.RequestId, "AppraisalDocumentRetrievalRequested", "DocumentRetrievalSaga", "AtWorkDocumentRetrievalHandler", "nsb.uc4appraisaldocumentretrievalrequested", "published");
+            await context.Publish(new Uc4AppraisalDocumentRetrievalRequestedEvent
             {
-                RequestId = fixture.RequestId,
-                DocumentId = fixture.DocumentId,
-                DocumentKey = fixture.DocumentKey,
-                SourceSystem = fixture.SourceSystem,
-                ContentType = fixture.ContentType,
-                ContentBase64 = fixture.ContentBase64,
-                FileName = fixture.FileName
+                RequestId = message.RequestId,
+                PolicyNumber = Data.PolicyNumber,
+                DocumentKey = message.DocumentKey
             }).ConfigureAwait(false);
-            MarkAsComplete();
             return;
         }
 
@@ -65,6 +61,16 @@ public sealed class DocumentRetrievalSaga :
             DocumentKey = message.DocumentKey,
             RequestedAt = message.RequestedAt
         }).ConfigureAwait(false);
+    }
+
+    public async Task Handle(Uc4AtWorkDocumentRetrievedEvent message, IMessageHandlerContext context)
+    {
+        LogEdaFlow(message.RequestId, "AtWorkDocumentRetrieved", "AtWorkDocumentRetrievalHandler", "DocumentRetrievalSaga", "nsb.uc4atworkdocumentretrieved", "consumed");
+        Data.AtWorkContent = message.Content;
+        Data.AtWorkMimeType = message.MimeType;
+        Data.AtWorkDone = true;
+
+        await TryCompleteAtWorkAsync(context).ConfigureAwait(false);
     }
 
     public async Task Handle(Uc4AppraisalDocumentRetrievedEvent message, IMessageHandlerContext context)
@@ -94,6 +100,25 @@ public sealed class DocumentRetrievalSaga :
             ContentType = string.Empty,
             ContentBase64 = string.Empty,
             FileName = string.Empty
+        }).ConfigureAwait(false);
+
+        MarkAsComplete();
+    }
+
+    private async Task TryCompleteAtWorkAsync(IMessageHandlerContext context)
+    {
+        if (Data.AtWorkPending && !Data.AtWorkDone)
+            return;
+
+        await context.Reply(new RetrieveAppraisalDocumentResponse
+        {
+            RequestId = Data.RequestId,
+            DocumentId = Data.DocumentKey,
+            DocumentKey = Data.DocumentKey,
+            SourceSystem = "AtWork",
+            ContentType = Data.AtWorkMimeType,
+            ContentBase64 = Data.AtWorkContent,
+            FileName = $"appraisal-{Data.DocumentKey}.pdf"
         }).ConfigureAwait(false);
 
         MarkAsComplete();
