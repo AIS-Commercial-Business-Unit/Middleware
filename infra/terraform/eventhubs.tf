@@ -9,8 +9,7 @@ resource "azurerm_eventhub_namespace" "main" {
   sku                 = var.eventhubs_sku
   capacity            = var.eventhubs_capacity
 
-  # Enable Kafka protocol support (Standard SKU required)
-  kafka_enabled = true
+  # Kafka protocol is automatically available on Standard+ SKU
 
   tags = local.common_tags
 }

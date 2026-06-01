@@ -32,19 +32,8 @@ resource "azurerm_federated_identity_credential" "workload" {
 # RBAC — Grant workload identity access to each Azure service
 ##############################################################################
 
-# Cosmos DB (MongoDB) — read/write data
-resource "azurerm_cosmosdb_sql_role_assignment" "workload_cosmos" {
-  # For MongoDB API, use the built-in "Cosmos DB Built-in Data Contributor" via ARM role
-  # Cosmos MongoDB doesn't support data-plane RBAC the same way; use connection string from Key Vault.
-  # Instead, grant control-plane reader so the app can discover endpoints.
-  # Actual data access: connection string stored in Key Vault, pulled via SecretProviderClass.
-  count = 0 # Cosmos MongoDB uses connection string auth — see note below
-  resource_group_name = azurerm_resource_group.main.name
-  account_name        = azurerm_cosmosdb_account.main.name
-  role_definition_id  = ""
-  principal_id        = azurerm_user_assigned_identity.workload.principal_id
-  scope               = azurerm_cosmosdb_account.main.id
-}
+# Cosmos DB (MongoDB) — data access via connection string stored in Key Vault
+# MongoDB API does not support data-plane RBAC; connection string is pulled via SecretProviderClass.
 
 # Event Hubs — send and receive messages (Kafka protocol)
 resource "azurerm_role_assignment" "workload_eventhubs_sender" {
