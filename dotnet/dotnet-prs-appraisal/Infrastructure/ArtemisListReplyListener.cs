@@ -88,6 +88,8 @@ public sealed partial class ArtemisListReplyListener : BackgroundService
 
         var parsed = ParseDocument(message.Text);
         LogEdaFlow(correlationId, "MqListReply", "Mainframe", "MainframeListAggregator", "APPRAISAL.LIST.REPLY", "consumed");
+        var publishOptions = new PublishOptions();
+        publishOptions.SetHeader("EDA-Publisher", "Mainframe");
         await _messageSession.Publish(
                 new MainframeAppraisalListPartReceivedEvent
                 {
@@ -96,6 +98,7 @@ public sealed partial class ArtemisListReplyListener : BackgroundService
                     TotalExpected = parsed.Total,
                     Document = parsed.Document
                 },
+                publishOptions,
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -113,7 +116,7 @@ public sealed partial class ArtemisListReplyListener : BackgroundService
         _logger.LogInformation("EDA_FLOW {EDA_MessageType} {EDA_From} -> {EDA_To}", messageType, from, to);
     }
 
-    private static (int Sequence, int Total, Uc4DocumentSummary Document) ParseDocument(string body)
+    private static (int Sequence, int Total, AppraisalDocumentSummary Document) ParseDocument(string body)
     {
         var lines = body
             .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -146,7 +149,7 @@ public sealed partial class ArtemisListReplyListener : BackgroundService
         return (
             Sequence: int.Parse(match.Groups[1].Value),
             Total: int.Parse(match.Groups[2].Value),
-            Document: new Uc4DocumentSummary
+            Document: new AppraisalDocumentSummary
             {
                 DocumentId = GetValue(values, "APPRAISAL_UID"),
                 DocumentKey = GetValue(values, "DOCUMENTKEY"),

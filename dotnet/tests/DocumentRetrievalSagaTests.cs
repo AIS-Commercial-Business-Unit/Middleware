@@ -1,5 +1,4 @@
 using dotnet_prs_appraisal.Sagas;
-using Microsoft.Extensions.Logging.Abstractions;
 using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using Middleware.Contracts.Messages;
@@ -16,16 +15,16 @@ public sealed class DocumentRetrievalSagaTests
     [Test]
     public async Task WhenAtWorkRequest_SagaPublishesRetrievalRequestedEventAndDoesNotReplyYet()
     {
-        var saga = new DocumentRetrievalSaga(NullLogger<DocumentRetrievalSaga>.Instance);
+        var saga = new DocumentRetrievalSaga();
         var context = new TestableMessageHandlerContext();
 
         await saga.Handle(CreateAtWorkCommand("REQ-DOC-AW-1", "DOC_RiskID_I_TEST001"), context);
 
         var retrievalEvent = context.PublishedMessages
-            .Select(m => m.Message<Uc4AppraisalDocumentRetrievalRequestedEvent>())
+            .Select(m => m.Message<AppraisalDocumentRetrievalRequestedEvent>())
             .SingleOrDefault(m => m is not null);
 
-        Assert.That(retrievalEvent, Is.Not.Null, "Saga must publish Uc4AppraisalDocumentRetrievalRequestedEvent");
+        Assert.That(retrievalEvent, Is.Not.Null, "Saga must publish AppraisalDocumentRetrievalRequestedEvent");
         Assert.That(retrievalEvent!.RequestId, Is.EqualTo("REQ-DOC-AW-1"));
         Assert.That(retrievalEvent.DocumentKey, Is.EqualTo("DOC_RiskID_I_TEST001"));
         Assert.That(saga.Data.AtWorkPending, Is.True, "AtWorkPending must be set");
@@ -35,13 +34,13 @@ public sealed class DocumentRetrievalSagaTests
     [Test]
     public async Task WhenAtWorkRetrievedEventArrives_SagaRepliesWithContent()
     {
-        var saga = new DocumentRetrievalSaga(NullLogger<DocumentRetrievalSaga>.Instance);
+        var saga = new DocumentRetrievalSaga();
         var context = new TestableMessageHandlerContext();
 
         await saga.Handle(CreateAtWorkCommand("REQ-DOC-AW-2", "DOC_RiskID_I_TEST001"), context);
 
         // Simulate AtWorkDocumentRetrievalHandler response
-        await saga.Handle(new Uc4AtWorkDocumentRetrievedEvent
+        await saga.Handle(new AtWorkDocumentRetrievedEvent
         {
             RequestId = "REQ-DOC-AW-2",
             DocumentKey = "DOC_RiskID_I_TEST001",
@@ -64,7 +63,7 @@ public sealed class DocumentRetrievalSagaTests
     [Test]
     public async Task WhenAtWorkRequestWithSourceSystemHeader_SagaRoutesToAtWorkPath()
     {
-        var saga = new DocumentRetrievalSaga(NullLogger<DocumentRetrievalSaga>.Instance);
+        var saga = new DocumentRetrievalSaga();
         var context = new TestableMessageHandlerContext();
 
         await saga.Handle(new RetrieveAppraisalDocumentCommand
@@ -77,7 +76,7 @@ public sealed class DocumentRetrievalSagaTests
 
         Assert.That(saga.Data.AtWorkPending, Is.True);
         Assert.That(context.PublishedMessages
-            .Select(m => m.Message<Uc4AppraisalDocumentRetrievalRequestedEvent>())
+            .Select(m => m.Message<AppraisalDocumentRetrievalRequestedEvent>())
             .Any(m => m is not null), Is.True);
     }
 
@@ -86,7 +85,7 @@ public sealed class DocumentRetrievalSagaTests
     [Test]
     public async Task WhenMainframeRequest_SagaSendsAggregationCommandAndDoesNotReplyYet()
     {
-        var saga = new DocumentRetrievalSaga(NullLogger<DocumentRetrievalSaga>.Instance);
+        var saga = new DocumentRetrievalSaga();
         var context = new TestableMessageHandlerContext();
 
         await saga.Handle(new RetrieveAppraisalDocumentCommand
@@ -109,7 +108,7 @@ public sealed class DocumentRetrievalSagaTests
     [Test]
     public async Task WhenMainframeDocumentRetrievedEventArrives_SagaRepliesWithContent()
     {
-        var saga = new DocumentRetrievalSaga(NullLogger<DocumentRetrievalSaga>.Instance);
+        var saga = new DocumentRetrievalSaga();
         var context = new TestableMessageHandlerContext();
 
         await saga.Handle(new RetrieveAppraisalDocumentCommand
@@ -120,7 +119,7 @@ public sealed class DocumentRetrievalSagaTests
             RequestedAt = DateTimeOffset.UtcNow
         }, context);
 
-        await saga.Handle(new Uc4AppraisalDocumentRetrievedEvent
+        await saga.Handle(new AppraisalDocumentRetrievedEvent
         {
             RequestId = "REQ-DOC-MF-2",
             DocumentKey = "MF-DOC-KEY",

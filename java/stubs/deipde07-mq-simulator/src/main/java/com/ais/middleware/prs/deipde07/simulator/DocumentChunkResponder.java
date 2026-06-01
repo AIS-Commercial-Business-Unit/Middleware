@@ -17,14 +17,67 @@ public class DocumentChunkResponder {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentChunkResponder.class);
 
-    private static final Map<String, String> FIXTURE_PDFS = Map.of(
-            // Small PDF: ~640 bytes of base64 → ~10 chunks of 64 chars
-            "12345678901", Base64.getEncoder().encodeToString(
-                    "FAKE-PDF-CONTENT-FOR-DEMO-SMALL".repeat(20).getBytes(StandardCharsets.UTF_8)),
-            // Large PDF: ~6000+ bytes of base64 → 100+ chunks
-            "98765432109876", Base64.getEncoder().encodeToString(
-                    "FAKE-LARGE-PDF-CONTENT-FOR-DEMO".repeat(200).getBytes(StandardCharsets.UTF_8))
-    );
+    private static final Map<String, String> FIXTURE_PDFS;
+
+    static {
+        Map<String, String> m = new java.util.HashMap<>();
+        // Legacy fixture keys
+        m.put("12345678901", Base64.getEncoder().encodeToString(
+                "FAKE-PDF-CONTENT-FOR-DEMO-SMALL".repeat(20).getBytes(StandardCharsets.UTF_8)));
+        m.put("98765432109876", Base64.getEncoder().encodeToString(
+                "FAKE-LARGE-PDF-CONTENT-FOR-DEMO".repeat(200).getBytes(StandardCharsets.UTF_8)));
+        // POL-001-TEST document keys (from AppraisalListResponder fixture)
+        m.put("10000000001", Base64.getEncoder().encodeToString(
+                buildMinimalPdf("10000000001", "Full Appraisal Report")));
+        m.put("10000000002", Base64.getEncoder().encodeToString(
+                buildMinimalPdf("10000000002", "Exterior Appraisal")));
+        m.put("10000000003", Base64.getEncoder().encodeToString(
+                buildMinimalPdf("10000000003", "Replacement Cost Report")));
+        // POL-003-TEST document keys
+        m.put("10000000004", Base64.getEncoder().encodeToString(
+                buildMinimalPdf("10000000004", "Single Property Report")));
+        FIXTURE_PDFS = java.util.Collections.unmodifiableMap(m);
+    }
+
+    private static byte[] buildMinimalPdf(String documentKey, String title) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("%PDF-1.4\n");
+
+        int obj1Offset = sb.length();
+        sb.append("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+        int obj2Offset = sb.length();
+        sb.append("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+
+        int obj3Offset = sb.length();
+        sb.append("3 0 obj\n<</Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources <</Font <</F1 5 0 R>>>>>>\nendobj\n");
+
+        String streamContent = "BT\n/F1 14 Tf\n72 720 Td\n(" + title + ") Tj\n0 -30 Td\n(Document: " + documentKey + ") Tj\n0 -30 Td\n(Source: Mainframe / IBM MQ DEIPDE07) Tj\n0 -30 Td\n(Generated: UC4 Appraisal Documents Demo) Tj\nET";
+
+        int obj4Offset = sb.length();
+        sb.append("4 0 obj\n<< /Length ").append(streamContent.length()).append(" >>\nstream\n");
+        sb.append(streamContent);
+        sb.append("\nendstream\nendobj\n");
+
+        int obj5Offset = sb.length();
+        sb.append("5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n");
+
+        int xrefOffset = sb.length();
+        sb.append("xref\n");
+        sb.append("0 6\n");
+        sb.append("0000000000 65535 f \n");
+        sb.append(String.format("%010d 00000 n \n", obj1Offset));
+        sb.append(String.format("%010d 00000 n \n", obj2Offset));
+        sb.append(String.format("%010d 00000 n \n", obj3Offset));
+        sb.append(String.format("%010d 00000 n \n", obj4Offset));
+        sb.append(String.format("%010d 00000 n \n", obj5Offset));
+        sb.append("trailer\n<< /Size 6 /Root 1 0 R >>\n");
+        sb.append("startxref\n");
+        sb.append(xrefOffset);
+        sb.append("\n%%EOF\n");
+
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
 
     /**
      * Respond to a document retrieval request by sending chunked JMS messages to the response queue.

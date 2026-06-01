@@ -26,7 +26,7 @@ public sealed class MainframeListAggregatorSagaTests
 
         Assert.That(adapter.ListRequests, Is.EqualTo(1));
         var completed = context.PublishedMessages
-            .Select(message => message.Message<Uc4MainframeDocumentListCompletedEvent>())
+            .Select(message => message.Message<MainframeDocumentListCompletedEvent>())
             .LastOrDefault(message => message is not null);
 
         Assert.That(completed, Is.Not.Null);
@@ -43,10 +43,10 @@ public sealed class MainframeListAggregatorSagaTests
         await saga.Handle(startEvent, context);
         await saga.Handle(CreatePart(startEvent.RequestId, 1, 3, "DOC-1"), context);
         await saga.Handle(CreatePart(startEvent.RequestId, 2, 3, "DOC-2"), context);
-        await saga.Timeout(new Uc4MainframeListAggregatorTimeoutMessage { RequestId = startEvent.RequestId }, context);
+        await saga.Timeout(new MainframeListAggregatorTimeoutMessage { RequestId = startEvent.RequestId }, context);
 
         var completed = context.PublishedMessages
-            .Select(message => message.Message<Uc4MainframeDocumentListCompletedEvent>())
+            .Select(message => message.Message<MainframeDocumentListCompletedEvent>())
             .LastOrDefault(message => message is not null);
 
         Assert.That(completed, Is.Not.Null);
@@ -66,7 +66,7 @@ public sealed class MainframeListAggregatorSagaTests
         await saga.Handle(CreatePart(startEvent.RequestId, 2, 3, "DOC-2"), context);
 
         var completed = context.PublishedMessages
-            .Select(message => message.Message<Uc4MainframeDocumentListCompletedEvent>())
+            .Select(message => message.Message<MainframeDocumentListCompletedEvent>())
             .LastOrDefault(message => message is not null);
 
         Assert.That(completed, Is.Not.Null);
@@ -86,7 +86,7 @@ public sealed class MainframeListAggregatorSagaTests
         await saga.Handle(CreatePart(startEvent.RequestId, 2, 2, "DOC-2"), context);
 
         var completed = context.PublishedMessages
-            .Select(message => message.Message<Uc4MainframeDocumentListCompletedEvent>())
+            .Select(message => message.Message<MainframeDocumentListCompletedEvent>())
             .LastOrDefault(message => message is not null);
 
         Assert.That(completed, Is.Not.Null);
@@ -107,7 +107,7 @@ public sealed class MainframeListAggregatorSagaTests
         Assert.That(adapter.ListRequests, Is.EqualTo(1));
     }
 
-    private static Uc4AppraisalDocumentListRequestedEvent CreateStartEvent(int totalExpected = 3) => new()
+    private static AppraisalDocumentListRequestedEvent CreateStartEvent(int totalExpected = 3) => new()
     {
         RequestId = $"REQ-LIST-{totalExpected}",
         PolicyNumber = "POL-001-TEST",
@@ -119,7 +119,7 @@ public sealed class MainframeListAggregatorSagaTests
         RequestId = requestId,
         SequenceNumber = sequenceNumber,
         TotalExpected = totalExpected,
-        Document = new Uc4DocumentSummary
+        Document = new AppraisalDocumentSummary
         {
             DocumentId = $"ID-{documentKey}",
             DocumentKey = documentKey,

@@ -11,9 +11,9 @@ namespace dotnet_prs_appraisal.Sagas;
 [SqlSaga(tableSuffix: "MfListAggregator")]
 public sealed class MainframeListAggregatorSaga :
     Saga<MainframeListAggregatorSagaData>,
-    IAmStartedByMessages<Uc4AppraisalDocumentListRequestedEvent>,
+    IAmStartedByMessages<AppraisalDocumentListRequestedEvent>,
     IHandleMessages<MainframeAppraisalListPartReceivedEvent>,
-    IHandleTimeouts<Uc4MainframeListAggregatorTimeoutMessage>
+    IHandleTimeouts<MainframeListAggregatorTimeoutMessage>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -31,19 +31,19 @@ public sealed class MainframeListAggregatorSaga :
     protected override void ConfigureHowToFindSaga(SagaPropertyMapper<MainframeListAggregatorSagaData> mapper)
     {
         mapper.MapSaga(sagaData => sagaData.RequestId)
-            .ToMessage<Uc4AppraisalDocumentListRequestedEvent>(message => message.RequestId)
+            .ToMessage<AppraisalDocumentListRequestedEvent>(message => message.RequestId)
             .ToMessage<MainframeAppraisalListPartReceivedEvent>(message => message.RequestId)
-            .ToMessage<Uc4MainframeListAggregatorTimeoutMessage>(message => message.RequestId);
+            .ToMessage<MainframeListAggregatorTimeoutMessage>(message => message.RequestId);
     }
 
-    public async Task Handle(Uc4AppraisalDocumentListRequestedEvent message, IMessageHandlerContext context)
+    public async Task Handle(AppraisalDocumentListRequestedEvent message, IMessageHandlerContext context)
     {
         Data ??= new MainframeListAggregatorSagaData();
         Data.RequestId = message.RequestId;
         Data.PolicyNumber = message.PolicyNumber;
         Data.StartedAt = message.RequestedAt;
 
-        await RequestTimeout(context, TimeSpan.FromSeconds(30), new Uc4MainframeListAggregatorTimeoutMessage
+        await RequestTimeout(context, TimeSpan.FromSeconds(18), new MainframeListAggregatorTimeoutMessage
         {
             RequestId = message.RequestId
         }).ConfigureAwait(false);
@@ -92,7 +92,7 @@ public sealed class MainframeListAggregatorSaga :
         }
     }
 
-    public Task Timeout(Uc4MainframeListAggregatorTimeoutMessage state, IMessageHandlerContext context)
+    public Task Timeout(MainframeListAggregatorTimeoutMessage state, IMessageHandlerContext context)
         => PublishCompletionAsync(context, GetAccumulatedDocuments());
 
     private async Task PublishCompletionAsync(IMessageHandlerContext context, List<AccumulatedDocument> accumulatedDocuments)
@@ -102,8 +102,7 @@ public sealed class MainframeListAggregatorSaga :
             .Select(item => item.Document)
             .ToList();
 
-        LogEdaFlow(Data.RequestId, "MainframeListComplete", "MainframeListAggregator", "DocumentListSaga", "nsb.uc4mainframedocumentlistcompleted", "published");
-        await context.Publish(new Uc4MainframeDocumentListCompletedEvent
+        await context.Publish(new MainframeDocumentListCompletedEvent
         {
             RequestId = Data.RequestId,
             Documents = orderedDocuments
@@ -133,6 +132,6 @@ public sealed class MainframeListAggregatorSaga :
     {
         public int SequenceNumber { get; set; }
 
-        public Uc4DocumentSummary Document { get; set; } = new();
+        public AppraisalDocumentSummary Document { get; set; } = new();
     }
 }

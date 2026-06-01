@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using dotnet_prs_appraisal.Infrastructure;
 using Middleware.Contracts.Commands;
@@ -14,7 +13,7 @@ public sealed class MainframeDocumentAggregatorSaga :
     Saga<MainframeDocumentAggregatorSagaData>,
     IAmStartedByMessages<StartMainframeDocumentAggregationCommand>,
     IHandleMessages<MainframeDocumentChunkReceivedEvent>,
-    IHandleTimeouts<Uc4MainframeDocumentAggregatorTimeoutMessage>
+    IHandleTimeouts<MainframeDocumentAggregatorTimeoutMessage>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -34,7 +33,7 @@ public sealed class MainframeDocumentAggregatorSaga :
         mapper.MapSaga(sagaData => sagaData.RequestId)
             .ToMessage<StartMainframeDocumentAggregationCommand>(message => message.RequestId)
             .ToMessage<MainframeDocumentChunkReceivedEvent>(message => message.RequestId)
-            .ToMessage<Uc4MainframeDocumentAggregatorTimeoutMessage>(message => message.RequestId);
+            .ToMessage<MainframeDocumentAggregatorTimeoutMessage>(message => message.RequestId);
     }
 
     public async Task Handle(StartMainframeDocumentAggregationCommand message, IMessageHandlerContext context)
@@ -44,7 +43,7 @@ public sealed class MainframeDocumentAggregatorSaga :
         Data.DocumentKey = message.DocumentKey;
         Data.StartedAt = message.RequestedAt;
 
-        await RequestTimeout(context, TimeSpan.FromSeconds(30), new Uc4MainframeDocumentAggregatorTimeoutMessage
+        await RequestTimeout(context, TimeSpan.FromSeconds(18), new MainframeDocumentAggregatorTimeoutMessage
         {
             RequestId = message.RequestId
         }).ConfigureAwait(false);
@@ -76,21 +75,20 @@ public sealed class MainframeDocumentAggregatorSaga :
         await PublishCompletionAsync(context, accumulatedChunks, timedOut: false).ConfigureAwait(false);
     }
 
-    public Task Timeout(Uc4MainframeDocumentAggregatorTimeoutMessage state, IMessageHandlerContext context)
+    public Task Timeout(MainframeDocumentAggregatorTimeoutMessage state, IMessageHandlerContext context)
         => PublishCompletionAsync(context, [], timedOut: true);
 
     private async Task PublishCompletionAsync(IMessageHandlerContext context, List<string> accumulatedChunks, bool timedOut)
     {
         var payload = timedOut ? string.Empty : string.Concat(accumulatedChunks);
 
-        LogEdaFlow(Data.RequestId, "MainframeDocumentComplete", "MainframeDocumentAggregator", "DocumentRetrievalSaga", "nsb.uc4appraisaldocumentretrieved", "published");
-        await context.Publish(new Uc4AppraisalDocumentRetrievedEvent
+        await context.Publish(new AppraisalDocumentRetrievedEvent
         {
             RequestId = Data.RequestId,
             DocumentKey = Data.DocumentKey,
             SourceSystem = "Mainframe",
             ContentType = timedOut ? string.Empty : "application/pdf",
-            ContentBase64 = timedOut ? string.Empty : Convert.ToBase64String(Encoding.UTF8.GetBytes(payload)),
+            ContentBase64 = timedOut ? string.Empty : payload,
             FileName = timedOut ? string.Empty : $"appraisal-{Data.DocumentKey}.pdf"
         }).ConfigureAwait(false);
 

@@ -1,6 +1,6 @@
 export interface FlowEventDetails {
   topic: string;
-  direction: "published" | "consumed";
+  direction: "published" | "consumed" | "handled";
   stack: "java" | "dotnet";
   timestamp: string;
   description: string;
@@ -11,10 +11,12 @@ export interface FlowEvent {
   from: string;
   to: string;
   topic: string;
-  direction: "published" | "consumed";
+  direction: "published" | "consumed" | "handled";
   stack: "java" | "dotnet";
   timestamp: string;
   issuanceId: string;
+  handler?: string;
+  payload?: Record<string, unknown>;
   details: FlowEventDetails;
 }
 

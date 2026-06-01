@@ -15,7 +15,7 @@ public sealed class AtWorkDocumentRetrievalHandlerTests
         var handler = new AtWorkDocumentRetrievalHandler(NullLogger<AtWorkDocumentRetrievalHandler>.Instance);
         var context = new TestableMessageHandlerContext();
 
-        await handler.Handle(new Uc4AppraisalDocumentRetrievalRequestedEvent
+        await handler.Handle(new AppraisalDocumentRetrievalRequestedEvent
         {
             RequestId = "REQ-ATWORK-1",
             PolicyNumber = "POL-001-TEST",
@@ -23,7 +23,7 @@ public sealed class AtWorkDocumentRetrievalHandlerTests
         }, context);
 
         var published = context.PublishedMessages
-            .Select(m => m.Message<Uc4AtWorkDocumentRetrievedEvent>())
+            .Select(m => m.Message<AtWorkDocumentRetrievedEvent>())
             .SingleOrDefault(m => m is not null);
 
         Assert.That(published, Is.Not.Null);
@@ -39,7 +39,7 @@ public sealed class AtWorkDocumentRetrievalHandlerTests
         var handler = new AtWorkDocumentRetrievalHandler(NullLogger<AtWorkDocumentRetrievalHandler>.Instance);
         var context = new TestableMessageHandlerContext();
 
-        await handler.Handle(new Uc4AppraisalDocumentRetrievalRequestedEvent
+        await handler.Handle(new AppraisalDocumentRetrievalRequestedEvent
         {
             RequestId = "REQ-ATWORK-2",
             PolicyNumber = "POL-003-TEST",
@@ -47,7 +47,7 @@ public sealed class AtWorkDocumentRetrievalHandlerTests
         }, context);
 
         var published = context.PublishedMessages
-            .Select(m => m.Message<Uc4AtWorkDocumentRetrievedEvent>())
+            .Select(m => m.Message<AtWorkDocumentRetrievedEvent>())
             .SingleOrDefault(m => m is not null);
 
         Assert.That(published, Is.Not.Null);

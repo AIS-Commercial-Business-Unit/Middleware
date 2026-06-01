@@ -5,7 +5,7 @@ using Serilog.Context;
 
 namespace dotnet_prs_appraisal.Handlers;
 
-public sealed class AtWorkDocumentRetrievalHandler : IHandleMessages<Uc4AppraisalDocumentRetrievalRequestedEvent>
+public sealed class AtWorkDocumentRetrievalHandler : IHandleMessages<AppraisalDocumentRetrievalRequestedEvent>
 {
     private readonly ILogger<AtWorkDocumentRetrievalHandler> _logger;
 
@@ -14,15 +14,13 @@ public sealed class AtWorkDocumentRetrievalHandler : IHandleMessages<Uc4Appraisa
         _logger = logger;
     }
 
-    public async Task Handle(Uc4AppraisalDocumentRetrievalRequestedEvent message, IMessageHandlerContext context)
+    public async Task Handle(AppraisalDocumentRetrievalRequestedEvent message, IMessageHandlerContext context)
     {
-        LogEdaFlow(message.RequestId, "AppraisalDocumentRetrievalRequested", "DocumentRetrievalSaga", "AtWorkDocumentRetrievalHandler", "nsb.uc4appraisaldocumentretrievalrequested", "consumed");
-
-        LogEdaFlow(message.RequestId, "AtWorkDocumentRetrieve", "AtWorkDocumentRetrievalHandler", "AtWorkSystem", "atwork.retrieve.document", "published");
+        LogEdaFlow(message.RequestId, "AtWorkDocumentRetrieve", "AtWorkDocumentRetrievalHandler", "AtWork", "atwork.retrieve.document", "published");
         var result = AtWorkFixture.BuildRetrievalResult(message.RequestId, message.DocumentKey);
-        LogEdaFlow(message.RequestId, "AtWorkDocumentRetrieved", "AtWorkSystem", "AtWorkDocumentRetrievalHandler", "atwork.retrieve.document", "consumed");
+        LogEdaFlow(message.RequestId, "AtWorkDocumentRetrieved", "AtWork", "AtWorkDocumentRetrievalHandler", "atwork.retrieve.document", "consumed");
 
-        await context.Publish(new Uc4AtWorkDocumentRetrievedEvent
+        await context.Publish(new AtWorkDocumentRetrievedEvent
         {
             RequestId = message.RequestId,
             PolicyNumber = message.PolicyNumber,
@@ -30,8 +28,6 @@ public sealed class AtWorkDocumentRetrievalHandler : IHandleMessages<Uc4Appraisa
             Content = result.ContentBase64,
             MimeType = result.ContentType
         }).ConfigureAwait(false);
-
-        LogEdaFlow(message.RequestId, "AtWorkDocumentRetrieved", "AtWorkDocumentRetrievalHandler", "DocumentRetrievalSaga", "nsb.uc4atworkdocumentretrieved", "published");
     }
 
     private void LogEdaFlow(string requestId, string messageType, string from, string to, string topic, string direction = "consumed")

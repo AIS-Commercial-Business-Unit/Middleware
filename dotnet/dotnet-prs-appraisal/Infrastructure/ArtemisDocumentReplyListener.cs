@@ -89,6 +89,8 @@ public sealed class ArtemisDocumentReplyListener : BackgroundService
         var chunk = text.Replace(EndOfDocumentSentinel, string.Empty, StringComparison.Ordinal);
 
         LogEdaFlow(correlationId, "MqDocumentChunk", "Mainframe", "MainframeDocumentAggregator", "APPRAISAL.DOCUMENT.REPLY", "consumed");
+        var publishOptions = new PublishOptions();
+        publishOptions.SetHeader("EDA-Publisher", "Mainframe");
         await _messageSession.Publish(
                 new MainframeDocumentChunkReceivedEvent
                 {
@@ -96,6 +98,7 @@ public sealed class ArtemisDocumentReplyListener : BackgroundService
                     ChunkPayload = chunk,
                     IsFinal = isFinalChunk
                 },
+                publishOptions,
                 cancellationToken)
             .ConfigureAwait(false);
     }

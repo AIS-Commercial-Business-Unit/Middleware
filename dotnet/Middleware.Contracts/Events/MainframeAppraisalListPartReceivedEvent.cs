@@ -11,5 +11,5 @@ public sealed class MainframeAppraisalListPartReceivedEvent : IEvent
 
     public int TotalExpected { get; set; }
 
-    public Uc4DocumentSummary Document { get; set; } = new();
+    public AppraisalDocumentSummary Document { get; set; } = new();
 }

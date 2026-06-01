@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Middleware.Contracts.Commands;
-using Middleware.Contracts.Messages;
 using NServiceBus;
 using Serilog.Context;
+using dotnet_prs_appraisal.Infrastructure;
 
 namespace dotnet_prs_appraisal.Controllers;
 
@@ -11,12 +11,18 @@ public sealed class AppraisalDocumentsController : ControllerBase
 {
     private readonly ILogger<AppraisalDocumentsController> _logger;
     private readonly IMessageSession _messageSession;
+    private readonly IDocumentListRequestRepository _documentListRepository;
+    private readonly IDocumentRetrievalRequestRepository _documentRetrievalRepository;
 
     public AppraisalDocumentsController(
         IMessageSession messageSession,
+        IDocumentListRequestRepository documentListRepository,
+        IDocumentRetrievalRequestRepository documentRetrievalRepository,
         ILogger<AppraisalDocumentsController> logger)
     {
         _messageSession = messageSession;
+        _documentListRepository = documentListRepository;
+        _documentRetrievalRepository = documentRetrievalRepository;
         _logger = logger;
     }
 
@@ -27,7 +33,19 @@ public sealed class AppraisalDocumentsController : ControllerBase
         using var scope = _logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = requestId });
 
         _logger.LogInformation("Entering GetDocumentList for {PolicyNumber}.", policyNumber);
-        LogEdaFlow(requestId, "GetAppraisalDocumentListRequest", "API", "PrsAppraisal", "http.request.list", "consumed");
+        LogEdaFlow(requestId, "HTTP GET /api/documents", "user", "AppraisalDocumentsController", "http.request.list", "consumed");
+
+        await _documentListRepository.CreateAsync(requestId, policyNumber).ConfigureAwait(false);
+
+        var options = new SendOptions();
+        options.SetDestination("dotnet-prs-appraisal");
+        await _messageSession.Send(new GetAppraisalDocumentListCommand
+        {
+            RequestId = requestId,
+            PolicyNumber = policyNumber,
+            CorrelationId = requestId,
+            RequestedAt = DateTimeOffset.UtcNow
+        }, options).ConfigureAwait(false);
 
         var timeout = NormalizeTimeout(timeoutSeconds);
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -35,34 +53,27 @@ public sealed class AppraisalDocumentsController : ControllerBase
 
         try
         {
-            var options = new SendOptions();
-            options.SetDestination("dotnet-prs-appraisal");
-
-            var response = await _messageSession.Request<GetAppraisalDocumentListResponse>(
-                new GetAppraisalDocumentListCommand
-                {
-                    RequestId = requestId,
-                    PolicyNumber = policyNumber,
-                    CorrelationId = requestId,
-                    RequestedAt = DateTimeOffset.UtcNow
-                },
-                options,
-                cts.Token).ConfigureAwait(false);
-
-            LogEdaFlow(requestId, "GetAppraisalDocumentListResponse", "PrsAppraisal", "API", "http.response.list", "published");
-            _logger.LogInformation("Exiting GetDocumentList for {PolicyNumber} with {DocumentCount} documents.", policyNumber, response.Documents.Count);
-
-            return Ok(new
+            while (true)
             {
-                requestId = response.RequestId,
-                policyNumber = response.PolicyNumber,
-                documents = response.Documents,
-                partialResult = response.PartialResult
-            });
+                await Task.Delay(1000, cts.Token).ConfigureAwait(false);
+                var record = await _documentListRepository.FindAsync(requestId).ConfigureAwait(false);
+                if (record?.Status is "Complete" or "TimedOut")
+                {
+                    _logger.LogInformation(
+                        "Exiting GetDocumentList for {PolicyNumber} with {DocumentCount} documents (partial={Partial}).",
+                        policyNumber, record.Documents.Count, record.PartialResult);
+                    return Ok(new
+                    {
+                        requestId = record.RequestId,
+                        policyNumber = record.PolicyNumber,
+                        documents = record.Documents,
+                        partialResult = record.PartialResult
+                    });
+                }
+            }
         }
         catch (OperationCanceledException)
         {
-            LogEdaFlow(requestId, "GetAppraisalDocumentListTimeout", "PrsAppraisal", "API", "http.response.list", "published");
             _logger.LogInformation("Exiting GetDocumentList for {PolicyNumber} with Accepted (timeout).", policyNumber);
             return Accepted(new
             {
@@ -80,45 +91,48 @@ public sealed class AppraisalDocumentsController : ControllerBase
         using var scope = _logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = requestId });
 
         _logger.LogInformation("Entering GetDocument for {DocumentKey} from {SourceSystem}.", documentKey, sourceSystem);
-        LogEdaFlow(requestId, "RetrieveAppraisalDocumentRequest", "API", "PrsAppraisal", "http.request.document", "consumed");
+        LogEdaFlow(requestId, "HTTP GET /api/appraisals/documents", "user", "AppraisalDocumentsController", "http.request.document", "consumed");
+
+        await _documentRetrievalRepository.CreateAsync(requestId, documentKey, sourceSystem).ConfigureAwait(false);
+
+        var options = new SendOptions();
+        options.SetDestination("dotnet-prs-appraisal");
+        await _messageSession.Send(new RetrieveAppraisalDocumentCommand
+        {
+            RequestId = requestId,
+            DocumentKey = documentKey,
+            SourceSystem = sourceSystem,
+            CorrelationId = requestId,
+            RequestedAt = DateTimeOffset.UtcNow
+        }, options).ConfigureAwait(false);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromSeconds(30));
 
         try
         {
-            var options = new SendOptions();
-            options.SetDestination("dotnet-prs-appraisal");
-
-            var response = await _messageSession.Request<RetrieveAppraisalDocumentResponse>(
-                new RetrieveAppraisalDocumentCommand
-                {
-                    RequestId = requestId,
-                    DocumentKey = documentKey,
-                    SourceSystem = sourceSystem,
-                    CorrelationId = requestId,
-                    RequestedAt = DateTimeOffset.UtcNow
-                },
-                options,
-                cts.Token).ConfigureAwait(false);
-
-            LogEdaFlow(requestId, "RetrieveAppraisalDocumentResponse", "PrsAppraisal", "API", "http.response.document", "published");
-            _logger.LogInformation("Exiting GetDocument for {DocumentKey} with Success.", documentKey);
-
-            return Ok(new
+            while (true)
             {
-                requestId = response.RequestId,
-                documentId = response.DocumentId,
-                documentKey = response.DocumentKey,
-                sourceSystem = response.SourceSystem,
-                contentType = response.ContentType,
-                contentBase64 = response.ContentBase64,
-                fileName = response.FileName
-            });
+                await Task.Delay(1000, cts.Token).ConfigureAwait(false);
+                var record = await _documentRetrievalRepository.FindAsync(requestId).ConfigureAwait(false);
+                if (record?.Status is "Complete" or "TimedOut")
+                {
+                    _logger.LogInformation("Exiting GetDocument for {DocumentKey} with {Status}.", documentKey, record.Status);
+                    return Ok(new
+                    {
+                        requestId = record.RequestId,
+                        documentId = record.DocumentKey,
+                        documentKey = record.DocumentKey,
+                        sourceSystem = record.SourceSystem,
+                        contentType = record.ContentType,
+                        contentBase64 = record.ContentBase64,
+                        fileName = record.FileName
+                    });
+                }
+            }
         }
         catch (OperationCanceledException)
         {
-            LogEdaFlow(requestId, "RetrieveAppraisalDocumentTimeout", "PrsAppraisal", "API", "http.response.document", "published");
             _logger.LogInformation("Exiting GetDocument for {DocumentKey} with Accepted (timeout).", documentKey);
             return Accepted(new
             {
@@ -144,7 +158,7 @@ public sealed class AppraisalDocumentsController : ControllerBase
 
     private static TimeSpan NormalizeTimeout(int timeoutSeconds)
     {
-        var boundedSeconds = timeoutSeconds <= 0 ? 30 : Math.Min(timeoutSeconds, 30);
+        var boundedSeconds = timeoutSeconds <= 0 ? 30 : Math.Min(timeoutSeconds, 60);
         return TimeSpan.FromSeconds(boundedSeconds);
     }
 }

@@ -1,6 +1,6 @@
 namespace Middleware.Contracts.Models;
 
-public sealed class Uc4DocumentSummary
+public sealed class AppraisalDocumentSummary
 {
     public string DocumentId { get; set; } = string.Empty;
 

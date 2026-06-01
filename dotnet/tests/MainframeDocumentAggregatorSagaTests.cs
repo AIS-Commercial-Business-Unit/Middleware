@@ -26,7 +26,7 @@ public sealed class MainframeDocumentAggregatorSagaTests
 
         Assert.That(adapter.DocumentRequests, Is.EqualTo(1));
         var completed = context.PublishedMessages
-            .Select(message => message.Message<Uc4AppraisalDocumentRetrievedEvent>())
+            .Select(message => message.Message<AppraisalDocumentRetrievedEvent>())
             .LastOrDefault(message => message is not null);
 
         Assert.That(completed, Is.Not.Null);
@@ -44,10 +44,10 @@ public sealed class MainframeDocumentAggregatorSagaTests
 
         await saga.Handle(command, context);
         await saga.Handle(CreateChunk(command.RequestId, "chunk-1", isFinal: false), context);
-        await saga.Timeout(new Uc4MainframeDocumentAggregatorTimeoutMessage { RequestId = command.RequestId }, context);
+        await saga.Timeout(new MainframeDocumentAggregatorTimeoutMessage { RequestId = command.RequestId }, context);
 
         var completed = context.PublishedMessages
-            .Select(message => message.Message<Uc4AppraisalDocumentRetrievedEvent>())
+            .Select(message => message.Message<AppraisalDocumentRetrievedEvent>())
             .LastOrDefault(message => message is not null);
 
         Assert.That(completed, Is.Not.Null);

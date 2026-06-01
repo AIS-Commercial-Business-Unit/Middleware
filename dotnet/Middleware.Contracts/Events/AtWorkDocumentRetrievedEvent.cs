@@ -2,7 +2,7 @@ using NServiceBus;
 
 namespace Middleware.Contracts.Events;
 
-public sealed class Uc4AtWorkDocumentRetrievedEvent : IEvent
+public sealed class AtWorkDocumentRetrievedEvent : IEvent
 {
     public string RequestId { get; set; } = string.Empty;
 

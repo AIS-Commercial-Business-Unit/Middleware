@@ -50,7 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <BackendSwitcher />
           </div>
         </nav>
-        <main className="px-6 py-8 max-w-7xl mx-auto">{children}</main>
+        <main className="px-6 py-8 max-w-[1800px] mx-auto">{children}</main>
       </body>
     </html>
   );

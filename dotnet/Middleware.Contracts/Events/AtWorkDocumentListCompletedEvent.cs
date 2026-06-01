@@ -3,9 +3,8 @@ using NServiceBus;
 
 namespace Middleware.Contracts.Events;
 
-public sealed class Uc4MainframeDocumentListCompletedEvent : IEvent
+public sealed class AtWorkDocumentListCompletedEvent : IEvent
 {
     public string RequestId { get; set; } = string.Empty;
-
-    public List<Uc4DocumentSummary> Documents { get; set; } = new();
+    public List<AppraisalDocumentSummary> Documents { get; set; } = new();
 }

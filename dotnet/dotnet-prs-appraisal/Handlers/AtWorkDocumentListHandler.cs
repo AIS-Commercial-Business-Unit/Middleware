@@ -6,7 +6,7 @@ using Serilog.Context;
 
 namespace dotnet_prs_appraisal.Handlers;
 
-public sealed class AtWorkDocumentListHandler : IHandleMessages<Uc4AppraisalDocumentListRequestedEvent>
+public sealed class AtWorkDocumentListHandler : IHandleMessages<AppraisalDocumentListRequestedEvent>
 {
     private readonly ILogger<AtWorkDocumentListHandler> _logger;
 
@@ -15,18 +15,16 @@ public sealed class AtWorkDocumentListHandler : IHandleMessages<Uc4AppraisalDocu
         _logger = logger;
     }
 
-    public async Task Handle(Uc4AppraisalDocumentListRequestedEvent message, IMessageHandlerContext context)
+    public async Task Handle(AppraisalDocumentListRequestedEvent message, IMessageHandlerContext context)
     {
-        LogEdaFlow(message.RequestId, "AppraisalDocumentListRequested", "DocumentListSaga", "AtWorkHandler", "nsb.uc4appraisaldocumentlistrequested", "consumed");
-
-        LogEdaFlow(message.RequestId, "AtWorkListQuery", "AtWorkHandler", "AtWork", "atwork.query.list", "published");
+        LogEdaFlow(message.RequestId, "AtWorkListQuery", "AtWorkDocumentListHandler", "AtWork", "atwork.query.list", "published");
         var documents = AtWorkFixture.GetDocuments(message.PolicyNumber);
-        LogEdaFlow(message.RequestId, "AtWorkListResponse", "AtWork", "AtWorkHandler", "atwork.query.list", "consumed");
+        LogEdaFlow(message.RequestId, "AtWorkListResponse", "AtWork", "AtWorkDocumentListHandler", "atwork.query.list", "consumed");
 
-        await context.Publish(new Uc4AtWorkDocumentListCompletedEvent
+        await context.Publish(new AtWorkDocumentListCompletedEvent
         {
             RequestId = message.RequestId,
-            Documents = documents.Select(d => new Uc4DocumentSummary
+            Documents = documents.Select(d => new AppraisalDocumentSummary
             {
                 DocumentId = d.DocumentId,
                 DocumentKey = d.DocumentKey,
@@ -38,8 +36,6 @@ public sealed class AtWorkDocumentListHandler : IHandleMessages<Uc4AppraisalDocu
                 Status = d.Status
             }).ToList()
         }).ConfigureAwait(false);
-
-        LogEdaFlow(message.RequestId, "AtWorkDocumentListCompleted", "AtWorkHandler", "DocumentListSaga", "nsb.uc4atworkdocumentlistcompleted", "published");
     }
 
     private void LogEdaFlow(string requestId, string messageType, string from, string to, string topic, string direction = "consumed")
