@@ -825,3 +825,110 @@ Migrated APIM from the single shared `aks-internal` backend (host `api.middlewar
 **Cross-team coordination:** Assumes Platform's per-host ingress preserves the original path prefix (`/api/v1/policies`, `/api/v1`, `/api`, `/api/appraisals`) to the pod, OR the apps accept short paths. Per #49, ingress is now `path: /` and Spring/.NET controllers keep full `@RequestMapping` paths — contracts align.
 
 **Validation:** Grep of `api.middleware.internal` under `apim/` shows only the 1 intentional `apiops.yml` reference. Each API's `serviceUrl` matches its new backend `url` and DNS A record.
+
+### 51. .NET HTTP services use `dotnet-` prefixed per-host ingress (2026-06-01)
+**By:** Steven Suing (via Platform)
+
+The two .NET services with HTTP APIs (`dotnet-policy-issuance`, `dotnet-file-processing`) onboard onto the same per-host ingress + private DNS pattern as their Java counterparts, but with a `dotnet-` hostname prefix to disambiguate from the Java hosts that already own `policy.middleware.internal` and `file-processing.middleware.internal`.
+
+- `dotnet-policy-issuance` → `dotnet-policy.middleware.internal`
+- `dotnet-file-processing` → `dotnet-file-processing.middleware.internal`
+
+Both A records resolve to the shared ingress ILB (`10.0.16.10`); ingress-nginx routes by Host header. The other 7 .NET services are event-only (NServiceBus consumers) and remain cluster-internal — no Service.type=LoadBalancer, no ingress, no DNS.
+
+**Why:** Project goal is running Java and .NET stacks side-by-side for parity comparison. Reusing the bare hostnames would force a stack switch via APIM-only routing; prefixing the .NET hosts lets both stacks be addressable simultaneously through APIM and from in-cluster clients.
+
+**Files changed:**
+- `helm/middleware/values.yaml` — added `ingress:` blocks for the 2 services only
+- `infra/terraform/dns.tf` — added `dotnet_policy` and `dotnet_file_processing` A records
+- `infra/terraform/network.tf` — extended the DNS-records comment block
+
+**Validation:** `helm template` renders both hosts; `terraform fmt -check` clean.
+
+### 52. APIM dual-stack onboarding for .NET HTTP services (2026-06-01)
+**By:** Steven Suing (via Azure)
+
+Added two new APIM APIs and two new APIM backends so the .NET policy-issuance and file-processing services are reachable through APIM alongside their Java counterparts. Both stacks live concurrently; clients pick stack via the URL prefix.
+
+- New APIs: `apim/apis/dotnet-policy-issuance-api/`, `apim/apis/dotnet-file-processing-api/` — mirror Java siblings; specification.yaml copied verbatim (routes identical).
+- New backends: `apim/backends/dotnet-policy-issuance/`, `apim/backends/dotnet-file-processing/` pointing at `https://dotnet-policy.middleware.internal` and `https://dotnet-file-processing.middleware.internal`.
+- Each new API's `policy.xml` does `<set-backend-service backend-id="dotnet-{name}" />` per decision #50.
+
+**Naming convention:** `dotnet-` PREFIX uniformly: folder name, APIM displayName suffix `(.NET)`, APIM `path`, backend id, ingress hostname. Java stack keeps bare names — no churn on existing clients. `apim/apis/dotnet-*`, `apim/backends/dotnet-*`, `path: dotnet-*`, `backend-id: dotnet-*`, host: `dotnet-*.middleware.internal`.
+
+**Why dual-stack instead of cutover:** Stacks need to run side by side during BizTalk → modern-platform migration so traffic can be split, compared, and rolled back per-API without touching APIM consumer subscriptions. Path-based split (`/policy-issuance` vs `/dotnet-policy-issuance`) keeps both reachable through the same APIM instance, product, and subscription model — only the URL prefix differs.
+
+**Why no APIs for the 7 event-only .NET services:** kafka-bridge, customer-identity, billing-finance, platform-compliance, platform-integration, platform-notification, prs-appraisal expose no HTTP surface — they're Kafka consumers/producers. APIM façade with nothing behind it is meaningless.
+
+**Out of scope (owned by Platform):** ingress hostnames + DNS A records + AKS Service/Ingress (delivered in #51).
+
+**Validation:** Grep of `apim/` confirms each new hostname appears in exactly two places (its API's `serviceUrl` + its backend's `url`). All six APIM `path` values unique — no Java/.NET collision.
+
+### 53. Grafana on AKS — anonymous Viewer for v1 (2026-06-01)
+**By:** Steven Suing (via Platform)
+
+AKS Grafana deployed via `grafana/grafana` Helm chart with `auth.anonymous.enabled: true` and `org_role: Viewer`. No login required to view dashboards at `https://grafana.middleware.internal`.
+
+**Why:** Matches local docker-compose posture; lets the team start using Grafana immediately without waiting on AAD app registration. Cluster is internal-only (private DNS zone, internal ILB) so the only readers reach it through the corporate VNet.
+
+**Risk:** Anyone on the VNet can read all dashboards. No write access (Viewer role). Acceptable for v1.
+
+**TODO follow-up:** Replace with Entra ID OAuth (`auth.generic_oauth`) once Azure provisions an AAD app registration with the Grafana client ID + secret in Key Vault. Switch `auth.anonymous.enabled` to `false`, set `org_role: Editor` for an admin group, and restrict editor access by AAD group claim.
+
+### 54. Observability stack landed in AKS umbrella chart (2026-06-01)
+**By:** Steven Suing (via Platform)
+
+Added Kafdrop + Loki + Promtail + Prometheus + Tempo + Otel Collector + Grafana to `helm/middleware`. Community charts pinned as dependencies; Kafdrop is a custom subchart at `helm/charts/kafdrop/` (no community chart wires Event Hubs JAAS). All components use `fullnameOverride` so service DNS names are deterministic: `middleware-loki:3100`, `middleware-prometheus:80`, `middleware-tempo:3200`, `middleware-otel-collector:4317`, `middleware-grafana`, `middleware-kafdrop`.
+
+**Why:** Mirror the local docker-compose observability stack in cloud so we can debug AKS issues with the same tooling we use locally.
+
+**Storage:** Ephemeral PVCs on `managed-csi` (Loki 10Gi, Prometheus 20Gi, Tempo 10Gi, Grafana 5Gi). NOT Azure Blob — deferred (see #55).
+
+**Auth:** Grafana anonymous Viewer for v1 (#53). Entra ID OAuth deferred.
+
+**Ingress:** Two new internal hostnames — `kafdrop.middleware.internal`, `grafana.middleware.internal`. Loki/Prometheus/Tempo stay cluster-internal. DNS records added in `infra/terraform/dns.tf`.
+
+**Global OTEL endpoint:** `global.otel.endpoint` updated to `http://middleware-otel-collector:4317`. All Java/.NET services already reference `{{ .Values.global.otel.endpoint }}` so no per-service edits required.
+
+**Prometheus discovery:** Added `prometheus.io/scrape|path|port` pod annotations to the shared `microservice` deployment template, gated on `stack == "java"` so Spring Boot Actuator endpoints get auto-scraped and .NET pods are skipped.
+
+**UI:** Added `NEXT_PUBLIC_KAFDROP_URL` and `NEXT_PUBLIC_GRAFANA_URL` to `platform-ui.env` so Frontend can wire the links without touching the chart.
+
+### 55. Observability storage TODO — switch to Azure Blob backends (2026-06-01)
+**By:** Steven Suing (via Platform)
+
+Loki/Prometheus/Tempo on AKS run with ephemeral PVCs on `managed-csi` (10/20/10 Gi respectively). On pod loss, history is lost. v1 expedience.
+
+**TODO follow-up:** Switch all three to Azure Blob backends:
+- **Loki:** `storage.type: azure` with a dedicated container in `stmiddleware{env}observability` (Azure provisions the storage account + container + Workload Identity role assignment `Storage Blob Data Contributor` on the container).
+- **Prometheus:** enable `prometheus-community` remote write to long-term store (Azure Monitor managed Prometheus is the natural target — keeps the Prometheus pod local-only for live queries and ships durability to AMW).
+- **Tempo:** `storage.trace.backend: azure` with its own container.
+
+**Blocker:** Azure must publish the storage account name + Workload Identity client ID with the right role binding before this is actionable.
+
+### 56. Kafdrop → Azure Event Hubs auth recipe (2026-06-01)
+**By:** Steven Suing (via Azure)
+**Audience:** Platform (deploying Kafdrop into AKS)
+**Full design:** see decisions inbox archive / chart README
+
+**Choice:** Option B — SAS connection string + SASL_PLAIN, secret pulled from Key Vault via CSI driver. Reject Option A (Workload Identity + OAUTHBEARER) for the POC: requires a custom Kafdrop image with `azure-identity-extensions` jars and a custom callback class. Kafdrop is a read-only diagnostic UI; the security delta between a namespace-scoped Listen-only SAS key and a federated workload identity is small relative to the operational cost of maintaining a forked image.
+
+**Pre-flight blocker (Platform/Network):** Event Hubs Kafka endpoint listens on **TCP 9093 only**. Confirm AKS subnet egress allows TCP/9093 to `*.servicebus.windows.net` (or service tag `EventHub`) before rolling out Kafdrop. Same constraint applies to all existing Java services using SASL_SSL.
+
+**Auth wiring:**
+- `KAFKA_BROKERCONNECT`: `<eventhubs-namespace>.servicebus.windows.net:9093`.
+- `KAFKA_PROPERTIES` rendered at pod start from CSI-mounted secret (`eventhubs-kafdrop-connection-string`) — never baked into chart or image.
+- JAAS: `org.apache.kafka.common.security.plain.PlainLoginModule required username="$ConnectionString" password="<conn-string>";` — `username` is the literal `$ConnectionString` (Event Hubs convention).
+- SAS policy: `kafdrop-listen` at namespace scope with **Listen** claim only — never the root key.
+
+**Service Account:** existing `middleware-workload` (no Entra calls under Option B).
+
+**Federated identity / RBAC:** none required for Option B. SAS policy authorization is enforced by the connection string itself.
+
+**Terraform additions (Azure):**
+- `azurerm_eventhub_namespace_authorization_rule.kafdrop_listen` — namespace-scoped Listen-only SAS policy.
+- `azurerm_key_vault_secret.kafdrop_eh_conn` — pushes `primary_connection_string` into Key Vault as `eventhubs-kafdrop-connection-string`.
+
+**JVM/memory:** keep DevOps Decision #43 — `JVM_OPTS: "-Xms32M -Xmx128M"` with `mem_limit: 384m`. No additional JVM flags required for SASL_SSL/PLAIN; bundled kafka-clients trusts the DigiCert chain.
+
+**Migration path to Option A (if audit demands no shared secrets):** custom Dockerfile from `obsidiandynamics/kafdrop:4.0.2`, drop `azure-identity-extensions` + `azure-identity` + `azure-core` jars into `/app/BOOT-INF/lib/` of the fat jar (not `loader.path` — Kafdrop 4.0.2 uses `JarLauncher`, ignores it). Then switch to `sasl.mechanism=OAUTHBEARER` + `KafkaOAuth2AuthenticateCallbackHandler`, give Kafdrop its own SA `kafdrop-workload` with federated credential and `Azure Event Hubs Data Receiver` role at namespace scope.
