@@ -67,7 +67,7 @@ policy-issuance-service:
     SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
     SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
     SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
-    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: policy-issuance-service
   resources:
@@ -112,7 +112,7 @@ customer-identity-service:
     SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
     SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
     SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
-    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: customer-identity-service
     ERM7X1_URL: "middleware-erm7x1-account-stub:80"
@@ -152,7 +152,7 @@ platform-compliance-service:
     SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
     SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
     SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
-    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: platform-compliance-service
     RSK3X3_URL: "middleware-rsk3x3-compliance-stub:80"
@@ -191,7 +191,7 @@ platform-integration-service:
     SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
     SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
     SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
-    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: platform-integration-service
     DUCKCREEK_COMMERCIAL_URL: "middleware-duckcreek-commercial-stub:80"
@@ -257,7 +257,7 @@ billing-finance-service:
     SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
     SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
     SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
-    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: billing-finance-service
     CRM19X1_URL: "middleware-crm19x1-billing-stub:80"
@@ -296,7 +296,7 @@ platform-notification-service:
     SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
     SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
     SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
-    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: platform-notification-service
   resources:
@@ -335,7 +335,7 @@ platform-file-processing-service:
     SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
     SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
     SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
-    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: platform-file-processing-service
   resources:
@@ -380,7 +380,7 @@ prs-appraisal-service:
     SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
     SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
     SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
-    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: prs-appraisal-service
     ARTEMIS_BROKER_URL: "tcp://middleware-activemq-artemis:61616"
