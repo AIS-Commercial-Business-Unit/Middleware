@@ -64,7 +64,7 @@ public class AzureEventHubsLoginCallbackHandler implements AuthenticateCallbackH
                         }
 
                         @Override
-                        public long startTimeMs() {
+                        public Long startTimeMs() {
                             return System.currentTimeMillis();
                         }
 
