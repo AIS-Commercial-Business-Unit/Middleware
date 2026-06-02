@@ -115,8 +115,8 @@ customer-identity-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: customer-identity-service
-    ERM7X1_URL: "http://middleware-erm7x1-account-stub:80"
-    CRM40X1_URL: "http://middleware-crm40x1-customer-stub:80"
+    ERM7X1_URL: "middleware-erm7x1-account-stub:80"
+    CRM40X1_URL: "middleware-crm40x1-customer-stub:80"
   resources:
     requests:
       memory: "256Mi"
@@ -155,7 +155,7 @@ platform-compliance-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: platform-compliance-service
-    RSK3X3_URL: "http://middleware-rsk3x3-compliance-stub:80"
+    RSK3X3_URL: "middleware-rsk3x3-compliance-stub:80"
   resources:
     requests:
       memory: "256Mi"
@@ -194,9 +194,9 @@ platform-integration-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: platform-integration-service
-    DUCKCREEK_COMMERCIAL_URL: "http://middleware-duckcreek-commercial-stub:80"
-    DUCKCREEK_PERSONAL_URL: "http://middleware-duckcreek-personal-stub:80"
-    FOREFRONT_URL: "http://middleware-forefront-stub:80"
+    DUCKCREEK_COMMERCIAL_URL: "middleware-duckcreek-commercial-stub:80"
+    DUCKCREEK_PERSONAL_URL: "middleware-duckcreek-personal-stub:80"
+    FOREFRONT_URL: "middleware-forefront-stub:80"
     # Demo health-check service discovery (K8s Service names = middleware-{alias}:80)
     DEMO_HEALTH_POLICY_ISSUANCE: "http://middleware-policy-issuance-service:80"
     DEMO_HEALTH_PLATFORM_COMPLIANCE: "http://middleware-platform-compliance-service:80"
@@ -260,7 +260,7 @@ billing-finance-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: billing-finance-service
-    CRM19X1_URL: "http://middleware-crm19x1-billing-stub:80"
+    CRM19X1_URL: "middleware-crm19x1-billing-stub:80"
   resources:
     requests:
       memory: "256Mi"
