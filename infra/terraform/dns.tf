@@ -27,8 +27,45 @@ resource "azurerm_private_dns_zone_virtual_network_link" "aks" {
 }
 
 # A record: api.middleware.internal → ILB static IP
+# TODO: Retained for backward compatibility. Backend APIs now use per-service
+# hostnames (policy, file-processing, integration, appraisal). This record can
+# be removed once APIM backend definitions are updated to the new hostnames.
 resource "azurerm_private_dns_a_record" "api" {
   name                = "api"
+  zone_name           = azurerm_private_dns_zone.aks.name
+  resource_group_name = azurerm_resource_group.main.name
+  ttl                 = 300
+  records             = [local.ingress_ilb_ip]
+}
+
+# Per-service A records — one hostname per backend API. All point to the same
+# ingress ILB; ingress-nginx routes by Host header to the matching Service.
+resource "azurerm_private_dns_a_record" "policy" {
+  name                = "policy"
+  zone_name           = azurerm_private_dns_zone.aks.name
+  resource_group_name = azurerm_resource_group.main.name
+  ttl                 = 300
+  records             = [local.ingress_ilb_ip]
+}
+
+resource "azurerm_private_dns_a_record" "file_processing" {
+  name                = "file-processing"
+  zone_name           = azurerm_private_dns_zone.aks.name
+  resource_group_name = azurerm_resource_group.main.name
+  ttl                 = 300
+  records             = [local.ingress_ilb_ip]
+}
+
+resource "azurerm_private_dns_a_record" "integration" {
+  name                = "integration"
+  zone_name           = azurerm_private_dns_zone.aks.name
+  resource_group_name = azurerm_resource_group.main.name
+  ttl                 = 300
+  records             = [local.ingress_ilb_ip]
+}
+
+resource "azurerm_private_dns_a_record" "appraisal" {
+  name                = "appraisal"
   zone_name           = azurerm_private_dns_zone.aks.name
   resource_group_name = azurerm_resource_group.main.name
   ttl                 = 300

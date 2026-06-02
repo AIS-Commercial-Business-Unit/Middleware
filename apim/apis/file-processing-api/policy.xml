@@ -1,7 +1,7 @@
 <policies>
     <inbound>
         <base />
-        <set-backend-service backend-id="aks-internal" />
+        <set-backend-service backend-id="file-processing" />
         <set-header name="X-Forwarded-Host" exists-action="override">
             <value>@(context.Request.OriginalUrl.Host)</value>
         </set-header>

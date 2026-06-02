@@ -17,7 +17,7 @@ resource "azurerm_subnet" "aks_nodes" {
   name                 = "snet-aks-nodes"
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = ["10.0.0.0/20"]  # ~4094 IPs for nodes + pods
+  address_prefixes     = ["10.0.0.0/20"] # ~4094 IPs for nodes + pods
 }
 
 # Subnet for internal load balancers (ingress ILB lives here)
@@ -25,7 +25,7 @@ resource "azurerm_subnet" "aks_ilb" {
   name                 = "snet-aks-ilb"
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
-  address_prefixes     = ["10.0.16.0/24"]  # /24 for LB frontend IPs
+  address_prefixes     = ["10.0.16.0/24"] # /24 for LB frontend IPs
 }
 
 # Subnet for APIM (Developer tier VNet integration requires dedicated subnet)
@@ -39,7 +39,13 @@ resource "azurerm_subnet" "apim" {
 # Static IP 10.0.16.10 is reserved from snet-aks-ilb for the ingress ILB.
 # It's passed to the NginxIngressController via Helm values (loadBalancerAnnotations).
 # Azure LB allocates it when the controller creates the internal Service.
-# DNS A records (api.middleware.internal, ui.middleware.internal) point to this IP.
+# DNS A records all point to this IP; ingress-nginx routes by Host header:
+#   - policy.middleware.internal           → policy-issuance-service
+#   - file-processing.middleware.internal  → platform-file-processing-service
+#   - integration.middleware.internal      → platform-integration-service
+#   - appraisal.middleware.internal        → prs-appraisal-service
+#   - ui.middleware.internal               → platform-ui
+#   - api.middleware.internal              → (legacy, retained until APIM cutover)
 
 # Grant AKS identity "Network Contributor" on the ILB subnet
 # so AKS can deploy the internal load balancer with the static IP

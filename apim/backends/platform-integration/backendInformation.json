@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "url": "https://integration.middleware.internal",
+    "title": "Platform Integration Backend",
+    "description": "Per-host AKS internal ingress for the platform-integration-service",
+    "protocol": "http",
+    "tls": {
+      "validateCertificateChain": false,
+      "validateCertificateName": false
+    }
+  }
+}

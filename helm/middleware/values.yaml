@@ -23,7 +23,12 @@ global:
     storageAccountName: ""    # e.g., stmiddlewaredevfiles
     sqlServerFqdn: ""         # From terraform output: sql_server_fqdn (globally unique, includes random suffix)
   ingress:
-    internalHost: "api.middleware.internal"  # Private DNS zone for APIM → AKS
+    # NOTE: APIs now use per-service hostnames (e.g. policy.middleware.internal,
+    # file-processing.middleware.internal, integration.middleware.internal,
+    # appraisal.middleware.internal). The internalHost entry below is retained
+    # for the UI host pattern and any legacy reference; it is no longer the
+    # canonical host for backend APIs. See infra/terraform/dns.tf.
+    internalHost: "api.middleware.internal"  # Legacy/UI pattern only; APIs use per-service hosts
     publicHost: ""                          # Public DNS (if UI exposed directly)
     staticIp: "10.0.16.10"                  # Reserved from snet-aks-ilb subnet
     ilbSubnetName: "snet-aks-ilb"           # Subnet where ILB gets deployed
@@ -72,9 +77,9 @@ policy-issuance-service:
   ingress:
     enabled: true
     internal: true
-    host: "api.middleware.internal"
+    host: "policy.middleware.internal"
     paths:
-      - path: /api/v1/policies
+      - path: /
         pathType: Prefix
 
 customer-identity-service:
@@ -193,11 +198,9 @@ platform-integration-service:
   ingress:
     enabled: true
     internal: true
-    host: "api.middleware.internal"
+    host: "integration.middleware.internal"
     paths:
-      - path: /api/riskid
-        pathType: Prefix
-      - path: /api/demo
+      - path: /
         pathType: Prefix
 
 billing-finance-service:
@@ -317,13 +320,9 @@ platform-file-processing-service:
   ingress:
     enabled: true
     internal: true
-    host: "api.middleware.internal"
+    host: "file-processing.middleware.internal"
     paths:
-      - path: /api/v1/batches
-        pathType: Prefix
-      - path: /api/v1/drop-zones
-        pathType: Prefix
-      - path: /api/v1/records
+      - path: /
         pathType: Prefix
 
 prs-appraisal-service:
@@ -366,9 +365,9 @@ prs-appraisal-service:
   ingress:
     enabled: true
     internal: true
-    host: "api.middleware.internal"
+    host: "appraisal.middleware.internal"
     paths:
-      - path: /api/appraisals
+      - path: /
         pathType: Prefix
 
 ##############################################################################
