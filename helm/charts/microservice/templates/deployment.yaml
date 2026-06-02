@@ -30,30 +30,6 @@ spec:
             - name: http
               containerPort: {{ .Values.port }}
               protocol: TCP
-          {{- if .Values.healthCheck.enabled }}
-          startupProbe:
-            httpGet:
-              path: {{ .Values.healthCheck.startupPath | default "/actuator/info" }}
-              port: http
-            initialDelaySeconds: {{ .Values.healthCheck.initialDelaySeconds }}
-            periodSeconds: 5
-            timeoutSeconds: {{ .Values.healthCheck.timeoutSeconds }}
-            failureThreshold: 40
-          livenessProbe:
-            httpGet:
-              path: {{ .Values.healthCheck.livenessPath | default .Values.healthCheck.path }}
-              port: http
-            periodSeconds: {{ .Values.healthCheck.periodSeconds }}
-            timeoutSeconds: {{ .Values.healthCheck.timeoutSeconds }}
-            failureThreshold: {{ .Values.healthCheck.failureThreshold }}
-          readinessProbe:
-            httpGet:
-              path: {{ .Values.healthCheck.readinessPath | default .Values.healthCheck.path }}
-              port: http
-            periodSeconds: {{ .Values.healthCheck.periodSeconds }}
-            timeoutSeconds: {{ .Values.healthCheck.timeoutSeconds }}
-            failureThreshold: {{ .Values.healthCheck.failureThreshold }}
-          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "microservice.fullname" . }}

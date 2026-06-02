@@ -51,14 +51,6 @@ env: {}
 envFromSecrets: {}
 # ENV_VAR_NAME: secretKeyRef
 
-healthCheck:
-  enabled: true
-  path: /actuator/health
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 3
-  failureThreshold: 3
-
 ingress:
   enabled: false
   internal: true              # Use internal LB (APIM → AKS)

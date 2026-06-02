@@ -62,15 +62,6 @@ policy-issuance-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: policy-issuance-service
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    livenessPath: /actuator/health/liveness
-    readinessPath: /actuator/health/readiness
-    initialDelaySeconds: 40
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "256Mi"
@@ -116,15 +107,6 @@ customer-identity-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: customer-identity-service
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    livenessPath: /actuator/health/liveness
-    readinessPath: /actuator/health/readiness
-    initialDelaySeconds: 40
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "256Mi"
@@ -163,15 +145,6 @@ platform-compliance-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: platform-compliance-service
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    livenessPath: /actuator/health/liveness
-    readinessPath: /actuator/health/readiness
-    initialDelaySeconds: 40
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "256Mi"
@@ -210,15 +183,6 @@ platform-integration-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: platform-integration-service
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    livenessPath: /actuator/health/liveness
-    readinessPath: /actuator/health/readiness
-    initialDelaySeconds: 40
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "256Mi"
@@ -266,15 +230,6 @@ billing-finance-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: billing-finance-service
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    livenessPath: /actuator/health/liveness
-    readinessPath: /actuator/health/readiness
-    initialDelaySeconds: 40
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "256Mi"
@@ -313,15 +268,6 @@ platform-notification-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: platform-notification-service
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    livenessPath: /actuator/health/liveness
-    readinessPath: /actuator/health/readiness
-    initialDelaySeconds: 40
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "256Mi"
@@ -361,15 +307,6 @@ platform-file-processing-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: platform-file-processing-service
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    livenessPath: /actuator/health/liveness
-    readinessPath: /actuator/health/readiness
-    initialDelaySeconds: 40
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "256Mi"
@@ -419,15 +356,6 @@ prs-appraisal-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: prs-appraisal-service
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    livenessPath: /actuator/health/liveness
-    readinessPath: /actuator/health/readiness
-    initialDelaySeconds: 40
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "256Mi"
@@ -462,13 +390,6 @@ duckcreek-commercial-stub:
     enabled: false
   env:
     SERVER_PORT: "8082"
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
   resources:
     requests:
       memory: "128Mi"
@@ -492,13 +413,6 @@ duckcreek-personal-stub:
     enabled: false
   env:
     SERVER_PORT: "8083"
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
   resources:
     requests:
       memory: "128Mi"
@@ -522,13 +436,6 @@ forefront-stub:
     enabled: false
   env:
     SERVER_PORT: "8084"
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
   resources:
     requests:
       memory: "128Mi"
@@ -552,13 +459,6 @@ rsk3x3-compliance-stub:
     enabled: false
   env:
     SERVER_PORT: "8085"
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
   resources:
     requests:
       memory: "128Mi"
@@ -582,13 +482,6 @@ erm7x1-account-stub:
     enabled: false
   env:
     SERVER_PORT: "8086"
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
   resources:
     requests:
       memory: "128Mi"
@@ -612,13 +505,6 @@ crm40x1-customer-stub:
     enabled: false
   env:
     SERVER_PORT: "8087"
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
   resources:
     requests:
       memory: "128Mi"
@@ -642,13 +528,6 @@ crm19x1-billing-stub:
     enabled: false
   env:
     SERVER_PORT: "8088"
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
   resources:
     requests:
       memory: "128Mi"
@@ -672,13 +551,6 @@ deipde07-mq-simulator:
     enabled: false
   env:
     SERVER_PORT: "8089"
-  healthCheck:
-    enabled: true
-    path: /actuator/health
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
   resources:
     requests:
       memory: "128Mi"
@@ -719,13 +591,6 @@ dotnet-policy-issuance:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-policy-issuance
-  healthCheck:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 20
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "128Mi"
@@ -762,13 +627,6 @@ dotnet-customer-identity:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-customer-identity
-  healthCheck:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 20
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "128Mi"
@@ -805,13 +663,6 @@ dotnet-platform-compliance:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-platform-compliance
-  healthCheck:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 20
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "128Mi"
@@ -848,13 +699,6 @@ dotnet-platform-integration:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-platform-integration
-  healthCheck:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 20
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "128Mi"
@@ -891,13 +735,6 @@ dotnet-billing-finance:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-billing-finance
-  healthCheck:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 20
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "128Mi"
@@ -934,13 +771,6 @@ dotnet-platform-notification:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-platform-notification
-  healthCheck:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 20
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "128Mi"
@@ -978,13 +808,6 @@ dotnet-file-processing:
     Azure__StorageAccountName: "{{ .Values.global.azure.storageAccountName }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-file-processing
-  healthCheck:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 20
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "128Mi"
@@ -1021,13 +844,6 @@ dotnet-kafka-bridge:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-kafka-bridge
-  healthCheck:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 20
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "128Mi"
@@ -1064,13 +880,6 @@ dotnet-prs-appraisal:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-prs-appraisal
-  healthCheck:
-    enabled: true
-    path: /health
-    initialDelaySeconds: 20
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 5
   resources:
     requests:
       memory: "128Mi"
@@ -1100,13 +909,6 @@ platform-ui:
     NODE_ENV: "production"
     HOSTNAME: "0.0.0.0"
     NEXT_PUBLIC_API_BASE: "{{ .Values.global.apim.gatewayUrl }}"
-  healthCheck:
-    enabled: true
-    path: /
-    initialDelaySeconds: 15
-    periodSeconds: 10
-    timeoutSeconds: 3
-    failureThreshold: 3
   resources:
     requests:
       memory: "128Mi"
