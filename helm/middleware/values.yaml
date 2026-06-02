@@ -1328,26 +1328,16 @@ otel-collector:
   image:
     repository: otel/opentelemetry-collector-contrib
 
-  # Inject App Insights connection string so the azuremonitor exporter can use it
+  # Inject App Insights connection string from the shared service secrets.
+  # The microservices' SecretProviderClasses sync this from Key Vault into
+  # K8s Secrets. We reference the policy-issuance-service secret since it's
+  # always deployed. The azuremonitor exporter reads this env var.
   extraEnvs:
     - name: APPLICATIONINSIGHTS_CONNECTION_STRING
       valueFrom:
         secretKeyRef:
-          name: otel-collector-secrets
+          name: policy-issuance-service-secrets
           key: appinsights-connection-string
-
-  # Mount CSI secrets store volume to sync Key Vault secret into K8s Secret
-  extraVolumes:
-    - name: secrets-store
-      csi:
-        driver: secrets-store.csi.k8s.io
-        readOnly: true
-        volumeAttributes:
-          secretProviderClass: otel-collector-spc
-  extraVolumeMounts:
-    - name: secrets-store
-      mountPath: /mnt/secrets-store
-      readOnly: true
 
   resources:
     requests:
