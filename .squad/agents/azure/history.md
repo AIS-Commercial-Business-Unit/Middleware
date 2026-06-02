@@ -11,6 +11,14 @@
 
 <!-- Append new learnings below. -->
 
+### 2026-06-01 — Kafdrop → Event Hubs auth recipe
+
+- **Chose Option B (SAS + SASL_PLAIN)** over Workload Identity + OAUTHBEARER for Kafdrop. Kafdrop's fat-jar image has no Azure SDK on its classpath and Spring Boot's `JarLauncher` ignores `-Dloader.path`, so OAUTHBEARER would require a forked image. Not worth the toil for a read-only diagnostic UI.
+- **Pre-flight blocker flagged:** Event Hubs Kafka is on TCP/9093, not 443. The user said 9093 is firewalled outbound. Same constraint applies to the existing Java services — flagged for Platform/Network to confirm egress before Kafdrop ships.
+- **Pattern for non-Entra-aware images talking to Event Hubs:** namespace-scoped SAS policy with Listen-only claim → Key Vault secret → CSI driver file mount → render kafka.properties at pod start with a `command:` shim (or init container) → base64 into `KAFKA_PROPERTIES` env var. Avoids baking the secret into the chart and avoids env-var leakage in `kubectl describe pod`.
+- **Kafdrop accepts both `KAFKA_PROPERTIES` (base64) and `KAFKA_PROPERTIES_FILE` (path)** — file mode is friendlier when the properties content includes a secret.
+- **Recipe deliverable:** `.squad/decisions/inbox/azure-kafdrop-eventhubs.md` with env vars, both Option A and Option B documented, Helm values block, Terraform additions, and the 9093 egress callout.
+
 ### 2026-06-01 — Terraform Infrastructure Scaffold
 
 - **Decision:** All Azure infra managed via Terraform in `infra/terraform/` with modular file-per-concern layout.

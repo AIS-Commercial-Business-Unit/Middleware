@@ -125,3 +125,38 @@ dependencies:
     version: "0.1.0"
     repository: "file://../charts/microservice"
     alias: platform-ui
+
+  # --- Observability stack ---
+  # Custom Kafdrop subchart (no community chart wires Event Hubs JAAS).
+  - name: kafdrop
+    version: "0.1.0"
+    repository: "file://../charts/kafdrop"
+    condition: kafdrop.enabled
+
+  # Community charts. Versions pinned. Run `helm dependency update helm/middleware`
+  # after first checkout to populate `helm/middleware/charts/`.
+  - name: loki
+    version: "6.16.0"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: loki.enabled
+  - name: promtail
+    version: "6.16.6"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: promtail.enabled
+  - name: prometheus
+    version: "25.27.0"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: prometheus.enabled
+  - name: tempo
+    version: "1.10.1"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: tempo.enabled
+  - name: opentelemetry-collector
+    version: "0.97.1"
+    repository: "https://open-telemetry.github.io/opentelemetry-helm-charts"
+    alias: otel-collector
+    condition: otel-collector.enabled
+  - name: grafana
+    version: "8.5.1"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: grafana.enabled

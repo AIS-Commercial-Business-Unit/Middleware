@@ -13,7 +13,10 @@ global:
   eventhubs:
     bootstrapServers: ""  # e.g. evhns-middleware-dev.servicebus.windows.net:9093
   otel:
-    endpoint: "http://otel-collector.observability.svc:4317"
+    # Cluster-internal OTLP gRPC endpoint exposed by the otel-collector
+    # DaemonSet (fullnameOverride: middleware-otel-collector). All Java and
+    # .NET services point at this for traces, logs, and metrics.
+    endpoint: "http://middleware-otel-collector:4317"
   apim:
     gatewayUrl: ""  # From terraform output: APIM gateway URL
   azure:
@@ -908,6 +911,8 @@ platform-ui:
     NODE_ENV: "production"
     HOSTNAME: "0.0.0.0"
     NEXT_PUBLIC_API_BASE: "{{ .Values.global.apim.gatewayUrl }}"
+    NEXT_PUBLIC_KAFDROP_URL: "https://kafdrop.middleware.internal"
+    NEXT_PUBLIC_GRAFANA_URL: "https://grafana.middleware.internal"
   resources:
     requests:
       memory: "128Mi"
@@ -922,3 +927,484 @@ platform-ui:
     paths:
       - path: /
         pathType: Prefix
+
+##############################################################################
+# Observability Stack
+#
+# Storage strategy: ephemeral PVCs on the cluster default StorageClass
+# (managed-csi). Loki/Prometheus/Tempo all keep their data on disk; pods
+# losing their PVC means losing history. Acceptable for v1; switch to Azure
+# Blob backends in a follow-up (TODO tracked in decisions inbox).
+#
+# Service hostnames after fullnameOverride:
+#   middleware-loki:3100        (cluster-internal only)
+#   middleware-prometheus:9090  (cluster-internal only — see note below)
+#   middleware-tempo:3200       (cluster-internal only; OTLP gRPC on :4317)
+#   middleware-otel-collector:4317  (cluster-internal — global.otel.endpoint)
+#   middleware-grafana:3000     (exposed via grafana.middleware.internal)
+#   middleware-kafdrop:80       (exposed via kafdrop.middleware.internal)
+##############################################################################
+
+##############################################################################
+# Kafdrop — custom subchart (helm/charts/kafdrop)
+##############################################################################
+
+kafdrop:
+  enabled: true
+
+  # Override at deploy time with the Event Hubs Kafka endpoint, e.g.
+  # `evhns-middleware-dev.servicebus.windows.net:9093`.
+  kafkaBrokerConnect: ""
+
+  securityProtocol: SASL_SSL
+  saslMechanism: OAUTHBEARER
+  # ⚠️  Azure agent will publish the OAUTHBEARER JAAS snippet via
+  # .squad/decisions/inbox/azure-kafdrop-eventhubs.md. Until then this stays
+  # blank and Kafdrop will not authenticate. Tracked in decisions inbox.
+  saslJaasConfig: ""
+
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+
+  ingress:
+    enabled: true
+    internal: true
+    host: "kafdrop.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix
+
+##############################################################################
+# Loki — single-binary mode, ephemeral PVC (10Gi).
+# Cluster-internal at http://middleware-loki:3100.
+##############################################################################
+
+loki:
+  enabled: true
+  fullnameOverride: middleware-loki
+
+  deploymentMode: SingleBinary
+
+  loki:
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+    storage:
+      type: filesystem
+    schemaConfig:
+      configs:
+        - from: "2024-04-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+
+  singleBinary:
+    replicas: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: managed-csi
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  # Disable cache & gateway components — single-binary handles everything
+  chunksCache:
+    enabled: false
+  resultsCache:
+    enabled: false
+  gateway:
+    enabled: false
+  test:
+    enabled: false
+  monitoring:
+    selfMonitoring:
+      enabled: false
+      grafanaAgent:
+        installOperator: false
+    lokiCanary:
+      enabled: false
+
+##############################################################################
+# Promtail — DaemonSet shipping pod logs to Loki.
+##############################################################################
+
+promtail:
+  enabled: true
+  fullnameOverride: middleware-promtail
+
+  config:
+    clients:
+      - url: http://middleware-loki:3100/loki/api/v1/push
+    snippets:
+      extraRelabelConfigs:
+        - target_label: deployment_environment
+          replacement: aks
+      pipelineStages:
+        - cri: {}
+        - drop:
+            expression: "Node -1 disconnected"
+        - drop:
+            expression: "Heartbeat"
+        - json:
+            expressions:
+              level: level
+        - labels:
+            level:
+
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+##############################################################################
+# Prometheus — single replica, ephemeral PVC (20Gi). Auto-discovers pods
+# carrying `prometheus.io/scrape: "true"` annotations (Java services'
+# /actuator/prometheus is wired in microservice template).
+##############################################################################
+
+prometheus:
+  enabled: true
+  fullnameOverride: middleware-prometheus
+
+  alertmanager:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  prometheus-node-exporter:
+    enabled: false
+  kube-state-metrics:
+    enabled: false
+
+  configmapReload:
+    prometheus:
+      enabled: true
+
+  server:
+    fullnameOverride: middleware-prometheus
+    replicaCount: 1
+    persistentVolume:
+      enabled: true
+      size: 20Gi
+      storageClass: managed-csi
+    retention: "7d"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+
+  serverFiles:
+    prometheus.yml:
+      scrape_configs:
+        - job_name: kubernetes-pods
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:
+            # Keep only pods carrying prometheus.io/scrape: "true"
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            # Optional path override (default /metrics; Spring Boot uses /actuator/prometheus)
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            # Optional port override
+            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+              action: replace
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+              target_label: __address__
+            - action: labelmap
+              regex: __meta_kubernetes_pod_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              action: replace
+              target_label: pod
+
+##############################################################################
+# Tempo — single binary, ephemeral PVC (10Gi). OTLP gRPC ingestion on 4317.
+##############################################################################
+
+tempo:
+  enabled: true
+  fullnameOverride: middleware-tempo
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClassName: managed-csi
+
+  tempo:
+    repository: grafana/tempo
+    pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "768Mi"
+    # GOMEMLIMIT mirrors local-dev decision (#Resource Limit Hardening).
+    extraArgs: {}
+    extraEnv:
+      - name: GOMEMLIMIT
+        value: "650MiB"
+
+  service:
+    type: ClusterIP
+
+  # Enable OTLP receivers so the otel-collector can forward traces.
+  config: |
+    multitenancy_enabled: false
+    compactor:
+      compaction:
+        block_retention: 168h
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+    ingester:
+      max_block_duration: 5m
+    server:
+      http_listen_port: 3200
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/traces
+        wal:
+          path: /var/tempo/wal
+
+##############################################################################
+# OpenTelemetry Collector — DaemonSet receiving OTLP from services,
+# forwarding traces to Tempo and logs to Loki.
+##############################################################################
+
+otel-collector:
+  enabled: true
+  fullnameOverride: middleware-otel-collector
+
+  mode: daemonset
+
+  image:
+    repository: otel/opentelemetry-collector-contrib
+
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  presets:
+    logsCollection:
+      enabled: false
+    kubernetesAttributes:
+      enabled: true
+
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      batch:
+        timeout: 1s
+        send_batch_size: 1024
+      resource:
+        attributes:
+          - action: upsert
+            key: deployment.environment
+            value: aks
+      transform/loki_labels:
+        log_statements:
+          - context: resource
+            statements:
+              - set(attributes["loki.resource.labels"], "service.name, deployment.environment")
+    exporters:
+      otlp/tempo:
+        endpoint: middleware-tempo:4317
+        tls:
+          insecure: true
+      loki:
+        endpoint: http://middleware-loki:3100/loki/api/v1/push
+        default_labels_enabled:
+          exporter: false
+          job: true
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        namespace: middleware
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [otlp/tempo]
+        logs:
+          receivers: [otlp]
+          processors: [batch, resource, transform/loki_labels]
+          exporters: [loki]
+        metrics:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [prometheus]
+
+  service:
+    enabled: true
+
+  ports:
+    otlp:
+      enabled: true
+      containerPort: 4317
+      servicePort: 4317
+      hostPort: 0
+      protocol: TCP
+    otlp-http:
+      enabled: true
+      containerPort: 4318
+      servicePort: 4318
+      hostPort: 0
+      protocol: TCP
+    metrics:
+      enabled: true
+      containerPort: 8889
+      servicePort: 8889
+      protocol: TCP
+
+##############################################################################
+# Grafana — single replica, ephemeral storage. Anonymous viewer access for
+# v1 (matches local dev). Replace with Entra ID OAuth in a follow-up — see
+# decisions inbox.
+##############################################################################
+
+grafana:
+  enabled: true
+  fullnameOverride: middleware-grafana
+
+  replicas: 1
+
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClassName: managed-csi
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "384Mi"
+
+  # Anonymous viewer — same posture as docker-compose dev. Replace with
+  # Entra ID OAuth once the AAD app registration lands. See
+  # .squad/decisions/inbox/platform-grafana-anonymous-auth.md.
+  grafana.ini:
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+      hide_version: true
+    auth:
+      disable_login_form: false
+    users:
+      allow_sign_up: false
+    server:
+      root_url: https://grafana.middleware.internal/
+
+  # Pre-wire datasources mirroring observability/grafana-datasources.yaml.
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          uid: prometheus
+          url: http://middleware-prometheus:80
+          access: proxy
+          isDefault: false
+        - name: Tempo
+          type: tempo
+          uid: tempo
+          url: http://middleware-tempo:3200
+          access: proxy
+          isDefault: false
+          jsonData:
+            tracesToLogsV2:
+              datasourceUid: loki
+              spanStartTimeShift: '-1h'
+              spanEndTimeShift: '1h'
+              filterByTraceID: true
+              filterBySpanID: false
+            tracesToMetrics:
+              datasourceUid: prometheus
+            serviceMap:
+              datasourceUid: prometheus
+            nodeGraph:
+              enabled: true
+            lokiSearch:
+              datasourceUid: loki
+        - name: Loki
+          type: loki
+          uid: loki
+          url: http://middleware-loki:3100
+          access: proxy
+          isDefault: true
+          jsonData:
+            derivedFields:
+              - name: TraceID
+                matcherRegex: '"traceId":"([a-f0-9]+)"'
+                url: '$${__value.raw}'
+                datasourceUid: tempo
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx-internal
+    annotations:
+      nginx.ingress.kubernetes.io/service-upstream: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    hosts:
+      - grafana.middleware.internal
+    path: /
+    pathType: Prefix
+
+  serviceAccount:
+    create: false
+    name: middleware-workload
+
+  # Workload identity label (Grafana does not need Azure auth for v1; flag
+  # set so future Entra ID wiring lands cleanly).
+  podLabels:
+    azure.workload.identity/use: "true"
+
+  testFramework:
+    enabled: false

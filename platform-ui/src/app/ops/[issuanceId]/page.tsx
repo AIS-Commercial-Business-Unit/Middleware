@@ -1141,6 +1141,8 @@ function durationMs(start: string, end: string | null): string {
 
 // ─── Page ────────────────────────────────────────────────────────────────
 
+const kafdropUrl = process.env.NEXT_PUBLIC_KAFDROP_URL ?? "http://localhost:9000";
+
 export default function OpsPage() {
   const { issuanceId } = useParams<{ issuanceId: string }>();
 
@@ -1266,7 +1268,7 @@ export default function OpsPage() {
                 return (
                   <a
                     key={step.id}
-                    href={`http://localhost:9000/topic/${step.topic}`}
+                    href={`${kafdropUrl}/topic/${step.topic}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs font-mono px-2 py-0.5 rounded hover:opacity-100 transition-opacity"
@@ -1315,7 +1317,7 @@ export default function OpsPage() {
               },
               {
                 label: "Kafka Topics (Kafdrop) →",
-                href: "http://localhost:9000",
+                href: kafdropUrl,
               },
               {
                 label: "Saga State (Mongo) →",

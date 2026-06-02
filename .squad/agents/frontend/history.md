@@ -53,3 +53,8 @@
 - **Integration note:** Backend must emit JSON console logs with `EDA_Handler` at top level or in `Properties` object for platform-ui Loki parser to extract. Fallback: `EDA_Handler = "n/a"` for non-handler events (publish/consume edges).
 
 
+
+## 2026-06-01: Env-driven Kafdrop URL
+- Replaced 4 hardcoded http://localhost:9000 refs in events/page.tsx (2) and ops/[issuanceId]/page.tsx (2) with a per-file const kafdropUrl = process.env.NEXT_PUBLIC_KAFDROP_URL ?? "http://localhost:9000";
+- Same pattern as existing NEXT_PUBLIC_GRAFANA_URL usage in layout.tsx and saga/[issuanceId]/page.tsx. Local dev unaffected (fallback); cloud reads env injected by Helm chart (Platform agent owns chart).
+- tsc --noEmit not run: node/npx not on PATH in this shell. Edit is mechanical (string swap), no type surface change.

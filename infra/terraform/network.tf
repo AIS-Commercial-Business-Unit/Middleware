@@ -45,6 +45,8 @@ resource "azurerm_subnet" "apim" {
 #   - integration.middleware.internal      → platform-integration-service
 #   - appraisal.middleware.internal        → prs-appraisal-service
 #   - ui.middleware.internal               → platform-ui
+#   - kafdrop.middleware.internal          → kafdrop (Kafka UI)
+#   - grafana.middleware.internal          → grafana
 #   - api.middleware.internal              → (legacy, retained until APIM cutover)
 
 # Grant AKS identity "Network Contributor" on the ILB subnet

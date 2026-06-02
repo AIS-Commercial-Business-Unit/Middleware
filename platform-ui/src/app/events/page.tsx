@@ -1,3 +1,5 @@
+const kafdropUrl = process.env.NEXT_PUBLIC_KAFDROP_URL ?? "http://localhost:9000";
+
 export default function EventsPage() {
   return (
     <div className="space-y-6">
@@ -7,7 +9,7 @@ export default function EventsPage() {
           All Kafka events flowing through the middleware platform in real time.
           View the full event stream in{" "}
           <a
-            href="http://localhost:9000"
+            href={kafdropUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="underline"
@@ -43,7 +45,7 @@ export default function EventsPage() {
         ].map((t) => (
           <a
             key={t.topic}
-            href={`http://localhost:9000/topic/${t.topic}`}
+            href={`${kafdropUrl}/topic/${t.topic}`}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-lg border p-4 hover:border-indigo-500 transition-colors"

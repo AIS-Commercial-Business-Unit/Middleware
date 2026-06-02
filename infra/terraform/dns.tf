@@ -72,6 +72,24 @@ resource "azurerm_private_dns_a_record" "appraisal" {
   records             = [local.ingress_ilb_ip]
 }
 
+# Observability — Kafdrop (Kafka UI) and Grafana ingress hostnames. Both
+# resolve to the same ILB; ingress-nginx routes by Host header.
+resource "azurerm_private_dns_a_record" "kafdrop" {
+  name                = "kafdrop"
+  zone_name           = azurerm_private_dns_zone.aks.name
+  resource_group_name = azurerm_resource_group.main.name
+  ttl                 = 300
+  records             = [local.ingress_ilb_ip]
+}
+
+resource "azurerm_private_dns_a_record" "grafana" {
+  name                = "grafana"
+  zone_name           = azurerm_private_dns_zone.aks.name
+  resource_group_name = azurerm_resource_group.main.name
+  ttl                 = 300
+  records             = [local.ingress_ilb_ip]
+}
+
 # A record: ui.middleware.internal → ILB static IP (same ILB, different host header)
 resource "azurerm_private_dns_a_record" "ui" {
   name                = "ui"
