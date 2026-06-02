@@ -539,7 +539,7 @@ crm19x1-billing-stub:
       cpu: "250m"
 
 deipde07-mq-simulator:
-  enabled: false
+  enabled: true
   stack: java
   port: 8089
   image:
@@ -553,6 +553,15 @@ deipde07-mq-simulator:
     enabled: false
   env:
     SERVER_PORT: "8089"
+    ARTEMIS_BROKER_URL: "tcp://middleware-activemq-artemis:61616"
+    ARTEMIS_USER: "admin"
+    ARTEMIS_PASSWORD: "admin"
+    APPRAISAL_LIST_REQUEST_QUEUE: "APPRAISAL.LIST.REQUEST"
+    APPRAISAL_LIST_REPLY_QUEUE: "APPRAISAL.LIST.REPLY"
+    APPRAISAL_DOCUMENT_REQUEST_QUEUE: "APPRAISAL.DOCUMENT.REQUEST"
+    APPRAISAL_DOCUMENT_REPLY_QUEUE: "APPRAISAL.DOCUMENT.REPLY"
+    SIM_MESSAGE_DELAY_MS: "150"
+    SIM_CHUNK_DELAY_MS: "50"
   resources:
     requests:
       memory: "128Mi"
@@ -896,6 +905,13 @@ dotnet-prs-appraisal:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-prs-appraisal
+    Artemis__BrokerUrl: "activemq:tcp://middleware-activemq-artemis:61616"
+    Artemis__User: "admin"
+    Artemis__Password: "admin"
+    Artemis__ListRequestQueue: "APPRAISAL.LIST.REQUEST"
+    Artemis__ListReplyQueue: "APPRAISAL.LIST.REPLY"
+    Artemis__DocumentRequestQueue: "APPRAISAL.DOCUMENT.REQUEST"
+    Artemis__DocumentReplyQueue: "APPRAISAL.DOCUMENT.REPLY"
   resources:
     requests:
       memory: "128Mi"
@@ -948,6 +964,30 @@ platform-ui:
         pathType: Prefix
 
 ##############################################################################
+# ActiveMQ Artemis — broker for UC4 scatter-gather (DEIPDE07 MQ simulation)
+##############################################################################
+
+activemq-artemis:
+  enabled: true
+  fullnameOverride: middleware-activemq-artemis
+  replicaCount: 1
+  image:
+    repository: apache/activemq-artemis
+    tag: "2.37.0"
+    pullPolicy: IfNotPresent
+  env:
+    ARTEMIS_USER: admin
+    ARTEMIS_PASSWORD: admin
+    ARTEMIS_EXTRA_ARGS: "--allow-anonymous true"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "384Mi"
+      cpu: "500m"
+
+##############################################################################
 # Observability Stack
 #
 # Storage strategy: ephemeral PVCs on the cluster default StorageClass
@@ -971,16 +1011,19 @@ platform-ui:
 kafdrop:
   enabled: true
 
-  # Override at deploy time with the Event Hubs Kafka endpoint, e.g.
-  # `evhns-middleware-dev.servicebus.windows.net:9093`.
-  kafkaBrokerConnect: ""
+  # Event Hubs Kafka endpoint (port 9093 required for Kafka protocol)
+  kafkaBrokerConnect: "{{ .Values.global.azure.eventhubsNamespace }}.servicebus.windows.net:9093"
 
   securityProtocol: SASL_SSL
-  saslMechanism: OAUTHBEARER
-  # ⚠️  Azure agent will publish the OAUTHBEARER JAAS snippet via
-  # .squad/decisions/inbox/azure-kafdrop-eventhubs.md. Until then this stays
-  # blank and Kafdrop will not authenticate. Tracked in decisions inbox.
-  saslJaasConfig: ""
+  saslMechanism: PLAIN
+
+  # Key Vault CSI — pulls SAS connection string at pod start
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: eventhubs-kafdrop-connection-string
+
+  jvmOpts: "-Xms32M -Xmx128M"
 
   serviceAccount:
     name: middleware-workload
@@ -1173,6 +1216,13 @@ prometheus:
 tempo:
   enabled: true
   fullnameOverride: middleware-tempo
+
+  # Tempo runs as uid 10001; PVC mounts as root — fsGroup fixes permissions
+  tempo:
+    securityContext:
+      fsGroup: 10001
+      runAsUser: 10001
+      runAsGroup: 10001
 
   persistence:
     enabled: true

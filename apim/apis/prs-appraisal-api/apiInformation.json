@@ -3,7 +3,7 @@
     "displayName": "PRS Appraisal API",
     "description": "Property appraisal document retrieval and processing",
     "path": "prs-appraisal",
-    "serviceUrl": "https://appraisal.middleware.internal",
+    "serviceUrl": "http://appraisal.middleware.internal",
     "protocols": ["https"],
     "subscriptionRequired": true,
     "isCurrent": true,

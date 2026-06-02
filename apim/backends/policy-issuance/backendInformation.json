@@ -1,6 +1,6 @@
 {
   "properties": {
-    "url": "https://policy.middleware.internal",
+    "url": "http://policy.middleware.internal",
     "title": "Policy Issuance Backend",
     "description": "Per-host AKS internal ingress for the policy-issuance-service",
     "protocol": "http",

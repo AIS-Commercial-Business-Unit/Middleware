@@ -1,0 +1,26 @@
+enabled: true
+replicaCount: 1
+
+image:
+  repository: apache/activemq-artemis
+  tag: "2.37.0"
+  pullPolicy: IfNotPresent
+
+fullnameOverride: ""
+
+env:
+  ARTEMIS_USER: admin
+  ARTEMIS_PASSWORD: admin
+  ARTEMIS_EXTRA_ARGS: "--allow-anonymous true"
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "384Mi"
+    cpu: "500m"
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

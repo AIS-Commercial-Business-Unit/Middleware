@@ -29,6 +29,27 @@ spec:
             - name: http
               containerPort: 9000
               protocol: TCP
+          {{- if .Values.keyvault.enabled }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              CONN=$(cat /mnt/secrets-store/{{ (index .Values.keyvault.secrets 0).objectName }})
+              cat >/tmp/kafka.properties <<EOF
+              security.protocol=SASL_SSL
+              sasl.mechanism=PLAIN
+              sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="\$ConnectionString" password="${CONN}";
+              client.id=kafdrop
+              request.timeout.ms=60000
+              session.timeout.ms=45000
+              EOF
+              export KAFKA_BROKERCONNECT="{{ .Values.kafkaBrokerConnect }}"
+              export KAFKA_PROPERTIES_FILE=/tmp/kafka.properties
+              export JVM_OPTS="{{ .Values.jvmOpts }}"
+              export SERVER_SERVLET_CONTEXTPATH="/"
+              exec java $JVM_OPTS -jar /kafdrop*/kafdrop*.jar
+          {{- else }}
           env:
             - name: KAFKA_BROKERCONNECT
               value: {{ .Values.kafkaBrokerConnect | quote }}
@@ -38,16 +59,32 @@ spec:
               value: {{ printf "%s %s" .Values.jvmOpts .Values.extraJvmOpts | trim | quote }}
             - name: SERVER_SERVLET_CONTEXTPATH
               value: "/"
+          {{- end }}
           volumeMounts:
+            {{- if .Values.keyvault.enabled }}
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+            {{- else }}
             - name: kafka-config
               mountPath: /etc/kafdrop
               readOnly: true
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
+        {{- if .Values.keyvault.enabled }}
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "kafdrop.fullname" . }}-secrets
+        {{- else }}
         - name: kafka-config
           configMap:
             name: {{ include "kafdrop.fullname" . }}-config
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

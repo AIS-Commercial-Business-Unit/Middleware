@@ -3,7 +3,7 @@
     "displayName": "File Processing API (.NET)",
     "description": "Batch file upload and processing workflows — .NET stack",
     "path": "dotnet-file-processing",
-    "serviceUrl": "https://dotnet-file-processing.middleware.internal",
+    "serviceUrl": "http://dotnet-file-processing.middleware.internal",
     "protocols": ["https"],
     "subscriptionRequired": true,
     "isCurrent": true,

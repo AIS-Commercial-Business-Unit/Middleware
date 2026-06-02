@@ -3,7 +3,7 @@
     "displayName": "Policy Issuance API (.NET)",
     "description": "Manages end-to-end policy issuance workflows — .NET stack",
     "path": "dotnet-policy-issuance",
-    "serviceUrl": "https://dotnet-policy.middleware.internal",
+    "serviceUrl": "http://dotnet-policy.middleware.internal",
     "protocols": ["https"],
     "subscriptionRequired": true,
     "isCurrent": true,
