@@ -383,6 +383,9 @@ prs-appraisal-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: prs-appraisal-service
+    ARTEMIS_BROKER_URL: "tcp://middleware-activemq-artemis:61616"
+    ARTEMIS_USER: "admin"
+    ARTEMIS_PASSWORD: "admin"
   resources:
     requests:
       memory: "256Mi"
@@ -670,6 +673,8 @@ dotnet-customer-identity:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-customer-identity
+    ExternalServices__AccountServiceUrl: "http://middleware-erm7x1-account-stub:80/api/account"
+    ExternalServices__CustomerServiceUrl: "http://middleware-crm40x1-customer-stub:80/api/customer"
   resources:
     requests:
       memory: "128Mi"
@@ -706,6 +711,7 @@ dotnet-platform-compliance:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-platform-compliance
+    ExternalServices__ComplianceCheckUrl: "http://middleware-rsk3x3-compliance-stub:80/api/check"
   resources:
     requests:
       memory: "128Mi"
@@ -742,6 +748,9 @@ dotnet-platform-integration:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-platform-integration
+    ExternalServices__DuckCreekCommercialUrl: "http://middleware-duckcreek-commercial-stub:80/api/issuance"
+    ExternalServices__DuckCreekPersonalUrl: "http://middleware-duckcreek-personal-stub:80/api/issuance"
+    ExternalServices__ForeFrontUrl: "http://middleware-forefront-stub:80/api/issuance"
   resources:
     requests:
       memory: "128Mi"
@@ -778,6 +787,7 @@ dotnet-billing-finance:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-billing-finance
+    ExternalServices__BillingUrl: "http://middleware-crm19x1-billing-stub:80/api/billing"
   resources:
     requests:
       memory: "128Mi"
@@ -851,6 +861,7 @@ dotnet-file-processing:
     Azure__StorageAccountName: "{{ .Values.global.azure.storageAccountName }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-file-processing
+    ExternalServices__PolicyIssuanceUrl: "http://middleware-dotnet-policy-issuance:80"
   resources:
     requests:
       memory: "128Mi"
@@ -930,6 +941,7 @@ dotnet-prs-appraisal:
     Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-prs-appraisal
+    ExternalServices__CustomerIdentityUrl: "http://middleware-dotnet-customer-identity:80"
     Artemis__BrokerUrl: "activemq:tcp://middleware-activemq-artemis:61616"
     Artemis__User: "admin"
     Artemis__Password: "admin"
