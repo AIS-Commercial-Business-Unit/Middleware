@@ -1328,6 +1328,27 @@ otel-collector:
   image:
     repository: otel/opentelemetry-collector-contrib
 
+  # Inject App Insights connection string so the azuremonitor exporter can use it
+  extraEnvs:
+    - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+      valueFrom:
+        secretKeyRef:
+          name: otel-collector-secrets
+          key: appinsights-connection-string
+
+  # Mount CSI secrets store volume to sync Key Vault secret into K8s Secret
+  extraVolumes:
+    - name: secrets-store
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: otel-collector-spc
+  extraVolumeMounts:
+    - name: secrets-store
+      mountPath: /mnt/secrets-store
+      readOnly: true
+
   resources:
     requests:
       cpu: "50m"
@@ -1377,12 +1398,16 @@ otel-collector:
       prometheus:
         endpoint: 0.0.0.0:8889
         namespace: middleware
+      # Azure Monitor — sends traces + metrics to Application Insights
+      # Requires APPLICATIONINSIGHTS_CONNECTION_STRING env var on the collector pod
+      azuremonitor:
+        connection_string: ${env:APPLICATIONINSIGHTS_CONNECTION_STRING}
     service:
       pipelines:
         traces:
           receivers: [otlp]
           processors: [batch, resource]
-          exporters: [otlp/tempo]
+          exporters: [otlp/tempo, azuremonitor]
         logs:
           receivers: [otlp]
           processors: [batch, resource, transform/loki_labels]
@@ -1390,7 +1415,7 @@ otel-collector:
         metrics:
           receivers: [otlp]
           processors: [batch, resource]
-          exporters: [prometheus]
+          exporters: [prometheus, azuremonitor]
 
   service:
     enabled: true

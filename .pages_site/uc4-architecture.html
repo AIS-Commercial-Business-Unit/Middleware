@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Azure + Kubernetes Architecture | Middleware POC</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .diagram-shell {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    overflow-x: auto;
+  }
+
+  .diagram-shell svg {
+    width: 100%;
+    min-width: 1200px;
+    height: auto;
+    display: block;
+  }
+
+  .node-title {
+    font: 700 13px "Segoe UI", Arial, sans-serif;
+    fill: #1A2C55;
+  }
+
+  .node-sub {
+    font: 12px "Segoe UI", Arial, sans-serif;
+    fill: #4A4A4A;
+  }
+
+  .zone-title {
+    font: 700 14px "Segoe UI", Arial, sans-serif;
+    fill: #1A2C55;
+    letter-spacing: .03em;
+  }
+
+  .edge-label {
+    font: 11px "Segoe UI", Arial, sans-serif;
+    fill: #2E5FA3;
+  }
+
+  .legend {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 10px;
+  }
+
+  .legend div {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    padding: 10px;
+    font-size: 12px;
+    color: var(--ltgray);
+  }
+
+  .note {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--ltgray);
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="brand">Middleware POC</a>
+  <a href="index.html">Home</a>
+  <a href="uc4-list.html">UC4: List Appraisals</a>
+  <a href="uc4-document.html">UC4: Get Document</a>
+  <a href="comparison.html">Stack Comparison</a>
+  <a href="azure-services.html">Azure Services</a>
+  <a href="patterns-scope.html">Pattern Scope</a>
+  <a href="patterns-detail.html">Pattern Detail</a>
+  <a href="decisions.html">5 Questions</a>
+  <a href="uc4-architecture.html" class="active">Azure + K8s Architecture</a>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>Azure + Kubernetes UC4 Architecture</h1>
+    <p>Integrated cloud diagram: icons, boundaries, workload identity, and traffic flows in one architecture canvas.</p>
+  </div>
+
+  <div class="diagram-shell">
+    <!-- 
+      Architecture Diagram — Geometry Reference
+      ===========================================================
+      Canvas: 1700 x 1200
+      Edge Zone:      y=80..250   (h=170)
+      VNet:           y=270..1160 (h=890)
+        External:     x=60..380,  y=340..680
+        AKS:          x=400..1640, y=320..730
+        Data Plane:   x=60..380,  y=700..1140
+        Identity:     x=400..1040, y=760..1140
+        Observability:x=1060..1640, y=760..1140
+      ===========================================================
+    -->
+    <svg viewBox="0 0 1700 1200" role="img" aria-label="Azure Kubernetes architecture diagram for UC4">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L8,3 z" fill="#2E5FA3" />
+        </marker>
+        <marker id="arrow-gray" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L8,3 z" fill="#7A8EB0" />
+        </marker>
+      </defs>
+
+      <!-- ═══════════════════════════════════════════════════════
+           OUTER FRAME — Azure Subscription
+           ═══════════════════════════════════════════════════════ -->
+      <rect x="20" y="20" width="1660" height="1160" rx="14" fill="#f7fbff" stroke="#bfd2ef" stroke-width="2"/>
+      <text x="44" y="52" class="zone-title">Azure Subscription — Middleware Platform</text>
+
+      <!-- ═══════════════════════════════════════════════════════
+           EDGE ZONE  (y 80–250)
+           Nodes: Client(90,100 w210 h100) | AppGW(340,100 w240 h100) | APIM(620,100 w240 h100) | ILB(900,100 w240 h100)
+           ═══════════════════════════════════════════════════════ -->
+      <rect x="50" y="80" width="1600" height="170" rx="10" fill="#ffffff" stroke="#d0d8e8"/>
+      <text x="72" y="108" class="zone-title">Edge Zone</text>
+
+      <!-- Client -->
+      <rect x="90" y="120" width="210" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <text x="130" y="162" class="node-title">Client / Browser</text>
+      <text x="130" y="181" class="node-sub">Platform UI + API consumers</text>
+
+      <!-- App Gateway: x=340..580, y=120..220 -->
+      <rect x="340" y="120" width="240" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10076-icon-service-Application-Gateways.svg" x="352" y="134" width="38" height="38"/>
+      <text x="396" y="158" class="node-title">Application Gateway</text>
+      <text x="396" y="177" class="node-sub">Public UI entry point</text>
+
+      <!-- APIM: x=620..860, y=120..220 -->
+      <rect x="620" y="120" width="240" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10042-icon-service-API-Management-Services.svg" x="632" y="134" width="38" height="38"/>
+      <text x="676" y="158" class="node-title">API Management</text>
+      <text x="676" y="177" class="node-sub">API auth, policy, routing</text>
+
+      <!-- ILB/Ingress: x=900..1140, y=120..220 -->
+      <rect x="900" y="120" width="240" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10062-icon-service-Load-Balancers.svg" x="912" y="134" width="38" height="38"/>
+      <text x="956" y="158" class="node-title">Internal Ingress / ILB</text>
+      <text x="956" y="177" class="node-sub">Routes traffic into AKS</text>
+
+      <!-- ═══ EDGE ARROWS ═══ (all horizontal, same y midpoint=170) -->
+      <!-- Client → App GW (right edge 300 → left edge 340) -->
+      <line x1="300" y1="160" x2="338" y2="160" stroke="#2E5FA3" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- Client → APIM (API consumers go direct) -->
+      <line x1="300" y1="185" x2="618" y2="185" stroke="#2E5FA3" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- App GW → ILB (UI path) -->
+      <line x1="580" y1="160" x2="898" y2="160" stroke="#2E5FA3" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- APIM → ILB (API path) -->
+      <line x1="860" y1="185" x2="898" y2="185" stroke="#2E5FA3" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- labels -->
+      <text x="620" y="150" class="edge-label">UI path</text>
+      <text x="700" y="202" class="edge-label">API path</text>
+
+      <!-- ═══════════════════════════════════════════════════════
+           VNET BOUNDARY  (y 270–1160)
+           ═══════════════════════════════════════════════════════ -->
+      <rect x="40" y="270" width="1620" height="890" rx="10" fill="#f3f8ff" stroke="#9fb8de" stroke-width="1.5"/>
+      <text x="62" y="298" class="zone-title">Virtual Network (Private)</text>
+
+      <!-- ═══════════════════════════════════════════════════════
+           AKS CLUSTER  x=400..1640, y=320..730
+           Row 1 (y=370): platform-ui, uc4-query, prs-appraisal, customer-identity
+           Row 2 (y=530): kafka-bridge, otel-collector, policy-issuance, billing-finance
+           Row 3 (y=650): service-accounts (spans width)
+           ═══════════════════════════════════════════════════════ -->
+      <rect x="400" y="320" width="1240" height="410" rx="10" fill="#ffffff" stroke="#b4c9e9" stroke-dasharray="6 4"/>
+      <text x="422" y="352" class="zone-title">AKS Cluster</text>
+
+      <!-- Row 1: y=370..470 (h=100) -->
+      <!-- platform-ui: x=430..680 -->
+      <rect x="430" y="370" width="250" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10023-icon-service-Kubernetes-Services.svg" x="442" y="382" width="36" height="36"/>
+      <text x="484" y="402" class="node-title">platform-ui</text>
+      <text x="484" y="420" class="node-sub">Next.js 15, React 19</text>
+
+      <!-- uc4-query-api: x=710..960 -->
+      <rect x="710" y="370" width="250" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10023-icon-service-Kubernetes-Services.svg" x="722" y="382" width="36" height="36"/>
+      <text x="764" y="402" class="node-title">uc4-query-api</text>
+      <text x="764" y="420" class="node-sub">List + document endpoints</text>
+
+      <!-- prs-appraisal: x=990..1240 -->
+      <rect x="990" y="370" width="250" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10023-icon-service-Kubernetes-Services.svg" x="1002" y="382" width="36" height="36"/>
+      <text x="1044" y="402" class="node-title">prs-appraisal-service</text>
+      <text x="1044" y="420" class="node-sub">Fan-out, CBR, aggregation</text>
+
+      <!-- customer-identity: x=1270..1520 -->
+      <rect x="1270" y="370" width="250" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10023-icon-service-Kubernetes-Services.svg" x="1282" y="382" width="36" height="36"/>
+      <text x="1324" y="402" class="node-title">customer-identity</text>
+      <text x="1324" y="420" class="node-sub">Producer cross-reference</text>
+
+      <!-- Row 2: y=500..600 (h=100) -->
+      <!-- kafka-bridge: x=430..680 -->
+      <rect x="430" y="510" width="250" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10023-icon-service-Kubernetes-Services.svg" x="442" y="522" width="36" height="36"/>
+      <text x="484" y="542" class="node-title">kafka-bridge</text>
+      <text x="484" y="560" class="node-sub">Event routing + replay</text>
+
+      <!-- otel-collector: x=710..960 -->
+      <rect x="710" y="510" width="250" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/00012-icon-service-Application-Insights.svg" x="722" y="522" width="36" height="36"/>
+      <text x="764" y="542" class="node-title">otel-collector</text>
+      <text x="764" y="560" class="node-sub">Traces + metrics pipeline</text>
+
+      <!-- policy-issuance: x=990..1240 -->
+      <rect x="990" y="510" width="250" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10023-icon-service-Kubernetes-Services.svg" x="1002" y="522" width="36" height="36"/>
+      <text x="1044" y="542" class="node-title">policy-issuance</text>
+      <text x="1044" y="560" class="node-sub">NServiceBus saga orchestration</text>
+
+      <!-- billing-finance: x=1270..1520 -->
+      <rect x="1270" y="510" width="250" height="100" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10023-icon-service-Kubernetes-Services.svg" x="1282" y="522" width="36" height="36"/>
+      <text x="1324" y="542" class="node-title">billing-finance</text>
+      <text x="1324" y="560" class="node-sub">Ledger + reconciliation</text>
+
+      <!-- Row 3: Service Accounts (identity within AKS) y=640..700 -->
+      <rect x="710" y="645" width="350" height="80" rx="8" fill="#f9fbff" stroke="#d8e2f2"/>
+      <image href="assets/icons/10227-icon-service-Managed-Identities.svg" x="722" y="659" width="32" height="32"/>
+      <text x="762" y="678" class="node-title">K8s Service Accounts</text>
+      <text x="762" y="696" class="node-sub">sa-ui · sa-uc4 · sa-prs · sa-policy</text>
+
+      <!-- ═══ ILB → AKS ARROWS ═══ (orthogonal: down from ILB, then into services) -->
+      <!-- ILB bottom center: (1020, 220) → down to y=310, then fan left/right -->
+      <polyline points="1020,220 1020,310 555,310 555,370" fill="none" stroke="#2E5FA3" stroke-width="2" marker-end="url(#arrow)"/>
+      <polyline points="1020,220 1020,310 835,310 835,370" fill="none" stroke="#2E5FA3" stroke-width="2" marker-end="url(#arrow)"/>
+      <text x="1030" y="304" class="edge-label">Ingress routes</text>
+
+      <!-- uc4-query → prs-appraisal (right edge → left edge, same row) -->
+      <line x1="960" y1="420" x2="988" y2="420" stroke="#2E5FA3" stroke-width="1.8" marker-end="url(#arrow)"/>
+      <!-- prs-appraisal → customer-identity -->
+      <line x1="1240" y1="420" x2="1268" y2="420" stroke="#2E5FA3" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+      <!-- ═══════════════════════════════════════════════════════
+           EXTERNAL SYSTEMS  x=60..380, y=340..680
+           ═══════════════════════════════════════════════════════ -->
+      <rect x="60" y="340" width="320" height="340" rx="10" fill="#fff" stroke="#d0d8e8"/>
+      <text x="82" y="372" class="zone-title">External Systems</text>
+
+      <rect x="82" y="392" width="280" height="60" rx="6" fill="#f9fbff" stroke="#d8e2f2"/>
+      <text x="98" y="426" class="node-title">@Work SQL endpoint</text>
+
+      <rect x="82" y="466" width="280" height="60" rx="6" fill="#f9fbff" stroke="#d8e2f2"/>
+      <text x="98" y="500" class="node-title">DEIPDE07 Mainframe MQ</text>
+
+      <rect x="82" y="540" width="280" height="60" rx="6" fill="#f9fbff" stroke="#d8e2f2"/>
+      <text x="98" y="574" class="node-title">RiskID WCF service</text>
+
+      <rect x="82" y="614" width="280" height="50" rx="6" fill="#f9fbff" stroke="#d8e2f2"/>
+      <text x="98" y="644" class="node-title">Mainframe flat-file SFTP</text>
+
+      <!-- ═══ PRS → External arrows (orthogonal: down from prs bottom, left along corridor, up into externals) ═══ -->
+      <!-- prs-appraisal bottom center: (1115, 470) → down to y=488 → left to x=395 → up into external zone -->
+      <polyline points="1115,470 1115,488 395,488 395,422 362,422" fill="none" stroke="#2E5FA3" stroke-width="1.8" marker-end="url(#arrow)"/>
+      <polyline points="1115,470 1115,488 395,488 395,496 362,496" fill="none" stroke="#2E5FA3" stroke-width="1.8" marker-end="url(#arrow)"/>
+      <polyline points="1115,470 1115,488 395,488 395,570 362,570" fill="none" stroke="#2E5FA3" stroke-width="1.8" marker-end="url(#arrow)"/>
+      <text x="550" y="484" class="edge-label">UC4 fan-out to adapters</text>
+
+      <!-- ═══════════════════════════════════════════════════════
+           DATA PLANE  x=60..380, y=700..1140
+           ═══════════════════════════════════════════════════════ -->
+      <rect x="60" y="700" width="320" height="440" rx="10" fill="#fff" stroke="#d0d8e8"/>
+      <text x="82" y="732" class="zone-title">Data Plane</text>
+
+      <!-- Event Hubs -->
+      <rect x="82" y="752" width="280" height="72" rx="6" fill="#f9fbff" stroke="#d8e2f2"/>
+      <image href="assets/icons/00039-icon-service-Event-Hubs.svg" x="94" y="763" width="32" height="32"/>
+      <text x="134" y="792" class="node-title">Event Hubs (Kafka)</text>
+
+      <!-- Cosmos DB -->
+      <rect x="82" y="838" width="280" height="72" rx="6" fill="#f9fbff" stroke="#d8e2f2"/>
+      <image href="assets/icons/10121-icon-service-Azure-Cosmos-DB.svg" x="94" y="849" width="32" height="32"/>
+      <text x="134" y="878" class="node-title">Cosmos DB (Mongo API)</text>
+
+      <!-- SQL Server -->
+      <rect x="82" y="924" width="280" height="72" rx="6" fill="#f9fbff" stroke="#d8e2f2"/>
+      <image href="assets/icons/10132-icon-service-SQL-Server.svg" x="94" y="935" width="32" height="32"/>
+      <text x="134" y="964" class="node-title">SQL Server (NServiceBus)</text>
+
+      <!-- Blob Storage -->
+      <rect x="82" y="1010" width="280" height="72" rx="6" fill="#f9fbff" stroke="#d8e2f2"/>
+      <image href="assets/icons/10086-icon-service-Storage-Accounts.svg" x="94" y="1022" width="30" height="30"/>
+      <text x="134" y="1050" class="node-title">Blob Storage</text>
+
+      <!-- ═══ AKS → Data Plane arrows (orthogonal) ═══ -->
+      <!-- kafka-bridge bottom (555,610) → down → left into Event Hubs -->
+      <polyline points="555,610 555,788 362,788" fill="none" stroke="#2E5FA3" stroke-width="1.8" marker-end="url(#arrow)"/>
+      <!-- uc4-query bottom (835,470) → long L down to Cosmos -->
+      <polyline points="835,470 835,874 362,874" fill="none" stroke="#7A8EB0" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#arrow-gray)"/>
+      <!-- policy-issuance bottom (1115,610) → down → left into SQL Server -->
+      <polyline points="1115,610 1115,960 362,960" fill="none" stroke="#2E5FA3" stroke-width="1.8" marker-end="url(#arrow)"/>
+      <!-- prs-appraisal → Blob (documents) -->
+      <polyline points="1115,470 1115,500 1570,500 1570,1046 362,1046" fill="none" stroke="#7A8EB0" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#arrow-gray)"/>
+      <!-- Labels for data plane connections -->
+      <text x="420" y="784" class="edge-label">Events pub/sub</text>
+      <text x="420" y="870" class="edge-label">State store (reads)</text>
+      <text x="420" y="956" class="edge-label">Saga persistence</text>
+      <text x="420" y="1042" class="edge-label">Document artifacts</text>
+
+      <!-- ═══════════════════════════════════════════════════════
+           IDENTITY + SECURITY  x=400..1040, y=760..1140
+           ═══════════════════════════════════════════════════════ -->
+      <rect x="400" y="760" width="640" height="380" rx="10" fill="#fff" stroke="#b4c9e9"/>
+      <text x="422" y="792" class="zone-title">Identity + Security</text>
+
+      <!-- Workload Identity -->
+      <rect x="420" y="810" width="190" height="140" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10227-icon-service-Managed-Identities.svg" x="492" y="826" width="40" height="40"/>
+      <text x="455" y="892" class="node-title">Workload Identity</text>
+      <text x="458" y="910" class="node-sub">OIDC → Entra ID</text>
+
+      <!-- Key Vault -->
+      <rect x="630" y="810" width="190" height="140" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10245-icon-service-Key-Vaults.svg" x="702" y="826" width="40" height="40"/>
+      <text x="680" y="892" class="node-title">Key Vault</text>
+      <text x="672" y="910" class="node-sub">Secrets + certs</text>
+
+      <!-- App Configuration -->
+      <rect x="840" y="810" width="180" height="140" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/10219-icon-service-App-Configuration.svg" x="908" y="826" width="40" height="40"/>
+      <text x="868" y="892" class="node-title">App Config</text>
+      <text x="870" y="910" class="node-sub">Feature flags + settings</text>
+
+      <!-- Workload Identity → Key Vault -->
+      <line x1="610" y1="880" x2="628" y2="880" stroke="#7A8EB0" stroke-width="1.8" marker-end="url(#arrow-gray)"/>
+      <!-- Key Vault → App Config -->
+      <line x1="820" y1="880" x2="838" y2="880" stroke="#7A8EB0" stroke-width="1.8" marker-end="url(#arrow-gray)"/>
+
+      <!-- Identity description -->
+      <text x="422" y="980" class="node-sub">Pod → ServiceAccount → Federated token → Entra Managed Identity → Key Vault / App Config access</text>
+
+      <!-- ═══ Service Accounts → Workload Identity ═══ -->
+      <polyline points="885,725 885,740 515,740 515,810" fill="none" stroke="#7A8EB0" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#arrow-gray)"/>
+      <text x="620" y="736" class="edge-label">OIDC federation</text>
+
+      <!-- ═══════════════════════════════════════════════════════
+           OBSERVABILITY  x=1060..1640, y=760..1140
+           ═══════════════════════════════════════════════════════ -->
+      <rect x="1060" y="760" width="580" height="380" rx="10" fill="#fff" stroke="#b4c9e9"/>
+      <text x="1082" y="792" class="zone-title">Observability</text>
+
+      <!-- Azure Monitor -->
+      <rect x="1080" y="820" width="260" height="130" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/00001-icon-service-Monitor.svg" x="1186" y="838" width="40" height="40"/>
+      <text x="1150" y="904" class="node-title">Azure Monitor</text>
+      <text x="1138" y="922" class="node-sub">Metrics + log analytics</text>
+
+      <!-- Application Insights -->
+      <rect x="1360" y="820" width="260" height="130" rx="8" fill="#fff" stroke="#c9d5eb"/>
+      <image href="assets/icons/00012-icon-service-Application-Insights.svg" x="1466" y="838" width="40" height="40"/>
+      <text x="1414" y="904" class="node-title">Application Insights</text>
+      <text x="1420" y="922" class="node-sub">Distributed tracing + APM</text>
+
+      <!-- In-cluster obs (Grafana, Loki, Prometheus, Tempo) -->
+      <rect x="1080" y="970" width="540" height="100" rx="8" fill="#f9fbff" stroke="#d8e2f2"/>
+      <text x="1098" y="1000" class="node-title">In-Cluster: Grafana · Prometheus · Loki · Tempo</text>
+      <text x="1098" y="1020" class="node-sub">Dashboards, metrics scrape, log aggregation, distributed traces</text>
+
+      <!-- ═══ OTel collector → Observability ═══ -->
+      <!-- otel-collector bottom center (835, 610) → down to obs zone -->
+      <polyline points="835,610 835,640 1210,640 1210,820" fill="none" stroke="#2E5FA3" stroke-width="1.8" marker-end="url(#arrow)"/>
+      <polyline points="835,610 835,640 1490,640 1490,820" fill="none" stroke="#2E5FA3" stroke-width="1.8" marker-end="url(#arrow)"/>
+      <text x="1220" y="636" class="edge-label">OTel export (traces + metrics)</text>
+
+      <!-- All services → otel-collector (dashed, represents OTLP gRPC) -->
+      <line x1="835" y1="470" x2="835" y2="508" stroke="#7A8EB0" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#arrow-gray)"/>
+      <text x="844" y="494" class="edge-label" style="fill:#7A8EB0">OTLP</text>
+    </svg>
+  </div>
+
+  <div class="legend">
+    <div><strong>UC4 List:</strong> APIM → AKS Ingress → uc4-query → prs-appraisal → parallel fan-out to @Work SQL + DEIPDE07 MQ → aggregate → return via APIM.</div>
+    <div><strong>UC4 Document:</strong> Route by document key to RiskID or MQ chunk path, aggregate from Blob Storage, persist state to Cosmos DB, return via APIM.</div>
+    <div><strong>Workload Identity:</strong> K8s ServiceAccount → federated OIDC token → Entra Managed Identity → Key Vault / App Config access. No secrets in pods.</div>
+    <div><strong>NServiceBus:</strong> policy-issuance uses SQL Server as saga persistence and transport. Long-running workflows survive pod restarts.</div>
+    <div><strong>Observability:</strong> All services → OTel Collector → Azure Monitor + Application Insights. In-cluster: Grafana dashboards + Prometheus + Loki + Tempo.</div>
+  </div>
+
+  <p class="note">Icons: Azure Architecture Icon set (13 SVGs kept in assets/icons/).</p>
+</div>
+</body>
+</html>

@@ -9,6 +9,8 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL ?? "https://grafana.middleware.internal";
+
   return (
     <html lang="en">
       <head>
@@ -46,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </Link>
           <div className="ml-auto flex items-center gap-4">
             <a
-              href={process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001"}
+              href={grafanaUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm hover:text-white transition-colors"

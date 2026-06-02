@@ -1142,6 +1142,8 @@ function durationMs(start: string, end: string | null): string {
 // ─── Page ────────────────────────────────────────────────────────────────
 
 const kafdropUrl = process.env.NEXT_PUBLIC_KAFDROP_URL ?? "http://localhost:9000";
+const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL ?? "https://grafana.middleware.internal";
+const mongoUrl = process.env.NEXT_PUBLIC_MONGO_URL ?? "https://mongo.middleware.internal";
 
 export default function OpsPage() {
   const { issuanceId } = useParams<{ issuanceId: string }>();
@@ -1305,15 +1307,15 @@ export default function OpsPage() {
             {[
               {
                 label: "All-service Logs (Loki) →",
-                href: `http://localhost:3001/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{deployment_environment%3D%22local%22} |%3D \`${issuanceId}\`"}]`,
+                href: `${grafanaUrl}/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{deployment_environment%3D%22local%22} |%3D \`${issuanceId}\`"}]`,
               },
               {
                 label: "Service Logs (Loki) →",
-                href: `http://localhost:3001/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{service_name%3D~%22.%2B%22} |%3D \`${issuanceId}\`"}]`,
+                href: `${grafanaUrl}/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{service_name%3D~%22.%2B%22} |%3D \`${issuanceId}\`"}]`,
               },
               {
                 label: "Traces (Tempo) →",
-                href: `http://localhost:3001/explore?datasource=tempo`,
+                href: `${grafanaUrl}/explore?datasource=tempo`,
               },
               {
                 label: "Kafka Topics (Kafdrop) →",
@@ -1321,7 +1323,7 @@ export default function OpsPage() {
               },
               {
                 label: "Saga State (Mongo) →",
-                href: "http://localhost:8888",
+                href: mongoUrl,
               },
             ].map(({ label, href }) => (
               <a key={label} href={href} target="_blank" rel="noopener noreferrer"

@@ -1,4 +1,5 @@
 const kafdropUrl = process.env.NEXT_PUBLIC_KAFDROP_URL ?? "http://localhost:9000";
+const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL ?? "https://grafana.middleware.internal";
 
 export default function EventsPage() {
   return (
@@ -19,7 +20,7 @@ export default function EventsPage() {
           </a>{" "}
           or structured logs in{" "}
           <a
-            href="http://localhost:3001"
+            href={grafanaUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="underline"

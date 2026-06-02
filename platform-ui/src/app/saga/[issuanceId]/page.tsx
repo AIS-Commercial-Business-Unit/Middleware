@@ -4,6 +4,8 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 import clsx from "clsx";
 
+const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL ?? "https://grafana.middleware.internal";
+
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const STATUS_COLOR: Record<string, string> = {
@@ -115,7 +117,7 @@ export default function SagaExplorerPage() {
             {data.targetPas && (
               <div>
                 <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>PAS Routed To</p>
-                <span className="text-sm font-semibold" style={{ color: "var(--accent-light)" }}>{data.targetPas}</span>
+                  href={`${grafanaUrl}/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{service_name%3D\"policy-issuance-service\"} |= \`${issuanceId}\`"}]`}
               </div>
             )}
             {data.policyNumbers && data.policyNumbers.length > 0 && (
@@ -124,7 +126,7 @@ export default function SagaExplorerPage() {
                 <span className="text-sm font-mono">{data.policyNumbers.join(", ")}</span>
               </div>
             )}
-            {data.failureReason && (
+                  href={`${grafanaUrl}/explore?datasource=tempo`}
               <div className="w-full">
                 <p className="text-xs mb-1" style={{ color: "var(--danger)" }}>Failure Reason</p>
                 <span className="text-sm">{data.failureReason}</span>
@@ -194,7 +196,7 @@ export default function SagaExplorerPage() {
           <div className="rounded-lg border p-4 flex flex-wrap gap-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
             <p className="text-xs w-full font-semibold" style={{ color: "var(--muted)" }}>Drill Deeper</p>
             <a
-              href={`${process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001"}/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{service_name%3D\"policy-issuance-service\"} |= \`${issuanceId}\`"}]`}
+              href={`${grafanaUrl}/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{service_name%3D\"policy-issuance-service\"} |= \`${issuanceId}\`"}]`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs px-3 py-1.5 rounded border transition-colors hover:text-white"
@@ -203,7 +205,7 @@ export default function SagaExplorerPage() {
               View Logs in Grafana Loki →
             </a>
             <a
-              href={`${process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001"}/explore?datasource=tempo`}
+              href={`${grafanaUrl}/explore?datasource=tempo`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs px-3 py-1.5 rounded border transition-colors hover:text-white"
