@@ -65,6 +65,8 @@ policy-issuance-service:
   healthCheck:
     enabled: true
     path: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
     initialDelaySeconds: 40
     periodSeconds: 10
     timeoutSeconds: 3
@@ -117,6 +119,8 @@ customer-identity-service:
   healthCheck:
     enabled: true
     path: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
     initialDelaySeconds: 40
     periodSeconds: 10
     timeoutSeconds: 3
@@ -162,6 +166,8 @@ platform-compliance-service:
   healthCheck:
     enabled: true
     path: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
     initialDelaySeconds: 40
     periodSeconds: 10
     timeoutSeconds: 3
@@ -207,6 +213,8 @@ platform-integration-service:
   healthCheck:
     enabled: true
     path: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
     initialDelaySeconds: 40
     periodSeconds: 10
     timeoutSeconds: 3
@@ -252,6 +260,8 @@ billing-finance-service:
   healthCheck:
     enabled: true
     path: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
     initialDelaySeconds: 40
     periodSeconds: 10
     timeoutSeconds: 3
@@ -297,6 +307,8 @@ platform-notification-service:
   healthCheck:
     enabled: true
     path: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
     initialDelaySeconds: 40
     periodSeconds: 10
     timeoutSeconds: 3
@@ -343,6 +355,8 @@ platform-file-processing-service:
   healthCheck:
     enabled: true
     path: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
     initialDelaySeconds: 40
     periodSeconds: 10
     timeoutSeconds: 3
@@ -395,6 +409,8 @@ prs-appraisal-service:
   healthCheck:
     enabled: true
     path: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
     initialDelaySeconds: 40
     periodSeconds: 10
     timeoutSeconds: 3

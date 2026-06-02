@@ -31,19 +31,25 @@ spec:
               containerPort: {{ .Values.port }}
               protocol: TCP
           {{- if .Values.healthCheck.enabled }}
-          livenessProbe:
+          startupProbe:
             httpGet:
               path: {{ .Values.healthCheck.path }}
               port: http
             initialDelaySeconds: {{ .Values.healthCheck.initialDelaySeconds }}
+            periodSeconds: 10
+            timeoutSeconds: {{ .Values.healthCheck.timeoutSeconds }}
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.livenessPath | default .Values.healthCheck.path }}
+              port: http
             periodSeconds: {{ .Values.healthCheck.periodSeconds }}
             timeoutSeconds: {{ .Values.healthCheck.timeoutSeconds }}
             failureThreshold: {{ .Values.healthCheck.failureThreshold }}
           readinessProbe:
             httpGet:
-              path: {{ .Values.healthCheck.path }}
+              path: {{ .Values.healthCheck.readinessPath | default .Values.healthCheck.path }}
               port: http
-            initialDelaySeconds: {{ .Values.healthCheck.initialDelaySeconds }}
             periodSeconds: {{ .Values.healthCheck.periodSeconds }}
             timeoutSeconds: {{ .Values.healthCheck.timeoutSeconds }}
             failureThreshold: {{ .Values.healthCheck.failureThreshold }}
