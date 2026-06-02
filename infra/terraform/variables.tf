@@ -107,7 +107,7 @@ variable "cosmos_consistency_level" {
 variable "eventhubs_sku" {
   description = "Event Hubs namespace SKU (Basic, Standard)."
   type        = string
-  default     = "Standard"
+  default     = "Premium"
 }
 
 variable "eventhubs_capacity" {
