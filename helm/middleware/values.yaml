@@ -1079,7 +1079,7 @@ platform-ui:
       cpu: "250m"
   ingress:
     enabled: true
-    internal: false
+    internal: true
     host: "ui.middleware.internal"
     paths:
       - path: /
