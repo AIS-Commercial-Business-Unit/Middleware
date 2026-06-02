@@ -86,12 +86,11 @@ camel:
   component:
     kafka:
       brokers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net:443}
+      security-protocol: SASL_SSL
+      sasl-mechanism: OAUTHBEARER
+      sasl-jaas-config: >-
+        org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required
+        clientId="${AZURE_CLIENT_ID}"
+        scope="https://${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net/.default";
       additional-properties:
-        security.protocol: SASL_SSL
-        sasl.mechanism: OAUTHBEARER
-        sasl.login.callback.handler.class: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
-        sasl.oauthbearer.token.endpoint.url: https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token
-        sasl.jaas.config: >-
-          org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required
-          clientId="${AZURE_CLIENT_ID}"
-          scope="https://${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net/.default";
+        "[sasl.login.callback.handler.class]": com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
