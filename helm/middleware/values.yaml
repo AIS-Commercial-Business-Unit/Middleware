@@ -1218,11 +1218,10 @@ tempo:
   fullnameOverride: middleware-tempo
 
   # Tempo runs as uid 10001; PVC mounts as root — fsGroup fixes permissions
-  tempo:
-    securityContext:
-      fsGroup: 10001
-      runAsUser: 10001
-      runAsGroup: 10001
+  securityContext:
+    fsGroup: 10001
+    runAsUser: 10001
+    runAsGroup: 10001
 
   persistence:
     enabled: true
