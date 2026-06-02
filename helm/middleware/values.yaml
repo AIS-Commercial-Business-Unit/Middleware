@@ -83,7 +83,7 @@ policy-issuance-service:
     internal: true
     host: "api.middleware.internal"
     paths:
-      - path: /api/policy
+      - path: /api/v1/policies
         pathType: Prefix
 
 customer-identity-service:
@@ -226,6 +226,15 @@ platform-integration-service:
     limits:
       memory: "512Mi"
       cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "api.middleware.internal"
+    paths:
+      - path: /api/riskid
+        pathType: Prefix
+      - path: /api/demo
+        pathType: Prefix
 
 billing-finance-service:
   enabled: true
@@ -373,7 +382,11 @@ platform-file-processing-service:
     internal: true
     host: "api.middleware.internal"
     paths:
-      - path: /api/files
+      - path: /api/v1/batches
+        pathType: Prefix
+      - path: /api/v1/drop-zones
+        pathType: Prefix
+      - path: /api/v1/records
         pathType: Prefix
 
 prs-appraisal-service:
@@ -422,6 +435,13 @@ prs-appraisal-service:
     limits:
       memory: "512Mi"
       cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "api.middleware.internal"
+    paths:
+      - path: /api/appraisals
+        pathType: Prefix
 
 ##############################################################################
 # Java Stubs (disabled by default)
@@ -1078,6 +1098,7 @@ platform-ui:
     enabled: false
   env:
     NODE_ENV: "production"
+    HOSTNAME: "0.0.0.0"
     NEXT_PUBLIC_API_BASE: "{{ .Values.global.apim.gatewayUrl }}"
   healthCheck:
     enabled: true
