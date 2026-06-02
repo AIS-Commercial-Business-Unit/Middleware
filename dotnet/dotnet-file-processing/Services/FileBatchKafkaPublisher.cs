@@ -21,12 +21,13 @@ public sealed class FileBatchKafkaPublisher : IDisposable
             producerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
             producerConfig.SaslMechanism = SaslMechanism.OAuthBearer;
 
+            var fqns = $"{eventHubsNamespace}.servicebus.windows.net";
             _producer = new ProducerBuilder<Null, string>(producerConfig)
                 .SetOAuthBearerTokenRefreshHandler((client, _) =>
                 {
                     var credential = new DefaultAzureCredential();
                     var token = credential.GetToken(
-                        new Azure.Core.TokenRequestContext(new[] { "https://eventhubs.azure.net/.default" }));
+                        new Azure.Core.TokenRequestContext(new[] { $"https://{fqns}/.default" }));
                     client.OAuthBearerSetToken(token.Token, token.ExpiresOn.ToUnixTimeMilliseconds(), "");
                 })
                 .Build();

@@ -48,9 +48,10 @@ if (!string.IsNullOrEmpty(eventHubsNamespace))
 
     void OAuthTokenRefreshHandler(IClient client, string cfg)
     {
+        var fqns = $"{eventHubsNamespace}.servicebus.windows.net";
         var credential = new DefaultAzureCredential();
         var token = credential.GetToken(
-            new Azure.Core.TokenRequestContext(new[] { "https://eventhubs.azure.net/.default" }));
+            new Azure.Core.TokenRequestContext(new[] { $"https://{fqns}/.default" }));
         client.OAuthBearerSetToken(token.Token, token.ExpiresOn.ToUnixTimeMilliseconds(), "");
     }
 
