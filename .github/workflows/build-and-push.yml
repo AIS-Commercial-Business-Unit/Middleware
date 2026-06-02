@@ -224,6 +224,9 @@ jobs:
           docker build \
             -t "${IMAGE}:${TAG}" \
             -t "${IMAGE}:latest" \
+            --build-arg NEXT_PUBLIC_KAFDROP_URL=https://kafdrop.middleware.internal \
+            --build-arg NEXT_PUBLIC_GRAFANA_URL=https://grafana.middleware.internal \
+            --build-arg NEXT_PUBLIC_MONGO_URL=https://mongo.middleware.internal \
             -f "${{ steps.dockerfile.outputs.dockerfile }}" \
             "${{ steps.dockerfile.outputs.context }}"
 

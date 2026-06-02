@@ -1142,8 +1142,8 @@ function durationMs(start: string, end: string | null): string {
 // ─── Page ────────────────────────────────────────────────────────────────
 
 const kafdropUrl = process.env.NEXT_PUBLIC_KAFDROP_URL ?? "http://localhost:9000";
-const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL ?? "https://grafana.middleware.internal";
-const mongoUrl = process.env.NEXT_PUBLIC_MONGO_URL ?? "https://mongo.middleware.internal";
+const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001";
+const mongoUrl = process.env.NEXT_PUBLIC_MONGO_URL ?? "http://localhost:27017";
 
 export default function OpsPage() {
   const { issuanceId } = useParams<{ issuanceId: string }>();

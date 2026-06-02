@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 import clsx from "clsx";
 
-const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL ?? "https://grafana.middleware.internal";
+const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 

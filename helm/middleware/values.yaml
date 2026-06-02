@@ -621,7 +621,7 @@ dotnet-policy-issuance:
       - objectName: sql-connection-string
         envVar: ConnectionStrings__NServiceBus
       - objectName: appinsights-connection-string
-        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+        envVar: ApplicationInsights__ConnectionString
   env:
     ASPNETCORE_URLS: "http://+:8181"
     ASPNETCORE_ENVIRONMENT: Azure
@@ -664,7 +664,7 @@ dotnet-customer-identity:
       - objectName: sql-connection-string
         envVar: ConnectionStrings__NServiceBus
       - objectName: appinsights-connection-string
-        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+        envVar: ApplicationInsights__ConnectionString
   env:
     ASPNETCORE_URLS: "http://+:8181"
     ASPNETCORE_ENVIRONMENT: Azure
@@ -702,7 +702,7 @@ dotnet-platform-compliance:
       - objectName: sql-connection-string
         envVar: ConnectionStrings__NServiceBus
       - objectName: appinsights-connection-string
-        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+        envVar: ApplicationInsights__ConnectionString
   env:
     ASPNETCORE_URLS: "http://+:8181"
     ASPNETCORE_ENVIRONMENT: Azure
@@ -739,7 +739,7 @@ dotnet-platform-integration:
       - objectName: sql-connection-string
         envVar: ConnectionStrings__NServiceBus
       - objectName: appinsights-connection-string
-        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+        envVar: ApplicationInsights__ConnectionString
   env:
     ASPNETCORE_URLS: "http://+:8181"
     ASPNETCORE_ENVIRONMENT: Azure
@@ -778,7 +778,7 @@ dotnet-billing-finance:
       - objectName: sql-connection-string
         envVar: ConnectionStrings__NServiceBus
       - objectName: appinsights-connection-string
-        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+        envVar: ApplicationInsights__ConnectionString
   env:
     ASPNETCORE_URLS: "http://+:8181"
     ASPNETCORE_ENVIRONMENT: Azure
@@ -815,7 +815,7 @@ dotnet-platform-notification:
       - objectName: sql-connection-string
         envVar: ConnectionStrings__NServiceBus
       - objectName: appinsights-connection-string
-        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+        envVar: ApplicationInsights__ConnectionString
   env:
     ASPNETCORE_URLS: "http://+:8181"
     ASPNETCORE_ENVIRONMENT: Azure
@@ -851,7 +851,7 @@ dotnet-file-processing:
       - objectName: sql-connection-string
         envVar: ConnectionStrings__NServiceBus
       - objectName: appinsights-connection-string
-        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+        envVar: ApplicationInsights__ConnectionString
   env:
     ASPNETCORE_URLS: "http://+:8181"
     ASPNETCORE_ENVIRONMENT: Azure
@@ -896,7 +896,7 @@ dotnet-kafka-bridge:
       - objectName: sql-connection-string
         envVar: ConnectionStrings__NServiceBus
       - objectName: appinsights-connection-string
-        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+        envVar: ApplicationInsights__ConnectionString
   env:
     ASPNETCORE_URLS: "http://+:8181"
     ASPNETCORE_ENVIRONMENT: Azure
@@ -932,7 +932,7 @@ dotnet-prs-appraisal:
       - objectName: sql-connection-string
         envVar: ConnectionStrings__NServiceBus
       - objectName: appinsights-connection-string
-        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+        envVar: ApplicationInsights__ConnectionString
   env:
     ASPNETCORE_URLS: "http://+:8181"
     ASPNETCORE_ENVIRONMENT: Azure
@@ -1336,7 +1336,7 @@ otel-collector:
     - name: APPLICATIONINSIGHTS_CONNECTION_STRING
       valueFrom:
         secretKeyRef:
-          name: policy-issuance-service-secrets
+          name: middleware-policy-issuance-service-secrets
           key: appinsights-connection-string
 
   resources:
