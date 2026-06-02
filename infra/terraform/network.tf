@@ -40,14 +40,16 @@ resource "azurerm_subnet" "apim" {
 # It's passed to the NginxIngressController via Helm values (loadBalancerAnnotations).
 # Azure LB allocates it when the controller creates the internal Service.
 # DNS A records all point to this IP; ingress-nginx routes by Host header:
-#   - policy.middleware.internal           → policy-issuance-service
-#   - file-processing.middleware.internal  → platform-file-processing-service
-#   - integration.middleware.internal      → platform-integration-service
-#   - appraisal.middleware.internal        → prs-appraisal-service
-#   - ui.middleware.internal               → platform-ui
-#   - kafdrop.middleware.internal          → kafdrop (Kafka UI)
-#   - grafana.middleware.internal          → grafana
-#   - api.middleware.internal              → (legacy, retained until APIM cutover)
+#   - policy.middleware.internal               → policy-issuance-service
+#   - file-processing.middleware.internal      → platform-file-processing-service
+#   - integration.middleware.internal          → platform-integration-service
+#   - appraisal.middleware.internal            → prs-appraisal-service
+#   - dotnet-policy.middleware.internal        → dotnet-policy-issuance
+#   - dotnet-file-processing.middleware.internal → dotnet-file-processing
+#   - ui.middleware.internal                   → platform-ui
+#   - kafdrop.middleware.internal              → kafdrop (Kafka UI)
+#   - grafana.middleware.internal              → grafana
+#   - api.middleware.internal                  → (legacy, retained until APIM cutover)
 
 # Grant AKS identity "Network Contributor" on the ILB subnet
 # so AKS can deploy the internal load balancer with the static IP

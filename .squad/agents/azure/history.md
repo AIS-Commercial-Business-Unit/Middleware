@@ -41,3 +41,22 @@
 - **Coordination cost:** Path-prefix stripping at APIM only works if downstream ingress preserves the original path to the pod, OR if the app listens at short paths. When making this kind of change, confirm with the Platform/ingress owner.
 - **apiops.yml note:** `backend:` block at the top of `apim/apiops.yml` is the apiops pipeline's global default, not a deployed APIM backend resource. Safe to leave alone when migrating per-API backends.
 - **Files touched:** 4x `apim/apis/*/apiInformation.json` (serviceUrl), 4x `apim/apis/*/policy.xml` (backend-id), 4x new `apim/backends/*/backendInformation.json`, 1 deletion (`apim/backends/aks-internal/`).
+
+## 2026-06-01: Dual-stack APIM onboarding for .NET HTTP services
+- Added apim/apis/dotnet-policy-issuance-api and apim/apis/dotnet-file-processing-api mirroring Java siblings; specification.yaml copied verbatim (routes identical between stacks).
+- Added apim/backends/dotnet-policy-issuance and apim/backends/dotnet-file-processing pointing at dotnet-policy.middleware.internal and dotnet-file-processing.middleware.internal.
+- Naming: dotnet- PREFIX uniformly across folder, APIM path, backend id, ingress host. displayName suffixed with (.NET). Java stack untouched.
+- policy.xml uses <set-backend-service backend-id="dotnet-{name}" /> per decision #50.
+- 7 event-only .NET services skipped — no HTTP surface to onboard.
+- Helm/Terraform/DNS deliberately not touched — Platform owns ingress + A records for the new hosts.
+- Validation: each new hostname appears in exactly its API serviceUrl + its backend url; all 6 APIM path values unique (policy-issuance, dotnet-policy-issuance, file-processing, dotnet-file-processing, platform-integration, prs-appraisal).
+
+### 2026-06-01 — .NET APIM onboarding revalidated
+
+- Re-ran the onboarding task; all artifacts already in place from the prior session run. No edits needed.
+- Verified: 'apim/apis/dotnet-policy-issuance-api/' and 'apim/apis/dotnet-file-processing-api/' each contain apiInformation.json + policy.xml + specification.yaml mirroring their Java twins. specification.yaml is identical between stacks (routes match — controllers own 'api/v1' / 'api/v1/policies').
+- Verified: 'apim/backends/dotnet-policy-issuance/' and 'apim/backends/dotnet-file-processing/' each contain backendInformation.json with url 'https://dotnet-policy.middleware.internal' and 'https://dotnet-file-processing.middleware.internal' respectively.
+- Verified: each .NET policy.xml '<set-backend-service backend-id="dotnet-{name}" />' references the correct per-stack backend.
+- Verified: APIM 'path' values are unique across stacks ('policy-issuance' / 'dotnet-policy-issuance', 'file-processing' / 'dotnet-file-processing'). No client URL collision.
+- Tag/group structure: confirmed the apiops layout has no 'apim/tags/' folder and Java APIs do not carry a tags.json — there is no existing convention to mirror, so per task constraint ('don't invent structure that isn't already there') no tags were added. If a stack-discrimination tag is wanted later, it'd be a layout-wide change introduced uniformly across Java + .NET APIs.
+- Decision drop file '.squad/decisions/inbox/azure-dotnet-apim-onboard.md' is already present from the prior run; no duplicate created.

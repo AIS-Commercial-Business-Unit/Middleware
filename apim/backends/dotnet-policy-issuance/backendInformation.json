@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "url": "https://dotnet-policy.middleware.internal",
+    "title": "Policy Issuance Backend (.NET)",
+    "description": "Per-host AKS internal ingress for the dotnet-policy-issuance service",
+    "protocol": "http",
+    "tls": {
+      "validateCertificateChain": false,
+      "validateCertificateName": false
+    }
+  }
+}

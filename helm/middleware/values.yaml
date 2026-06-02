@@ -600,6 +600,13 @@ dotnet-policy-issuance:
     limits:
       memory: "256Mi"
       cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "dotnet-policy.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix
 
 dotnet-customer-identity:
   enabled: true
@@ -817,6 +824,13 @@ dotnet-file-processing:
     limits:
       memory: "256Mi"
       cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "dotnet-file-processing.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix
 
 dotnet-kafka-bridge:
   enabled: true

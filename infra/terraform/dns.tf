@@ -72,6 +72,25 @@ resource "azurerm_private_dns_a_record" "appraisal" {
   records             = [local.ingress_ilb_ip]
 }
 
+# Dual-stack .NET hostnames — sit alongside the Java per-host records above so
+# the .NET equivalents of policy-issuance and file-processing can be exercised
+# side-by-side via APIM for parity comparisons.
+resource "azurerm_private_dns_a_record" "dotnet_policy" {
+  name                = "dotnet-policy"
+  zone_name           = azurerm_private_dns_zone.aks.name
+  resource_group_name = azurerm_resource_group.main.name
+  ttl                 = 300
+  records             = [local.ingress_ilb_ip]
+}
+
+resource "azurerm_private_dns_a_record" "dotnet_file_processing" {
+  name                = "dotnet-file-processing"
+  zone_name           = azurerm_private_dns_zone.aks.name
+  resource_group_name = azurerm_resource_group.main.name
+  ttl                 = 300
+  records             = [local.ingress_ilb_ip]
+}
+
 # Observability — Kafdrop (Kafka UI) and Grafana ingress hostnames. Both
 # resolve to the same ILB; ingress-nginx routes by Host header.
 resource "azurerm_private_dns_a_record" "kafdrop" {

@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "url": "https://dotnet-file-processing.middleware.internal",
+    "title": "File Processing Backend (.NET)",
+    "description": "Per-host AKS internal ingress for the dotnet-file-processing service",
+    "protocol": "http",
+    "tls": {
+      "validateCertificateChain": false,
+      "validateCertificateName": false
+    }
+  }
+}

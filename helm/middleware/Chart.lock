@@ -77,5 +77,26 @@ dependencies:
 - name: microservice
   repository: file://../charts/microservice
   version: 0.1.0
-digest: sha256:cc99b4160616ee875eb7dad3e5d4710afb4e0ed913a12b7dcdc0ebce44366ce4
-generated: "2026-06-01T23:12:52.1833265-04:00"
+- name: kafdrop
+  repository: file://../charts/kafdrop
+  version: 0.1.0
+- name: loki
+  repository: https://grafana.github.io/helm-charts
+  version: 6.16.0
+- name: promtail
+  repository: https://grafana.github.io/helm-charts
+  version: 6.16.6
+- name: prometheus
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 25.27.0
+- name: tempo
+  repository: https://grafana.github.io/helm-charts
+  version: 1.10.1
+- name: opentelemetry-collector
+  repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  version: 0.97.1
+- name: grafana
+  repository: https://grafana.github.io/helm-charts
+  version: 8.5.1
+digest: sha256:23e19d0962f5c2bc09dccb83569058796f53d207f4e700a7fea9997d5808eea4
+generated: "2026-06-01T23:53:25.8356518-04:00"
