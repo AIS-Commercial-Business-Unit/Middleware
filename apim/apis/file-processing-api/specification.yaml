@@ -1,0 +1,197 @@
+openapi: 3.0.1
+info:
+  title: File Processing API
+  description: Batch file upload, processing, and record retry workflows
+  version: "1.0"
+paths:
+  /batches:
+    get:
+      operationId: listBatches
+      summary: List all file batches
+      description: Returns all file batches tracked in the system
+      responses:
+        "200":
+          description: List of batches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FileBatch"
+  /batches/{batchId}:
+    get:
+      operationId: getBatch
+      summary: Get a batch by ID
+      description: Returns details of a specific file batch
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Batch details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileBatch"
+        "404":
+          description: Batch not found
+  /batches/{batchId}/records:
+    get:
+      operationId: getBatchRecords
+      summary: Get records in a batch
+      description: Returns all individual records within a batch
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of batch records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BatchRecord"
+  /batches/generate:
+    post:
+      operationId: generateSampleBatch
+      summary: Generate a sample renewal batch
+      description: Creates a sample CSV file in the inbound folder with synthetic renewal data for testing
+      parameters:
+        - name: count
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 10
+          description: Number of records to generate (1-500)
+      responses:
+        "201":
+          description: Sample batch file created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateResponse"
+              example:
+                fileName: "RENEWAL_20260601_120000.csv"
+                recordCount: 10
+                message: "File created in inbound folder"
+        "500":
+          description: Failed to create file
+  /records/{recordId}/retry:
+    post:
+      operationId: retryRecord
+      summary: Retry a failed or dead-lettered record
+      description: Republishes a DeadLettered or Failed record with a new correlation ID, starting a fresh saga
+      parameters:
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Record retried successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recordId:
+                    type: string
+                  newCorrelationId:
+                    type: string
+                  message:
+                    type: string
+        "400":
+          description: Record is not in a retryable state
+        "404":
+          description: Record not found
+  /drop-zones:
+    get:
+      operationId: listDropZones
+      summary: List configured drop zones
+      description: Returns the configured file drop zones and their patterns
+      responses:
+        "200":
+          description: List of drop zones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DropZone"
+components:
+  schemas:
+    FileBatch:
+      type: object
+      properties:
+        id:
+          type: string
+        fileName:
+          type: string
+        status:
+          type: string
+          enum: [Pending, Processing, Completed, Failed]
+        recordCount:
+          type: integer
+        processedCount:
+          type: integer
+        failedCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+    BatchRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        batchId:
+          type: string
+        sequenceNumber:
+          type: integer
+        status:
+          type: string
+          enum: [Pending, Processing, Completed, Failed, DeadLettered]
+        correlationId:
+          type: string
+        rawContent:
+          type: string
+        retryCount:
+          type: integer
+        processorResult:
+          type: string
+        failureCategory:
+          type: string
+    GenerateResponse:
+      type: object
+      properties:
+        fileName:
+          type: string
+        recordCount:
+          type: integer
+        message:
+          type: string
+    DropZone:
+      type: object
+      properties:
+        name:
+          type: string
+        inboundDir:
+          type: string
+        filePattern:
+          type: string
+        description:
+          type: string

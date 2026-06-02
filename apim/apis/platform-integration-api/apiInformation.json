@@ -6,6 +6,8 @@
     "serviceUrl": "https://api.middleware.internal/api",
     "protocols": ["https"],
     "subscriptionRequired": true,
-    "isCurrent": true
+    "isCurrent": true,
+    "format": "openapi+json",
+    "value": null
   }
 }

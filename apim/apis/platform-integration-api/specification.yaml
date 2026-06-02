@@ -1,0 +1,149 @@
+openapi: 3.0.1
+info:
+  title: Platform Integration API
+  description: RiskID MQ gateway (demo stub) and demo environment reset endpoints
+  version: "1.0"
+paths:
+  /riskid/status-update:
+    post:
+      operationId: receiveRiskIdStatusUpdate
+      summary: Simulate a RiskID MQ status update
+      description: Accepts a mock RiskID status update and publishes it to Kafka. Used to drive demo scenarios from the Platform UI.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RiskIDStatusUpdateRequest"
+            example:
+              policyNumber: "POL-001-2026"
+              appraisalId: "APR-12345"
+              statusCode: "COMPLETE"
+              inspectionTypeCode: "EXTERIOR"
+              inspectorName: "John Smith"
+              inspectionDate: "2026-06-01"
+      responses:
+        "200":
+          description: Status update received and published to Kafka
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  correlationId:
+                    type: string
+                  status:
+                    type: string
+                  message:
+                    type: string
+  /demo/health:
+    get:
+      operationId: demoHealth
+      summary: Check health of all services
+      description: Probes health endpoints for all Java and .NET services. Returns a map of service status.
+      responses:
+        "200":
+          description: Health status of all services
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    status:
+                      type: string
+                    url:
+                      type: string
+                    latencyMs:
+                      type: integer
+  /demo/clear:
+    post:
+      operationId: demoClear
+      summary: Clear all demo data
+      description: Deletes all documents from UC4 MongoDB collections (both Java and .NET databases)
+      responses:
+        "200":
+          description: Data cleared successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoOperationResult"
+  /demo/seed:
+    post:
+      operationId: demoSeed
+      summary: Seed demo appraisal scenarios
+      description: Inserts the 5 standard demo appraisal scenarios into the database
+      responses:
+        "200":
+          description: Demo data seeded successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoOperationResult"
+  /demo/reset:
+    post:
+      operationId: demoReset
+      summary: Full demo reset (health + clear + seed)
+      description: Orchestrates a full demo reset — checks health, clears data, and re-seeds. Returns a comprehensive status report.
+      responses:
+        "200":
+          description: Full reset completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoResetResult"
+        "207":
+          description: Partial success (some steps failed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoResetResult"
+components:
+  schemas:
+    RiskIDStatusUpdateRequest:
+      type: object
+      required:
+        - policyNumber
+        - statusCode
+      properties:
+        policyNumber:
+          type: string
+        appraisalId:
+          type: string
+          description: Optional — auto-generated if omitted
+        statusCode:
+          type: string
+          enum: [COMPLETE, PENDING, FAILED, IN_PROGRESS]
+        inspectionTypeCode:
+          type: string
+          enum: [EXTERIOR, INTERIOR, FULL, DRIVE_BY]
+        inspectorName:
+          type: string
+        inspectionDate:
+          type: string
+          format: date
+    DemoOperationResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties:
+            type: string
+    DemoResetResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        healthCheck:
+          type: object
+        clearResult:
+          type: object
+        seedResult:
+          type: object
+        totalDurationMs:
+          type: integer

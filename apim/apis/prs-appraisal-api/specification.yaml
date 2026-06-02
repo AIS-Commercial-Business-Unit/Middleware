@@ -1,0 +1,128 @@
+openapi: 3.0.1
+info:
+  title: PRS Appraisal API
+  description: Property Risk Services appraisal lookup — scatter-gather list retrieval and content-based document routing
+  version: "1.0"
+paths:
+  /list:
+    post:
+      operationId: getAppraisalList
+      summary: Get appraisal list for a policy
+      description: Scatter-gather fan-out to @Work SQL and DEIPDE07 MQ. Returns all appraisals associated with the given policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppraisalListRequest"
+            example:
+              policyNumber: "POL-001-2026"
+      responses:
+        "200":
+          description: List of appraisals for the policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppraisalListResponse"
+              example:
+                items:
+                  - appraisalId: "APR-001"
+                    policyNumber: "POL-001-2026"
+                    status: "COMPLETE"
+                    inspectionType: "EXTERIOR"
+                    inspectionDate: "2026-05-15"
+                    source: "@Work"
+                  - appraisalId: "APR-002"
+                    policyNumber: "POL-001-2026"
+                    status: "PENDING"
+                    inspectionType: "INTERIOR"
+                    source: "DEIPDE07"
+                partialResult: false
+        "500":
+          description: Internal error during scatter-gather
+  /document:
+    post:
+      operationId: getAppraisalDocument
+      summary: Get appraisal document (PDF)
+      description: Content-based router to RiskID WCF or DEIPDE07 MQ. Returns the appraisal document as base64 PDF.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppraisalDocumentRequest"
+            example:
+              documentKey: "12345678901"
+      responses:
+        "200":
+          description: Appraisal document retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppraisalDocumentResponse"
+        "500":
+          description: Internal error during document retrieval
+components:
+  schemas:
+    AppraisalListRequest:
+      type: object
+      required:
+        - policyNumber
+      properties:
+        policyNumber:
+          type: string
+          description: The policy number to look up appraisals for
+    AppraisalListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AppraisalListItem"
+        partialResult:
+          type: boolean
+          description: True if one or more upstream sources timed out
+    AppraisalListItem:
+      type: object
+      properties:
+        appraisalId:
+          type: string
+        policyNumber:
+          type: string
+        status:
+          type: string
+          enum: [COMPLETE, PENDING, FAILED, IN_PROGRESS]
+        inspectionType:
+          type: string
+          enum: [EXTERIOR, INTERIOR, FULL, DRIVE_BY]
+        inspectionDate:
+          type: string
+          format: date
+        inspectorName:
+          type: string
+        source:
+          type: string
+          description: Upstream system that returned this record (@Work or DEIPDE07)
+    AppraisalDocumentRequest:
+      type: object
+      required:
+        - documentKey
+      properties:
+        documentKey:
+          type: string
+          description: The document key (11-digit numeric string)
+    AppraisalDocumentResponse:
+      type: object
+      properties:
+        documentKey:
+          type: string
+        base64Pdf:
+          type: string
+          format: byte
+          description: The PDF document encoded as base64
+        source:
+          type: string
+          description: Which upstream system served the document
+        retrievedAt:
+          type: string
+          format: date-time
