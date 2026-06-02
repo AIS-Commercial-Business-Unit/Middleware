@@ -87,3 +87,7 @@
 **Verification:** `docker compose up` — all 37 services start healthy. Artemis Web Console at http://localhost:8161 confirms all 4 UC4 queues created. Message flow verified: APPRAISAL.LIST.REQUEST → simulator → APPRAISAL.LIST.REPLY.
 
 **Key learning (2026-05-31):** Queue name externalization via environment variables enables test automation and CI scenarios without container rebuilds. The docker-compose itself becomes the source of truth for queue topology — changing queue names is a config change, not a code change.
+
+### 2026-06-01 — Probes removed from K8s manifests (heads-up from Scribe)
+
+The Coordinator (off-protocol) stripped `startupProbe`/`livenessProbe`/`readinessProbe` blocks from `helm/charts/microservice/templates/deployment.yaml` and removed `healthCheck` blocks from both `helm/middleware/values.yaml` and `helm/charts/microservice/values.yaml`. If you touch CI/CD, rolling updates, or readiness gates next, factor this in — pods now start without K8s-driven health checking. Earlier inline edits also disabled Camel health (`camel.health.enabled: false`) in Java `application.yml` files. See `.squad/orchestration-log/2026-06-01T23-16-42Z-coordinator-bypass.md`.

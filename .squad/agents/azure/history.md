@@ -24,3 +24,12 @@
 - **Workflow pattern:** Plan → artifact upload → approval gate (GitHub Environment) → Apply. Separate `-plan` environments allow auto-running plan without approval.
 - **Key file paths:** `infra/terraform/*.tf`, `.github/workflows/deploy-infra.yml`, `infra/README.md`
 - **User preference:** Step-by-step README for developers new to Azure IaC, with actual `az` CLI commands for Windows (PowerShell).
+
+### 2026-06-01 — APIM per-host backend migration
+
+- **Topology change:** Replaced the single shared `aks-internal` backend (host `api.middleware.internal`) with four per-API backends, one per hostname: `policy`, `file-processing`, `integration`, `appraisal` (all under `.middleware.internal`).
+- **Two-layer fix required:** APIM's `set-backend-service backend-id="..."` in each API's `policy.xml` overrides the API's `serviceUrl`. So changing only `serviceUrl` would have been a silent no-op. Both layers must be updated together when migrating backends.
+- **Pattern for per-host APIM backends in apiops:** one folder under `apim/backends/{name}/` per backend, `backendInformation.json` with `properties.url` set to `https://{host}`, and the matching `policy.xml` inside `apim/apis/{api}/` referencing `backend-id="{name}"`. The API's `serviceUrl` should be just the host (no path prefix); operation `urlTemplate` values stay unchanged because APIM concatenates them.
+- **Coordination cost:** Path-prefix stripping at APIM only works if downstream ingress preserves the original path to the pod, OR if the app listens at short paths. When making this kind of change, confirm with the Platform/ingress owner.
+- **apiops.yml note:** `backend:` block at the top of `apim/apiops.yml` is the apiops pipeline's global default, not a deployed APIM backend resource. Safe to leave alone when migrating per-API backends.
+- **Files touched:** 4x `apim/apis/*/apiInformation.json` (serviceUrl), 4x `apim/apis/*/policy.xml` (backend-id), 4x new `apim/backends/*/backendInformation.json`, 1 deletion (`apim/backends/aks-internal/`).

@@ -772,3 +772,56 @@ HTTP 404
 - Show a ServicePulse-style compact timeline plus sub-saga summaries for UC4 when `saga == null && isUc4Flow(events)`
 - **Rationale:** Keeps the UX useful while preserving the existing UC1 saga card for policy issuance flows
 
+
+### 49. Per-service ingress hostnames replace path-based routing (2026-06-01)
+**By:** Platform (requested by Steven Suing)
+
+Backend APIs in AKS now use one hostname per service instead of sharing `api.middleware.internal` with path-based ingress rules.
+
+| Service | Hostname |
+|---|---|
+| policy-issuance-service | `policy.middleware.internal` |
+| platform-file-processing-service | `file-processing.middleware.internal` |
+| platform-integration-service | `integration.middleware.internal` |
+| prs-appraisal-service | `appraisal.middleware.internal` |
+
+All hostnames resolve to the same ingress ILB (10.0.16.10) via Azure Private DNS A records (`infra/terraform/dns.tf`); ingress-nginx routes by Host header. Each service's ingress now uses a single `path: /` (Prefix) — Java controllers keep their full `@RequestMapping` paths unchanged; ingress no longer participates in URL routing.
+
+**Why:** Path-based routing was fragile (paths drift between Java `@RequestMapping`, ingress rules, and APIM). One hostname per service makes the contract simpler: `Host` header == service identity.
+
+**Scope / non-goals:**
+- `ui.middleware.internal` unchanged (Frontend agent owns).
+- `api.middleware.internal` DNS record + global helm comment retained until APIM backend cutover (now done — see #50).
+- Internal-only services without ingress (customer-identity, billing-finance, platform-compliance, platform-notification) unaffected.
+- `global.ingress.internalHost` retained for UI host pattern; no longer canonical for backend APIs.
+
+**Validation:** `helm template` renders all 5 expected hosts; `terraform fmt -check` clean.
+
+### 50. APIM per-host backend migration (2026-06-01)
+**By:** Azure (requested by Steven Suing)
+
+Migrated APIM from the single shared `aks-internal` backend (host `api.middleware.internal`) to **four per-API backends**, each pointing at its own internal hostname. Aligns APIM with the per-host ingress + private DNS topology from #49.
+
+**Per-API `serviceUrl`** (path prefixes dropped — each app receives its full original path on its own host):
+
+| API | New serviceUrl |
+|---|---|
+| policy-issuance-api | `https://policy.middleware.internal` |
+| file-processing-api | `https://file-processing.middleware.internal` |
+| platform-integration-api | `https://integration.middleware.internal` |
+| prs-appraisal-api | `https://appraisal.middleware.internal` |
+
+**Backends — Option A (per-API backends):**
+- Created `apim/backends/{policy-issuance,file-processing,platform-integration,prs-appraisal}/backendInformation.json`
+- Each API's `policy.xml` now does `<set-backend-service backend-id="{api-name}" />` instead of shared `aks-internal`
+- Deleted `apim/backends/aks-internal/`
+
+**Why Option A:** Each API's `policy.xml` already had explicit `<set-backend-service>` overriding `serviceUrl` at runtime. Just changing `serviceUrl` would have been a silent no-op without also updating `policy.xml`. Per-API backends are clearer, give a single place to tune TLS/credentials/circuit-breaker per service, and keep the APIM portal showing the right backend per API.
+
+**Untouched (intentional):**
+- `apim/apiops.yml` `backend.url: https://api.middleware.internal` is the apiops pipeline default config block, not a deployed APIM resource. Left alone to avoid risk to apiops sync workflow.
+- Operation `urlTemplate` values unchanged — APIM concatenates `serviceUrl + urlTemplate`.
+
+**Cross-team coordination:** Assumes Platform's per-host ingress preserves the original path prefix (`/api/v1/policies`, `/api/v1`, `/api`, `/api/appraisals`) to the pod, OR the apps accept short paths. Per #49, ingress is now `path: /` and Spring/.NET controllers keep full `@RequestMapping` paths — contracts align.
+
+**Validation:** Grep of `api.middleware.internal` under `apim/` shows only the 1 intentional `apiops.yml` reference. Each API's `serviceUrl` matches its new backend `url` and DNS A record.
