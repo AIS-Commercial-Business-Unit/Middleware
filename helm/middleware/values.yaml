@@ -962,9 +962,13 @@ platform-ui:
     NEXT_PUBLIC_KAFDROP_URL: "https://kafdrop.middleware.internal"
     NEXT_PUBLIC_GRAFANA_URL: "https://grafana.middleware.internal"
     # Server-side proxy targets (Next.js API routes → K8s services)
-    PRS_APPRAISAL_SERVICE_URL: "http://middleware-dotnet-prs-appraisal:8181"
-    DEMO_API_URL: "http://middleware-policy-issuance-service:8081"
-    INTEGRATION_SERVICE_URL: "http://middleware-platform-integration-service:8081"
+    POLICY_ISSUANCE_SERVICE_URL: "http://middleware-policy-issuance-service:80"
+    DOTNET_POLICY_ISSUANCE_URL: "http://middleware-dotnet-policy-issuance:80"
+    FILE_PROCESSING_SERVICE_URL: "http://middleware-platform-file-processing-service:80"
+    DOTNET_FILE_PROCESSING_URL: "http://middleware-dotnet-file-processing:80"
+    PRS_APPRAISAL_SERVICE_URL: "http://middleware-dotnet-prs-appraisal:80"
+    INTEGRATION_SERVICE_URL: "http://middleware-platform-integration-service:80"
+    DEMO_API_URL: "http://middleware-policy-issuance-service:80"
     LOKI_URL: "http://middleware-loki:3100"
   resources:
     requests:
