@@ -99,6 +99,13 @@ jobs:
             --set-string global.azure.sqlServerFqdn="${{ vars.SQL_SERVER_FQDN }}"
           )
 
+          HELM_ARGS+=(
+            --set "loki.singleBinary.replicas=1"
+            --set "loki.backend.replicas=0"
+            --set "loki.read.replicas=0"
+            --set "loki.write.replicas=0"
+          )
+
           # Apply environment-specific values if file exists
           if [[ -f "$VALUES_FILE" ]]; then
             HELM_ARGS+=(--values "$VALUES_FILE")
