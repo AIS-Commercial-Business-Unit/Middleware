@@ -3,7 +3,7 @@
     "displayName": "Policy Issuance API",
     "description": "Manages end-to-end policy issuance workflows",
     "path": "policy-issuance",
-    "serviceUrl": "http://policy.middleware.internal",
+    "serviceUrl": "http://policy.middleware.internal/api/v1/policies",
     "protocols": ["https"],
     "subscriptionRequired": true,
     "isCurrent": true,

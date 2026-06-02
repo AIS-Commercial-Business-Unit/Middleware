@@ -1,6 +1,6 @@
 {
   "properties": {
-    "url": "http://appraisal.middleware.internal",
+    "url": "http://appraisal.middleware.internal/api/appraisals",
     "title": "PRS Appraisal Backend",
     "description": "Per-host AKS internal ingress for the prs-appraisal-service",
     "protocol": "http",

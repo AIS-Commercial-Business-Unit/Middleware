@@ -3,7 +3,7 @@
     "displayName": "File Processing API",
     "description": "Batch file upload and processing workflows",
     "path": "file-processing",
-    "serviceUrl": "http://file-processing.middleware.internal",
+    "serviceUrl": "http://file-processing.middleware.internal/api/v1",
     "protocols": ["https"],
     "subscriptionRequired": true,
     "isCurrent": true,

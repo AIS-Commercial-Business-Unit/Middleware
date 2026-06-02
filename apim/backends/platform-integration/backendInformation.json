@@ -1,6 +1,6 @@
 {
   "properties": {
-    "url": "http://integration.middleware.internal",
+    "url": "http://integration.middleware.internal/api",
     "title": "Platform Integration Backend",
     "description": "Per-host AKS internal ingress for the platform-integration-service",
     "protocol": "http",
