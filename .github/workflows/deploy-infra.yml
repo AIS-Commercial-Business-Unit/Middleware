@@ -131,6 +131,7 @@ jobs:
           KEYVAULT_NAME=$(terraform output -raw keyvault_name)
           SQL_FQDN=$(terraform output -raw sql_server_fqdn)
           APIM_NAME=$(terraform output -raw apim_name)
+          APIM_GATEWAY_URL=$(terraform output -raw apim_gateway_url)
 
           # Save as GitHub repository variables (for deploy-apps workflow)
           gh variable set AKS_CLUSTER_NAME --body "$AKS_NAME"
@@ -140,6 +141,7 @@ jobs:
           gh variable set KEYVAULT_NAME --body "$KEYVAULT_NAME"
           gh variable set SQL_SERVER_FQDN --body "$SQL_FQDN"
           gh variable set APIM_NAME --body "$APIM_NAME"
+          gh variable set APIM_GATEWAY_URL --body "$APIM_GATEWAY_URL"
 
           echo "### Terraform Outputs Saved" >> $GITHUB_STEP_SUMMARY
           echo "| Variable | Value |" >> $GITHUB_STEP_SUMMARY

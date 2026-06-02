@@ -54,6 +54,9 @@ spring:
   config:
     activate:
       on-profile: azure
+  data:
+    mongodb:
+      database: billing_finance_db
   kafka:
     bootstrap-servers: ${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net:9093
     properties:

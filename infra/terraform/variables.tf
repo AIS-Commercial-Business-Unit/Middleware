@@ -32,7 +32,7 @@ variable "location" {
 variable "aks_node_count" {
   description = "Number of nodes in the default AKS node pool."
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "k8s_namespace" {
@@ -50,7 +50,7 @@ variable "k8s_service_account" {
 variable "aks_node_vm_size" {
   description = "VM size for AKS default node pool."
   type        = string
-  default     = "Standard_B2s"
+  default     = "Standard_D4s_v5"
 }
 
 variable "aks_kubernetes_version" {

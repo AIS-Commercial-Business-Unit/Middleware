@@ -64,6 +64,9 @@ spring:
   config:
     activate:
       on-profile: azure
+  data:
+    mongodb:
+      database: prs_appraisal_db
   kafka:
     bootstrap-servers: ${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net:9093
     properties:
