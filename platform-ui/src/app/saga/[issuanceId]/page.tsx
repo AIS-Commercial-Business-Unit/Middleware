@@ -117,7 +117,7 @@ export default function SagaExplorerPage() {
             {data.targetPas && (
               <div>
                 <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>PAS Routed To</p>
-                  href={`${grafanaUrl}/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{service_name%3D\"policy-issuance-service\"} |= \`${issuanceId}\`"}]`}
+                <span className="text-sm font-mono">{data.targetPas}</span>
               </div>
             )}
             {data.policyNumbers && data.policyNumbers.length > 0 && (
@@ -126,7 +126,7 @@ export default function SagaExplorerPage() {
                 <span className="text-sm font-mono">{data.policyNumbers.join(", ")}</span>
               </div>
             )}
-                  href={`${grafanaUrl}/explore?datasource=tempo`}
+            {data.failureReason && (
               <div className="w-full">
                 <p className="text-xs mb-1" style={{ color: "var(--danger)" }}>Failure Reason</p>
                 <span className="text-sm">{data.failureReason}</span>
