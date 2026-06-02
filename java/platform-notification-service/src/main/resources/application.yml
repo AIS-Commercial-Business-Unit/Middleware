@@ -39,6 +39,8 @@ management:
 camel:
   springboot:
     main-run-controller: true
+  health:
+    enabled: false
   component:
     kafka:
       brokers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -64,7 +66,7 @@ spring:
     mongodb:
       database: notification_db
   kafka:
-    bootstrap-servers: ${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net:9093
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net:443}
     properties:
       security.protocol: SASL_SSL
       sasl.mechanism: OAUTHBEARER
@@ -78,7 +80,7 @@ spring:
 camel:
   component:
     kafka:
-      brokers: ${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net:9093
+      brokers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net:443}
       additional-properties:
         security.protocol: SASL_SSL
         sasl.mechanism: OAUTHBEARER
