@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import Link from "next/link";
 import { BackendSwitcher } from "@/components/BackendSwitcher";
@@ -8,7 +9,8 @@ export const metadata: Metadata = {
   description: "UC1: Policy Issuance Demo — Apache Camel + Kafka + MongoDB",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  await headers(); // Force dynamic rendering — ensures env vars are read at request time
   const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL || "http://localhost:3001";
   const kafdropUrl = process.env.NEXT_PUBLIC_KAFDROP_URL || "http://localhost:9000";
 
