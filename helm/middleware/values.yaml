@@ -383,7 +383,7 @@ prs-appraisal-service:
     SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: prs-appraisal-service
-    ARTEMIS_BROKER_URL: "tcp://middleware-activemq-artemis:61616"
+    ARTEMIS_BROKER_URL: "tcp://middleware-artemis:61616"
     ARTEMIS_USER: "admin"
     ARTEMIS_PASSWORD: "admin"
   resources:
@@ -581,7 +581,7 @@ deipde07-mq-simulator:
     enabled: false
   env:
     SERVER_PORT: "8089"
-    ARTEMIS_BROKER_URL: "tcp://middleware-activemq-artemis:61616"
+    ARTEMIS_BROKER_URL: "tcp://middleware-artemis:61616"
     ARTEMIS_USER: "admin"
     ARTEMIS_PASSWORD: "admin"
     APPRAISAL_LIST_REQUEST_QUEUE: "APPRAISAL.LIST.REQUEST"
@@ -942,7 +942,7 @@ dotnet-prs-appraisal:
     OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
     OTEL_SERVICE_NAME: dotnet-prs-appraisal
     ExternalServices__CustomerIdentityUrl: "http://middleware-dotnet-customer-identity:80"
-    Artemis__BrokerUrl: "activemq:tcp://middleware-activemq-artemis:61616"
+    Artemis__BrokerUrl: "activemq:tcp://middleware-artemis:61616"
     Artemis__User: "admin"
     Artemis__Password: "admin"
     Artemis__ListRequestQueue: "APPRAISAL.LIST.REQUEST"
@@ -1010,7 +1010,7 @@ platform-ui:
 
 activemq-artemis:
   enabled: true
-  fullnameOverride: middleware-activemq-artemis
+  fullnameOverride: middleware-artemis
   replicaCount: 1
   image:
     repository: apache/activemq-artemis

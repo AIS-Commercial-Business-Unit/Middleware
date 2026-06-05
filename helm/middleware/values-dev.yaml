@@ -11,9 +11,9 @@ global:
     name: ""  # Injected by deploy workflow via --set (Terraform output: keyvault_name)
     tenantId: ""  # Injected by deploy workflow via --set
   eventhubs:
-    bootstrapServers: evhns-middleware-dev.servicebus.windows.net:443
+    bootstrapServers: evhns-middleware-dev.servicebus.windows.net:9093
   otel:
-    endpoint: "http://otel-collector.observability.svc:4317"
+    endpoint: "http://middleware-otel-collector:4317"
   apim:
     gatewayUrl: "https://apim-middleware-dev.azure-api.net"
   azure:

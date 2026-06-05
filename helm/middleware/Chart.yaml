@@ -131,6 +131,7 @@ dependencies:
   - name: artemis
     version: "0.1.0"
     repository: "file://../charts/artemis"
+    alias: activemq-artemis
     condition: activemq-artemis.enabled
 
   # Custom Kafdrop subchart (no community chart wires Event Hubs JAAS).
