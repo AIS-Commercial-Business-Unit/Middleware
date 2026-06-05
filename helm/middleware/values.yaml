@@ -1090,6 +1090,10 @@ kafdrop:
 
   jvmOpts: "-Xms32M -Xmx128M"
 
+  # Served via Next.js reverse proxy at /proxy/kafdrop on the platform-ui domain.
+  # Spring Boot context path makes Kafdrop generate URLs prefixed with /proxy/kafdrop.
+  serverServletContextPath: "/proxy/kafdrop"
+
   serviceAccount:
     name: middleware-workload
   workloadIdentity:
@@ -1501,7 +1505,9 @@ grafana:
     users:
       allow_sign_up: false
     server:
-      root_url: https://grafana.middleware.internal/
+      # Served via Next.js reverse proxy at /proxy/grafana on the platform-ui domain.
+      root_url: "%(protocol)s://%(http_host)s/proxy/grafana/"
+      serve_from_sub_path: true
 
   # Pre-wire datasources mirroring observability/grafana-datasources.yaml.
   datasources:

@@ -4,7 +4,9 @@ export const dynamic = "force-dynamic";
 
 async function proxy(req: NextRequest, path: string[]) {
   const target = process.env.KAFDROP_URL || "http://middleware-kafdrop:80";
-  const url = `${target}/${path.join("/")}${req.nextUrl.search}`;
+  // Forward the full /proxy/kafdrop/... path because Kafdrop's context path is set to /proxy/kafdrop.
+  const subPath = path.length ? `/${path.join("/")}` : "";
+  const url = `${target}/proxy/kafdrop${subPath}${req.nextUrl.search}`;
 
   const headers = new Headers(req.headers);
   headers.delete("host");

@@ -4,7 +4,9 @@ export const dynamic = "force-dynamic";
 
 async function proxy(req: NextRequest, path: string[]) {
   const target = process.env.GRAFANA_URL || "http://middleware-grafana:80";
-  const url = `${target}/${path.join("/")}${req.nextUrl.search}`;
+  // Forward the full /proxy/grafana/... path because Grafana's serve_from_sub_path expects it.
+  const subPath = path.length ? `/${path.join("/")}` : "";
+  const url = `${target}/proxy/grafana${subPath}${req.nextUrl.search}`;
 
   const headers = new Headers(req.headers);
   headers.delete("host");
