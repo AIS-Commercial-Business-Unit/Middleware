@@ -17,8 +17,8 @@ const DEFAULTS: RuntimeConfig = {
 };
 
 export function getRuntimeConfig(): RuntimeConfig {
-  if (typeof window !== "undefined" && (window as any).__RUNTIME_CONFIG__) {
-    return (window as any).__RUNTIME_CONFIG__;
+  if (typeof window !== "undefined" && (window as unknown as { __RUNTIME_CONFIG__?: RuntimeConfig }).__RUNTIME_CONFIG__) {
+    return (window as unknown as { __RUNTIME_CONFIG__: RuntimeConfig }).__RUNTIME_CONFIG__;
   }
   return DEFAULTS;
 }
