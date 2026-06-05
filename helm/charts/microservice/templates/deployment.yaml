@@ -20,6 +20,7 @@ spec:
         {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        rollme: {{ randAlphaNum 5 | quote }}
         {{- if eq .Values.stack "java" }}
         prometheus.io/scrape: "true"
         prometheus.io/path: "/actuator/prometheus"
