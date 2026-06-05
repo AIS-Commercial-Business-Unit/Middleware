@@ -1462,6 +1462,12 @@ grafana:
 
   replicas: 1
 
+  # Azure Disk (managed-csi) is ReadWriteOnce — can only attach to one node.
+  # Recreate strategy ensures the old pod releases the volume before the new
+  # pod tries to attach it.
+  deploymentStrategy:
+    type: Recreate
+
   persistence:
     enabled: true
     size: 5Gi

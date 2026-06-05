@@ -2,6 +2,19 @@
 # Azure API Management
 ##############################################################################
 
+# Public IP required for APIM management plane (stv2 platform) in VNet mode.
+# Without this, port 3443 is unreachable and Terraform/ARM calls fail.
+resource "azurerm_public_ip" "apim" {
+  name                = "pip-apim-${local.name_prefix}"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  domain_name_label   = "apim-${local.name_prefix}"
+
+  tags = local.common_tags
+}
+
 resource "azurerm_api_management" "main" {
   name                = "apim-${local.name_prefix}"
   location            = azurerm_resource_group.main.location
@@ -16,6 +29,9 @@ resource "azurerm_api_management" "main" {
 
   # VNet integration (external mode) — APIM can resolve private DNS and reach ILB
   virtual_network_type = "External"
+
+  # Public IP for management plane access (required for stv2 platform)
+  public_ip_address_id = azurerm_public_ip.apim.id
 
   virtual_network_configuration {
     subnet_id = azurerm_subnet.apim.id
