@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 import Link from "next/link";
 import { BackendSwitcher } from "@/components/BackendSwitcher";
+import { RuntimeConfigProvider } from "@/lib/runtime-config-context";
 
 export const metadata: Metadata = {
   title: "AIS Middleware Platform",
@@ -64,7 +65,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <BackendSwitcher />
           </div>
         </nav>
-        <main className="px-6 py-8 max-w-[1800px] mx-auto">{children}</main>
+        <main className="px-6 py-8 max-w-[1800px] mx-auto">
+          <RuntimeConfigProvider config={{ grafanaUrl, kafdropUrl }}>
+            {children}
+          </RuntimeConfigProvider>
+        </main>
       </body>
     </html>
   );

@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import clsx from "clsx";
-import { getRuntimeConfig } from "@/lib/runtime-config";
+import { useRuntimeConfig } from "@/lib/runtime-config-context";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -58,7 +58,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function SagaExplorerPage() {
-  const { grafanaUrl } = getRuntimeConfig();
+  const { grafanaUrl } = useRuntimeConfig();
   const { issuanceId } = useParams<{ issuanceId: string }>();
   const { data, error, isLoading } = useSWR<SagaRecord>(
     issuanceId ? `/api/policies/${issuanceId}` : null,

@@ -7,7 +7,7 @@ import clsx from "clsx";
 import Link from "next/link";
 import type { LogEntry } from "@/app/api/loki/route";
 import type { FlowEvent } from "@/types/eda-flow";
-import { getRuntimeConfig } from "@/lib/runtime-config";
+import { useRuntimeConfig } from "@/lib/runtime-config-context";
 
 // ─── Participants ──────────────────────────────────────────────────────────
 
@@ -1146,7 +1146,7 @@ const mongoUrl = process.env.NEXT_PUBLIC_MONGO_URL ?? "http://localhost:27017";
 
 export default function OpsPage() {
   const { issuanceId } = useParams<{ issuanceId: string }>();
-  const { grafanaUrl, kafdropUrl } = getRuntimeConfig();
+  const { grafanaUrl, kafdropUrl } = useRuntimeConfig();
 
   const { data: saga, error: sagaError, isLoading: sagaLoading } = useSWR<SagaRecord>(
     issuanceId ? `/api/policies/${issuanceId}` : null,
