@@ -77,6 +77,9 @@ dependencies:
 - name: microservice
   repository: file://../charts/microservice
   version: 0.1.0
+- name: artemis
+  repository: file://../charts/artemis
+  version: 0.1.0
 - name: kafdrop
   repository: file://../charts/kafdrop
   version: 0.1.0
@@ -98,5 +101,5 @@ dependencies:
 - name: grafana
   repository: https://grafana.github.io/helm-charts
   version: 8.5.1
-digest: sha256:23e19d0962f5c2bc09dccb83569058796f53d207f4e700a7fea9997d5808eea4
-generated: "2026-06-01T23:53:25.8356518-04:00"
+digest: sha256:c3db870e3e965654dcde90918049d2eac390b7e5eb8629a7bdad7be83402e372
+generated: "2026-06-05T11:57:10.3342362-04:00"
