@@ -11,8 +11,10 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   await headers(); // Force dynamic rendering — ensures env vars are read at request time
-  const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL || "http://localhost:3001";
-  const kafdropUrl = process.env.NEXT_PUBLIC_KAFDROP_URL || "http://localhost:9000";
+  // Use non-NEXT_PUBLIC_ prefix so Next.js doesn't inline these at build time.
+  // These are read from pod env at request time and injected into window for client components.
+  const grafanaUrl = process.env.GRAFANA_PUBLIC_URL || "http://localhost:3001";
+  const kafdropUrl = process.env.KAFDROP_PUBLIC_URL || "http://localhost:9000";
 
   return (
     <html lang="en">

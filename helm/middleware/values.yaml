@@ -980,6 +980,9 @@ platform-ui:
     NEXT_PUBLIC_API_BASE: "{{ .Values.global.apim.gatewayUrl }}"
     NEXT_PUBLIC_KAFDROP_URL: "/proxy/kafdrop"
     NEXT_PUBLIC_GRAFANA_URL: "/proxy/grafana"
+    # Server-side runtime URLs for client-link injection (not inlined at build time)
+    KAFDROP_PUBLIC_URL: "/proxy/kafdrop"
+    GRAFANA_PUBLIC_URL: "/proxy/grafana"
     # Server-side proxy targets (Next.js API routes → K8s services)
     POLICY_ISSUANCE_SERVICE_URL: "http://middleware-policy-issuance-service:80"
     DOTNET_POLICY_ISSUANCE_URL: "http://middleware-dotnet-policy-issuance:80"

@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
 
-const kafdropUrl = process.env.NEXT_PUBLIC_KAFDROP_URL || "http://localhost:9000";
-const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL || "http://localhost:3001";
-
 export default function EventsPage() {
+  // Read inside component so values are picked up per-request, not at module load.
+  // Use non-NEXT_PUBLIC_ prefix so values aren't inlined at build time.
+  const kafdropUrl = process.env.KAFDROP_PUBLIC_URL || "http://localhost:9000";
+  const grafanaUrl = process.env.GRAFANA_PUBLIC_URL || "http://localhost:3001";
+
   return (
     <div className="space-y-6">
       <div>
