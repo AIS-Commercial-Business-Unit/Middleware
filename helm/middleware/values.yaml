@@ -978,8 +978,8 @@ platform-ui:
     NODE_ENV: "production"
     HOSTNAME: "0.0.0.0"
     NEXT_PUBLIC_API_BASE: "{{ .Values.global.apim.gatewayUrl }}"
-    NEXT_PUBLIC_KAFDROP_URL: "https://kafdrop.middleware.internal"
-    NEXT_PUBLIC_GRAFANA_URL: "https://grafana.middleware.internal"
+    NEXT_PUBLIC_KAFDROP_URL: "/proxy/kafdrop"
+    NEXT_PUBLIC_GRAFANA_URL: "/proxy/grafana"
     # Server-side proxy targets (Next.js API routes → K8s services)
     POLICY_ISSUANCE_SERVICE_URL: "http://middleware-policy-issuance-service:80"
     DOTNET_POLICY_ISSUANCE_URL: "http://middleware-dotnet-policy-issuance:80"
