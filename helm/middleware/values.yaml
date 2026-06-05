@@ -1506,7 +1506,8 @@ grafana:
       allow_sign_up: false
     server:
       # Served via Next.js reverse proxy at /proxy/grafana on the platform-ui domain.
-      root_url: "%(protocol)s://%(http_host)s/proxy/grafana/"
+      # Use a literal URL because Helm chart templating interferes with %(...)s tokens.
+      root_url: "http://middleware-dev.eastus2.cloudapp.azure.com/proxy/grafana/"
       serve_from_sub_path: true
 
   # Pre-wire datasources mirroring observability/grafana-datasources.yaml.
