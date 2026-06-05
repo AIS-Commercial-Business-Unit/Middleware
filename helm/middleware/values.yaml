@@ -1504,6 +1504,7 @@ grafana:
       disable_login_form: false
     users:
       allow_sign_up: false
+      viewers_can_edit: true  # Required for anonymous Viewers to use Explore (drill-deeper queries)
     server:
       # Served via Next.js reverse proxy at /proxy/grafana on the platform-ui domain.
       # Use a literal URL because Helm chart templating interferes with %(...)s tokens.
