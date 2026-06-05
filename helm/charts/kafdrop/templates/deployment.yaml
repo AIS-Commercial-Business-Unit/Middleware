@@ -44,7 +44,9 @@ spec:
               request.timeout.ms=60000
               session.timeout.ms=45000
               EOF
-              export KAFKA_BROKERCONNECT="{{ .Values.global.azure.eventhubsNamespace }}.servicebus.windows.net:9093"
+              # Strip leading whitespace from heredoc (indented for readability)
+              sed -i 's/^[[:space:]]*//' /tmp/kafka.properties
+              export KAFKA_BROKERCONNECT="{{ tpl .Values.kafkaBrokerConnect . }}"
               export KAFKA_PROPERTIES_FILE=/tmp/kafka.properties
               export JVM_OPTS="{{ .Values.jvmOpts }}"
               export SERVER_SERVLET_CONTEXTPATH="/"
@@ -52,7 +54,7 @@ spec:
           {{- else }}
           env:
             - name: KAFKA_BROKERCONNECT
-              value: "{{ .Values.global.azure.eventhubsNamespace }}.servicebus.windows.net:9093"
+              value: "{{ tpl .Values.kafkaBrokerConnect . }}"
             - name: KAFKA_PROPERTIES_FILE
               value: /etc/kafdrop/kafka.properties
             - name: JVM_OPTS

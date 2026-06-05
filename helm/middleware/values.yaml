@@ -1053,7 +1053,7 @@ kafdrop:
   enabled: true
 
   # Event Hubs Kafka endpoint (port 9093 required for Kafka protocol)
-  kafkaBrokerConnect: "{{ .Values.global.azure.eventhubsNamespace }}.servicebus.windows.net:9093"
+  kafkaBrokerConnect: "{{ .Values.global.eventhubs.bootstrapServers }}"
 
   securityProtocol: SASL_SSL
   saslMechanism: PLAIN
