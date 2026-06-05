@@ -10,13 +10,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001";
+  const kafdropUrl = process.env.NEXT_PUBLIC_KAFDROP_URL ?? "http://localhost:9000";
 
   return (
     <html lang="en">
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `if(!crypto.randomUUID){crypto.randomUUID=function(){return'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,function(c){return(+c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>+c/4).toString(16)})}}`,
+            __html: `window.__RUNTIME_CONFIG__=${JSON.stringify({ grafanaUrl, kafdropUrl })};if(!crypto.randomUUID){crypto.randomUUID=function(){return'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,function(c){return(+c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>+c/4).toString(16)})}}`,
           }}
         />
       </head>

@@ -7,6 +7,7 @@ import clsx from "clsx";
 import Link from "next/link";
 import type { LogEntry } from "@/app/api/loki/route";
 import type { FlowEvent } from "@/types/eda-flow";
+import { getRuntimeConfig } from "@/lib/runtime-config";
 
 // ─── Participants ──────────────────────────────────────────────────────────
 
@@ -1141,12 +1142,11 @@ function durationMs(start: string, end: string | null): string {
 
 // ─── Page ────────────────────────────────────────────────────────────────
 
-const kafdropUrl = process.env.NEXT_PUBLIC_KAFDROP_URL ?? "http://localhost:9000";
-const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001";
 const mongoUrl = process.env.NEXT_PUBLIC_MONGO_URL ?? "http://localhost:27017";
 
 export default function OpsPage() {
   const { issuanceId } = useParams<{ issuanceId: string }>();
+  const { grafanaUrl, kafdropUrl } = getRuntimeConfig();
 
   const { data: saga, error: sagaError, isLoading: sagaLoading } = useSWR<SagaRecord>(
     issuanceId ? `/api/policies/${issuanceId}` : null,

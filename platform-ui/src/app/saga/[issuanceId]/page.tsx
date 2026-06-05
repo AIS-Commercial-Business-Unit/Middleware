@@ -3,8 +3,7 @@
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import clsx from "clsx";
-
-const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001";
+import { getRuntimeConfig } from "@/lib/runtime-config";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -59,6 +58,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function SagaExplorerPage() {
+  const { grafanaUrl } = getRuntimeConfig();
   const { issuanceId } = useParams<{ issuanceId: string }>();
   const { data, error, isLoading } = useSWR<SagaRecord>(
     issuanceId ? `/api/policies/${issuanceId}` : null,
