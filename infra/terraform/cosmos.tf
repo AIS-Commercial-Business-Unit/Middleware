@@ -38,3 +38,28 @@ resource "azurerm_cosmosdb_mongo_database" "platform" {
   resource_group_name = azurerm_resource_group.main.name
   account_name        = azurerm_cosmosdb_account.main.name
 }
+
+# ─── Collections with required indexes ──────────────────────────────────────────
+
+resource "azurerm_cosmosdb_mongo_collection" "file_batches" {
+  name                = "file_batches"
+  resource_group_name = azurerm_resource_group.main.name
+  account_name        = azurerm_cosmosdb_account.main.name
+  database_name       = azurerm_cosmosdb_mongo_database.platform.name
+
+  default_ttl_seconds = -1
+  shard_key           = "_id"
+
+  index {
+    keys   = ["_id"]
+    unique = true
+  }
+
+  index {
+    keys = ["receivedAt"]
+  }
+
+  index {
+    keys = ["status"]
+  }
+}

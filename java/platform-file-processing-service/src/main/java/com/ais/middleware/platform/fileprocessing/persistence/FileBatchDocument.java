@@ -1,6 +1,7 @@
 package com.ais.middleware.platform.fileprocessing.persistence;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.OffsetDateTime;
@@ -24,6 +25,7 @@ public class FileBatchDocument {
     private int succeededRecords;
     private int failedRecords;
     private String status;
+    @Indexed(direction = org.springframework.data.mongodb.core.index.IndexDirection.DESCENDING)
     private OffsetDateTime receivedAt;
     private OffsetDateTime parsingCompletedAt;
     private OffsetDateTime processingCompletedAt;
