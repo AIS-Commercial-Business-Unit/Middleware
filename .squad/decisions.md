@@ -1,78 +1,6 @@
 # Squad Decisions
 
 ## Active Decisions
-
-### 16. EDA Events vs Commands Discipline (2026-05-27)
-- A service NEVER commands another service to do what it should subscribe to. Use Publish → Subscribe, not Send → Handle.
-- Commands are for entry points only: user-facing API → first domain service. Never between domain services.
-- Events communicate state changes. Domain services subscribe to events and act autonomously.
-- **Reference:** Udi Dahan principle; https://docs.particular.net/nservicebus/messaging/messages-events-commands
-- **Applied to:** Java UC1 Policy Issuance flow and .NET UC1 Policy Issuance flow (reworked both stacks)
-
-### 17. Java UC1 EDA events-vs-commands fix (2026-05-27)
-- `IssuanceSagaRoute` now publishes `PolicyIssuanceInitiatedEvent` and `AccountLookupRequestedEvent` instead of commanding downstream services
-- BillingAndFinance and CustomerIdentity now subscribe directly to `integration.events.policy-admin-system-response-received` (fan-out event carries `accountServiceRequestNumber`)
-- Restores Udi Dahan / NServiceBus EDA semantics across Java stack
-
-### 18. DotNet UC1 EDA command-to-event correction (2026-05-27)
-- `IssuanceSaga` now publishes `PolicyIssuanceInitiatedEvent` instead of sending `RequestComplianceCheckCommand`
-- `IssuanceSaga` now publishes `AccountLookupRequestedEvent` instead of sending `GetOrCreateAccountServiceRecordCommand`
-- `IssuePolicyRequestedEvent` remains PAS trigger and carries `AccountServiceRequestNumber`
-- `PasGatewayHandler` subscribes to `IssuePolicyRequestedEvent`, republishes `PolicyAdminSystemResponseReceivedEvent` with `AccountServiceRequestNumber`
-- Saga records progress and waits for completion events instead of commanding external side effects
-
-### 19. Backend EDA flow logging for policy-issuance-service (2026-05-27)
-- Add `EDAFlowProcessor` in `com.ais.middleware.policy.issuance.observability` (Java)
-- Wire into `IssuanceSagaRoute` with `interceptFrom("kafka:*")` for consumes and `interceptSendToEndpoint("kafka:*")` for publishes
-- Enrich MDC with: `EDA_Event`, `EDA_IssuanceId`, `EDA_MessageType`, `EDA_From`, `EDA_To`, `EDA_Topic`, `EDA_Direction`, `EDA_Stack`
-- Guarantees consistent logging for every route-level Kafka hop in the orchestrator
-- Keeps observability concerns out of saga/domain processors
-
-### 20. DotNet EDA_FLOW NServiceBus pipeline logging (2026-05-27)
-- Emit structured `EDA_FLOW` Serilog entries from `dotnet-policy-issuance` NServiceBus pipeline behaviors
-- Added `EDAFlowIncomingBehavior` for consumed messages, `EDAFlowOutgoingBehavior` for published/sent messages
-- Same `EDA_*` property contract across stacks (event, issuanceId, messageType, from, to, direction, stack, topic)
-- Registered in `Program.cs` before `NServiceBus.Endpoint.Start()` using Serilog-backed `LoggerFactory`
-- Endpoint-to-participant mapping provides stable labels for Loki queries (e.g., `PolicyIssuance`, `Compliance`, `CustomerIdentity`)
-
-### 21. Frontend runtime backend switcher + UC1 diagram correction (2026-05-27)
-- Platform UI chooses active Java/.NET backend at request time via `active-backend` cookie
-- Added `platform-ui/src/app/api/backend/route.ts` to read/write backend cookie
-- Updated proxy routes to resolve backend targets from request cookie, not build-time env only
-- Added `BackendSwitcher` client island in top nav for runtime stack flipping
-- Corrected ops sequence diagram to mark all steps on `Completed`, replaced command arrows with event-only UC1 topology
-- PAS fan-out and parallel completion events now reflected in diagram
-
-### 22. Dynamic sequence diagram from Loki EDA_FLOW (2026-05-27)
-- UC1 ops page prefers live `EDA_FLOW` events from Loki for sequence diagram
-- Falls back to curated static topology when no flow events available yet
-- Added `platform-ui/src/types/eda-flow.ts` for typed `FlowEvent` contract
-- Added `platform-ui/src/app/api/policies/[issuanceId]/flow/route.ts` Loki proxy route
-- Loki proxy parses structured `EDA_FLOW` JSON, normalizes Java/.NET payloads, deduplicates edges, returns sorted events
-- Updated `platform-ui/src/app/ops/[issuanceId]/page.tsx` to poll flow endpoint with live/static badge
-- Reuses existing participant columns and SVG renderer for consistency
-
-### 23. Udi Dahan as EDA authority (2026-05-27)
-- Whenever architectural questions about event-driven architecture arise, research Udi Dahan's opinion
-- Follow Udi Dahan principles as guiding authority for EDA design decisions on this project
-- Reference: https://docs.particular.net/nservicebus/messaging/messages-events-commands
-
-### 24. Backend EDA flow logging in all Java services (2026-05-27)
-- Extend Java `EDA_FLOW` observability beyond `policy-issuance-service` to all satellite services
-- Add `EDAFlowProcessor` to each service: `platform-compliance-service`, `customer-identity-service`, `platform-integration-service`, `billing-finance-service`, `platform-notification-service`
-- Wire `interceptFrom("kafka:*")` and `interceptSendToEndpoint("kafka:*")` at route builder level
-- Keep observability at Camel route boundary, out of domain processors
-- **Verification:** All five services instrumented, containers rebuilt and deployed, verified complete EDA_FLOW entries for policy issuance end-to-end
-
-### 25. DotNet UC1 flow parity (2026-05-27)
-- Use `.docs/req/use-cases.html` as source of truth for UC1 participant/message ordering
-- Treat `.NET saga as event-driven, render canonical flow through `EDA_FLOW` labels
-- Map UC1 edges explicitly in `EDAFlowBehavior`: IssuePolicyCommand, PolicyIssuanceInitiatedEvent, AccountLookupRequestedEvent, IssuePolicyRequestedEvent, PolicyIssuedEvent
-- Preserve canonical publish/subscribe semantics + add SQL transport reliability fallbacks
-- Seed `dbo.SubscriptionRouting` deterministically, start Integration after main .NET subscribers are healthy
-- Publish `PolicyAdminSystemResponseReceivedEvent` then direct-send to policy-issuance, billing, customer
-- **Verification:** Build passed, all 6 tests passed, live issuance 232eb4f4 reached Completed with canonical flow
-
 ### 26. Frontend Hover Tooltips for Ops Sequence Diagram (2026-05-27)
 - Add hover tooltips to sequence diagram arrows with event metadata
 - Extend `FlowEvent` with typed `details` object: `topic`, `direction`, `stack`, `timestamp`, `description`
@@ -203,6 +131,132 @@
 - Applies to all BusyBox-based images in docker-compose.yml; images using full glibc (Debian/Ubuntu-based) also respect `127.0.0.1` so this change is safe everywhere
 - Applied to `mongo-express` (fixed FailingStreak 644 → healthy)
 - Apply to any new health checks added to docker-compose.yml; review existing health checks when adding new BusyBox-based services
+
+
+### 49. 20260607125934: EDA pattern directive — sagas start from events, never commands
+**By:** Steven Suing (via Copilot)
+**What:** When a saga or handler needs to be triggered by a workflow step, publish an event and let the saga/handler subscribe to it. Never send a direct command to a saga when an event already exists that semantically represents the same intent. The canonical example is AppraisalDocumentRetrievalRequestedEvent — both AtWorkDocumentRetrievalHandler and MainframeDocumentAggregatorSaga must subscribe to it, not be sent commands. Collapse any 'subscribe to event then send command to self' indirection into a direct event subscription on the saga.
+**Why:** User request — reinforcing event-driven architecture, avoids point-to-point command coupling between sagas
+
+### 50. (Merged from dotnet-accumulator-refactor.md)
+Decision: Move mainframe MQ accumulation off NServiceBus saga rows (2026-06-01)
+
+Context:
+- `MainframeListAggregatorSaga` and `MainframeDocumentAggregatorSaga` were storing concurrent MQ part/chunk updates directly on saga rows.
+- NServiceBus SQL persistence uses optimistic concurrency on saga row versions, so simultaneous part events retried and amplified duplicate upstream MQ work.
+
+Decision:
+- Persist mainframe list parts in side tables `mf_list_headers` and `mf_list_parts`, keyed by request id and sequence number.
+- Persist mainframe document chunks in side tables `mf_document_headers` and `mf_document_chunks`, and let the first final-chunk handler that flips `CompletedAt` publish the completion event.
+- Keep sagas responsible for request kickoff, timeout ownership, and publishing the existing downstream completion events, but remove part/chunk accumulation state from saga data.
+- Create the side tables at service startup with `AccumulatorRepository.EnsureCreatedAsync()` using the existing `ConnectionStrings:NServiceBus` SQL connection.
+
+Consequences:
+- Concurrent MQ replies no longer hot-spot the same saga row, so list/document accumulation can complete without row-version retry storms.
+- Timeout behavior stays in the sagas; list timeout can still emit partial results by reading the accumulator tables, while document timeout preserves the empty fallback.
+- The Kafka bridge contract remains stable because downstream events (`MainframeDocumentListCompletedEvent`, `AppraisalDocumentRetrievedEvent`) are unchanged.
+
+### 51. (Merged from dotnet-callbacks-to-polling.md)
+Decision: Replace NServiceBus Callbacks with MongoDB Polling (2026-06-01)
+
+### 52. 2026-06-07: MainframeDocumentAggregatorSaga now starts from AppraisalDocumentRetrievalRequestedEvent
+**By:** DotNet (requested by Steven Suing)
+**What:** Removed StartMainframeDocumentAggregationCommand. DocumentRetrievalSaga now always publishes AppraisalDocumentRetrievalRequestedEvent (with SourceSystem field) for both AtWork and Mainframe paths. MainframeDocumentAggregatorSaga subscribes to this event (skipping AtWork requests). AtWorkDocumentRetrievalHandler likewise skips Mainframe requests.
+**Why:** Enforces the established EDA pattern: handlers/sagas must start from published events, not point-to-point commands. Mirrors DocumentListSaga pattern (AppraisalDocumentListRequestedEvent fans out to both AtWork and Mainframe handlers). Eliminates command coupling between DocumentRetrievalSaga and MainframeDocumentAggregatorSaga.
+**Impact:** StartMainframeDocumentAggregationCommand deleted. SourceSystem added to AppraisalDocumentRetrievalRequestedEvent. All existing tests updated.
+
+### 53. (Merged from ui-sequence-diagram-lifeline-convention.md)
+# Decision: EDA Sequence Diagram Lifeline Convention
+
+**Author:** Copilot (UI/observability)  
+**Date:** 2025-08-01  
+**Status:** Proposed
+
+## Context
+
+The UC4 EDA flow tracer renders a sequence diagram from structured Loki log entries.
+Early versions used endpoint-level lifelines (`PrsAppraisal`) instead of handler-level
+lifelines, causing self-arrows (e.g. `PrsAppraisal → PrsAppraisal`) and NServiceBus
+routing artefacts (`broadcast`, `AllSubscribers`) to appear as participants.
+
+## Decision
+
+### 1. Lifeline granularity — handlers and sagas, not endpoints
+
+Lifelines must represent the **handler or saga** that performs work, not the NServiceBus
+endpoint that hosts it.  The hosting endpoint is shown as a small `«qualifier»` above
+the lifeline label.
+
+Format inside the SVG lifeline box:
+
+```
+┌──────────────────────┐
+│  «prs-appraisal»     │  ← italic, 8 px, 60 % opacity
+│  Document            │  ← bold, 10 px, white, wrapped
+│  List Saga           │
+└──────────────────────┘
+```
+
+### 2. Participant ID contract
+
+The `id` field in the UI `PARTICIPANTS` constant **must match exactly** (case-sensitive)
+the values emitted into `EDA_From`, `EDA_To`, and `EDA_Handler` by `EDAFlowBehavior.cs`.
+
+Canonical UC4 participant IDs:
+
+| ID                             | Endpoint qualifier | Display label            |
+|--------------------------------|--------------------|--------------------------|
+| `user`                         | *(actor)*          | User (stick figure)      |
+| `AppraisalDocumentsController` | `prs-appraisal`    | Appraisal Documents Ctrl |
+| `DocumentListSaga`             | `prs-appraisal`    | Document List Saga       |
+| `DocumentRetrievalSaga`        | `prs-appraisal`    | Document Retrieval Saga  |
+| `MainframeListAggregator`      | `prs-appraisal`    | Mainframe List Aggregator|
+| `MainframeDocumentAggregator`  | `prs-appraisal`    | Mainframe Doc Aggregator |
+| `AtWorkDocumentListHandler`    | `prs-appraisal`    | AtWork Doc List Handler  |
+| `AtWorkDocumentRetrievalHandler` | `prs-appraisal` | AtWork Doc Retrieval Hdlr|
+| `AtWork`                       | `atwork`           | AtWork SQL               |
+| `Mainframe`                    | `mainframe`        | IBM MQ (Mainframe)       |
+
+### 3. User actor
+
+The initiating lifeline for any flow triggered by a human is `user` with `isActor: true`.
+It renders as a UML stick figure.  In the live diagram a synthetic
+`user → AppraisalDocumentsController: HTTP GET /api/documents` step is prepended
+automatically when `AppraisalDocumentsController` appears in the event set.
+
+### 4. Suppress routing artefacts everywhere
+
+`broadcast` and `AllSubscribers` must **never** appear as lifelines or step endpoints.
+They are NServiceBus routing implementation details, not EDA participants.
+
+Suppression happens at two levels (defence in depth):
+1. **`EDAFlowBehavior.cs`** — the outgoing behavior only logs messages with a
+   *known point-to-point target*; fan-out events are shown through each subscriber's
+   `handled` entry instead.
+2. **`platform-ui` route.ts + page.tsx** — a `SUPPRESSED_IDS` set removes any event
+   or participant whose `from`/`to` matches `broadcast` or `allsubscribers`
+   (case-insensitive).
+
+### 5. Outgoing behavior uses AsyncLocal handler context
+
+`AppraisalEDAFlowOutgoingBehavior` attributes outgoing messages to the **currently
+executing handler** (via `AsyncLocal<string?> AppraisalCurrentHandlerContext.HandlerTypeName`)
+rather than the endpoint name.  This ensures arrows like
+`DocumentListSaga → AtWorkDocumentListHandler` are accurate even when both reside in the
+same endpoint.
+
+### 6. Long labels wrap with `\n`
+
+Labels in `PARTICIPANTS` use `\n` to force line breaks.  The SVG renderer splits on `\n`
+and stacks `<text>` elements.  Keep labels ≤ 3 lines to fit the fixed box height.
+
+## Consequences
+
+- Adding a new handler/saga to `dotnet-prs-appraisal` requires a matching entry in
+  both `HandlerToParticipant` (behavior) and `PARTICIPANTS` (UI).
+- The participant ID must not change once used in production logs (it is burned into Loki).
+  If a rename is required, add the old ID as an alias in the UI mapping.
+
 
 ## Governance
 
@@ -771,4 +825,5 @@ HTTP 404
 - Render separate subscriber arrows for handled fan-out deliveries and group consecutive sibling rows with a subtle fan-out bracket
 - Show a ServicePulse-style compact timeline plus sub-saga summaries for UC4 when `saga == null && isUc4Flow(events)`
 - **Rationale:** Keeps the UX useful while preserving the existing UC1 saga card for policy issuance flows
+
 
