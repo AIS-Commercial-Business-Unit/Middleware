@@ -138,3 +138,28 @@ output "vnet_name" {
   description = "VNet name for the AKS cluster."
   value       = azurerm_virtual_network.main.name
 }
+
+# ------------------------------------------------------------------------------
+# Windows Jumpbox VM (Particular Service Platform host)
+# ------------------------------------------------------------------------------
+
+output "vm_public_ip" {
+  description = "Public IP address of the Windows jumpbox VM."
+  value       = azurerm_public_ip.vm.ip_address
+}
+
+output "vm_private_ip" {
+  description = "Private IP of the Windows jumpbox VM in the main VNet."
+  value       = azurerm_network_interface.vm.private_ip_address
+}
+
+output "vm_admin_username_secret_uri" {
+  description = "Key Vault secret URI for the VM admin username."
+  value       = azurerm_key_vault_secret.vm_admin_username.id
+}
+
+output "vm_admin_password_secret_uri" {
+  description = "Key Vault secret URI for the VM auto-generated admin password."
+  value       = azurerm_key_vault_secret.vm_admin_password.id
+  sensitive   = true
+}

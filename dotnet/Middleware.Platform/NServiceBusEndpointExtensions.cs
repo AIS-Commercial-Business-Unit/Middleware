@@ -1,7 +1,6 @@
 namespace Middleware.Platform;
 
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using NServiceBus;
 
 public static class NServiceBusEndpointExtensions

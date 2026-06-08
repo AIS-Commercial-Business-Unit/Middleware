@@ -125,3 +125,19 @@ variable "keyvault_sku" {
   type        = string
   default     = "standard"
 }
+
+# ------------------------------------------------------------------------------
+# Linux Jumpbox VM
+# ------------------------------------------------------------------------------
+
+variable "vm_size" {
+  description = "Azure VM size for the Linux jumpbox."
+  type        = string
+  default     = "Standard_D2s_v5"
+}
+
+variable "vm_admin_username" {
+  description = "Admin username for the Linux jumpbox VM. Password is auto-generated and stored in Key Vault."
+  type        = string
+  default     = "azureuser"
+}
