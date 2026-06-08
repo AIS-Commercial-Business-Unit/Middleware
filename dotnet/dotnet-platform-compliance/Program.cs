@@ -5,6 +5,7 @@ using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Formatting.Json;
 using NServiceBus;
+using Middleware.Platform;
 using dotnet_platform_compliance.Handlers;
 using dotnet_platform_compliance.Infrastructure;
 
@@ -46,6 +47,7 @@ persistence.SqlDialect<SqlDialect.MsSqlServer>();
 persistence.ConnectionBuilder(() => new SqlConnection(sqlConnectionString));
 persistence.TablePrefix("nsb");
 
+endpointConfiguration.ApplyParticularPlatformDefaults(builder.Configuration);
 builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
 
 var app = builder.Build();

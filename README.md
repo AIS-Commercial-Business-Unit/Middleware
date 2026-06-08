@@ -96,6 +96,42 @@ docker compose up --build
 
 ---
 
+## Particular Service Platform (ServicePulse)
+
+The `.NET` stack integrates with [Particular ServicePulse](https://particular.net/servicepulse) for message monitoring, heartbeats, and failed message management. It requires a separate compose overlay and a `License.xml` file from Particular Software.
+
+**Normal start** (main stack + ServicePulse):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.particular.yml up -d
+```
+
+**Full clean reset** (deletes RavenDB data — use only when you need a fresh ServiceControl state):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.particular.yml down -v --remove-orphans
+docker compose -f docker-compose.yml -f docker-compose.particular.yml up -d
+```
+
+**ServicePulse URLs:**
+
+| Service | URL |
+|---|---|
+| ServicePulse UI | http://localhost:9091 |
+| ServiceControl API | http://localhost:33333/api |
+| ServiceControl Audit API | http://localhost:44445/api |
+| ServiceControl Monitoring API | http://localhost:33633/monitoring-api |
+| RavenDB (ServiceControl storage) | http://localhost:8080 |
+
+**Validation commands:**
+```bash
+docker compose -f docker-compose.yml -f docker-compose.particular.yml ps
+docker compose -f docker-compose.yml -f docker-compose.particular.yml logs servicepulse
+docker compose -f docker-compose.yml -f docker-compose.particular.yml logs servicecontrol
+docker compose -f docker-compose.yml -f docker-compose.particular.yml logs servicecontrol-monitoring
+docker compose -f docker-compose.yml -f docker-compose.particular.yml logs servicecontrol-audit
+```
+
+---
+
 ## Architecture Overview
 
 ```

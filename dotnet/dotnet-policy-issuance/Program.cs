@@ -10,6 +10,7 @@ using dotnet_policy_issuance.Infrastructure;
 using dotnet_policy_issuance.Sagas;
 using Middleware.Contracts.Commands;
 using NServiceBus;
+using Middleware.Platform;
 
 var builder = WebApplication.CreateBuilder(args);
 var serviceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "dotnet-policy-issuance";
@@ -66,6 +67,7 @@ persistence.SqlDialect<SqlDialect.MsSqlServer>();
 persistence.ConnectionBuilder(() => new SqlConnection(sqlConnectionString));
 persistence.TablePrefix("nsb");
 
+endpointConfiguration.ApplyParticularPlatformDefaults(builder.Configuration, withSagaAudit: true);
 builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
 
 var app = builder.Build();

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using NServiceBus;
+using Middleware.Platform;
 using Serilog;
 using Serilog.Formatting.Json;
 using dotnet_kafka_bridge.Infrastructure;
@@ -40,6 +41,7 @@ var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
 transport.ConnectionString(sqlConnectionString);
 transport.Transactions(TransportTransactionMode.ReceiveOnly);
 
+endpointConfiguration.ApplyParticularPlatformDefaults(builder.Configuration);
 builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
 
 var app = builder.Build();

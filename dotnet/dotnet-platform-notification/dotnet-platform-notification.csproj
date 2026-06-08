@@ -4,6 +4,7 @@
       </PropertyGroup>
       <ItemGroup>
         <ProjectReference Include="..\Middleware.Contracts\Middleware.Contracts.csproj" />
+        <ProjectReference Include="..\Middleware.Platform\Middleware.Platform.csproj" />
       </ItemGroup>
       <ItemGroup>
         <PackageReference Include="Microsoft.Data.SqlClient" Version="7.*" />

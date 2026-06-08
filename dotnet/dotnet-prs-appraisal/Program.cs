@@ -4,6 +4,7 @@ using dotnet_prs_appraisal.Infrastructure;
 using Microsoft.Data.SqlClient;
 using MongoDB.Driver;
 using NServiceBus;
+using Middleware.Platform;
 using Serilog;
 using Serilog.Formatting.Json;
 
@@ -55,8 +56,7 @@ persistence.ConnectionBuilder(() => new SqlConnection(nServiceBusConnectionStrin
 
 endpointConfiguration.EnableInstallers();
 endpointConfiguration.UseSerialization<SystemJsonSerializer>();
-endpointConfiguration.SendFailedMessagesTo("error");
-endpointConfiguration.AuditProcessedMessagesTo("audit");
+endpointConfiguration.ApplyParticularPlatformDefaults(builder.Configuration, withSagaAudit: true);
 endpointConfiguration.Pipeline.Register(typeof(AppraisalEDAFlowHandlerInvokeBehavior), "Logs EDA flow events at handler invocation for subscriber fan-out visibility.");
 endpointConfiguration.Pipeline.Register(typeof(AppraisalEDAFlowOutgoingBehavior), "Logs outgoing EDA flow events.");
 

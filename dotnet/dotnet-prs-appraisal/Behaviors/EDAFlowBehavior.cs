@@ -61,23 +61,16 @@ file static class AppraisalParticipantMap
     };
 
     /// <summary>
-    /// Known direct-routed message types where we know the exact destination at
-    /// publish time.  Events with multiple subscribers are intentionally omitted;
-    /// their fan-out is visible through the handled entries of each subscriber.
+    /// All NServiceBus messages in this endpoint are intra-endpoint: both sender and
+    /// receiver live in dotnet-prs-appraisal.  The incoming handler behavior
+    /// (AppraisalEDAFlowHandlerInvokeBehavior) already logs a handled entry for every
+    /// message, with the correct FROM participant via the EDA-Publisher header stamped
+    /// by the outgoing behavior.  Populating this map caused the outgoing behavior to
+    /// also log a published entry, producing two EDA_FLOW rows per message and doubling
+    /// the arrows on the ops sequence diagram (e.g. 6 arrows for 3 mainframe reply events).
+    /// Keep this empty; the EDA-Publisher header is still stamped unconditionally.
     /// </summary>
-    private static readonly Dictionary<string, string> MessageTypeToKnownTarget = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["GetAppraisalDocumentListCommand"]             = "DocumentListSaga",
-        ["RetrieveAppraisalDocumentCommand"]            = "DocumentRetrievalSaga",
-        ["AtWorkDocumentListCompletedEvent"]         = "DocumentListSaga",
-        ["AtWorkDocumentRetrievedEvent"]             = "DocumentRetrievalSaga",
-        ["MainframeAppraisalListPartReceivedEvent"]        = "MainframeListAggregator",
-        ["MainframeListAccumulationCompleteEvent"]         = "MainframeListAggregator",
-        ["MainframeDocumentChunkReceivedEvent"]            = "MainframeDocumentAggregator",
-        ["MainframeDocumentAccumulationCompleteEvent"]     = "MainframeDocumentAggregator",
-        ["MainframeDocumentListCompletedEvent"]            = "DocumentListSaga",
-        ["AppraisalDocumentRetrievedEvent"]                = "DocumentRetrievalSaga",
-    };
+    private static readonly Dictionary<string, string> MessageTypeToKnownTarget = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly HashSet<string> SuppressedOutgoing = new(StringComparer.OrdinalIgnoreCase)
     {

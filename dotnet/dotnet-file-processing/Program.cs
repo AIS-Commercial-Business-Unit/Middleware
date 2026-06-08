@@ -2,6 +2,7 @@ using Microsoft.Data.SqlClient;
 using Middleware.Contracts.Commands;
 using MongoDB.Driver;
 using NServiceBus;
+using Middleware.Platform;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -60,8 +61,7 @@ recoverability.Delayed(delayed =>
     delayed.TimeIncrease(TimeSpan.FromSeconds(10));
 });
 
-endpointConfiguration.SendFailedMessagesTo("error");
-endpointConfiguration.AuditProcessedMessagesTo("audit");
+endpointConfiguration.ApplyParticularPlatformDefaults(builder.Configuration);
 
 builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
 

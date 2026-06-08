@@ -19,14 +19,9 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
 {
     private readonly IIssuanceSagaRecordRepository _repository;
 
-    public IssuanceSaga() : this(PolicyIssuanceRuntime.Repository)
-    {
-    }
-
     public IssuanceSaga(IIssuanceSagaRecordRepository repository)
     {
         _repository = repository;
-        Data = new IssuanceSagaData();
     }
 
     protected override void ConfigureHowToFindSaga(SagaPropertyMapper<IssuanceSagaData> mapper)
@@ -44,6 +39,7 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
 
     public async Task Handle(IssuePolicyCommand message, IMessageHandlerContext context)
     {
+        Data ??= new IssuanceSagaData();
         var firstPolicy = message.Policies.First();
         Data.IssuanceId = message.IssuanceId;
         Data.AccountId = message.AccountId;
