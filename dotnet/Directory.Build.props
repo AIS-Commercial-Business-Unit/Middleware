@@ -5,9 +5,5 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <LangVersion>13.0</LangVersion>
-    <!-- Scope NuGet vulnerability audit to direct packages only.
-         Transitive vulnerabilities (SharpCompress, Snappier via MongoDB.Driver 2.x)
-         will be resolved in Task 5 when MongoDB.Driver is upgraded to 3.x. -->
-    <NuGetAuditMode>direct</NuGetAuditMode>
   </PropertyGroup>
 </Project>
