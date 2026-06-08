@@ -34,6 +34,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <span className="font-bold text-lg tracking-tight" style={{ color: "var(--accent-light)" }}>
             AIS Middleware
           </span>
+          <Link href="/" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
+            Policy Issuance
+          </Link>
+          <Link href="/batches" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
+            Batches
+          </Link>
           <Link href="/ops" className="text-sm hover:text-white transition-colors" style={{ color: "var(--muted)" }}>
             Operations
           </Link>

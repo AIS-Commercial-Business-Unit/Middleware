@@ -21,6 +21,7 @@ services:
       CONNECTIONSTRING: ${MESSAGING_CONNECTION_STRING}
       RAVENDB_CONNECTIONSTRING: http://servicecontrol-ravendb:8080
       REMOTEINSTANCES: '[{"api_uri":"http://servicecontrol-audit:44444/api"}]'
+      SERVICECONTROL_ALLOWMESSAGEEDITING: "true"
     networks:
       - middleware-net
     depends_on:

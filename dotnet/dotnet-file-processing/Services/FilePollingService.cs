@@ -47,7 +47,14 @@ public sealed class FilePollingService : BackgroundService
 
             foreach (var file in files)
             {
-                await EnqueueFileAsync(file, stoppingToken).ConfigureAwait(false);
+                try
+                {
+                    await EnqueueFileAsync(file, stoppingToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(ex, "Failed to enqueue file — filePath={FilePath}", file);
+                }
             }
 
             await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken).ConfigureAwait(false);
@@ -57,6 +64,7 @@ public sealed class FilePollingService : BackgroundService
     private async Task EnqueueFileAsync(string filePath, CancellationToken cancellationToken)
     {
         var fileInfo = new FileInfo(filePath);
+        var fileSize = fileInfo.Length; // read before move — FileInfo.Length queries live filesystem
         var batchId = Guid.NewGuid().ToString();
 
         // Move immediately to prevent re-detection on the next polling cycle.
@@ -69,14 +77,14 @@ public sealed class FilePollingService : BackgroundService
             "File detected and queued for NServiceBus processing — batchId={BatchId} fileName={FileName} fileSizeBytes={FileSizeBytes}",
             batchId,
             fileInfo.Name,
-            fileInfo.Length);
+            fileSize);
 
         await _messageSession.Publish(new FileRetrievedDetectedEvent
         {
             BatchId = batchId,
             FileName = fileInfo.Name,
             FilePath = processingPath,
-            FileSizeBytes = fileInfo.Length,
+            FileSizeBytes = fileSize,
             DetectedAt = DateTimeOffset.UtcNow
         }, cancellationToken: cancellationToken).ConfigureAwait(false);
     }

@@ -6,7 +6,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   const joined = path.join("/");
   const search = req.nextUrl.search;
   try {
-    const fileProcessingUrl = getFileProcessingServiceUrl();
+    const fileProcessingUrl = getFileProcessingServiceUrl("dotnet");
     const upstream = await fetch(`${fileProcessingUrl}/api/v1/${joined}${search}`, {
       headers: { "Content-Type": "application/json" },
       next: { revalidate: 0 },
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
   const search = req.nextUrl.search;
   const body = await req.text();
   try {
-    const fileProcessingUrl = getFileProcessingServiceUrl();
+    const fileProcessingUrl = getFileProcessingServiceUrl("dotnet");
     const upstream = await fetch(`${fileProcessingUrl}/api/v1/${joined}${search}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -36,3 +36,4 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
     return NextResponse.json({ error: "File processing service unavailable" }, { status: 503 });
   }
 }
+

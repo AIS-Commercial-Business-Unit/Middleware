@@ -142,9 +142,9 @@ function GenerateSection({ onSuccess }: { onSuccess: () => void }) {
           <input
             type="number"
             min={1}
-            max={500}
+            max={1000}
             value={count}
-            onChange={(e) => setCount(Math.min(500, Math.max(1, Number(e.target.value))))}
+            onChange={(e) => setCount(Math.min(1000, Math.max(1, Number(e.target.value))))}
             className="w-28 rounded px-3 py-2 text-sm font-mono"
             style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
           />

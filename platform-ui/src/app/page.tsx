@@ -104,6 +104,14 @@ export default function HomePage() {
           <input value={accountId} onChange={(e) => setAccountId(e.target.value)}
             className="w-full rounded px-3 py-2 text-sm font-mono"
             style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }} required />
+          <div className="flex gap-2 flex-wrap">
+            <button type="button" onClick={() => setAccountId("FAIL-SERVICEPULSE-001")}
+              title="Intentional failure demo — NServiceBus exhausts retries and parks the message in the error queue. Open ServicePulse, edit AccountId to a valid value, and retry to resume the normal issuance flow."
+              className="px-2.5 py-1 rounded text-xs border font-mono transition-colors"
+              style={{ borderColor: accountId === "FAIL-SERVICEPULSE-001" ? "#ef4444" : "var(--border)", background: accountId === "FAIL-SERVICEPULSE-001" ? "#2d1515" : "transparent", color: accountId === "FAIL-SERVICEPULSE-001" ? "#ef4444" : "var(--muted)" }}>
+              ⚡ FAIL-SERVICEPULSE-001
+            </button>
+          </div>
         </div>
         <div className="space-y-2">
           <label className="block text-sm font-medium">Policy Type</label>
@@ -146,56 +154,6 @@ export default function HomePage() {
           {loading ? "Submitting..." : `Submit IssuePolicy Command → ${activeBackendLabel}`}
         </button>
       </form>
-      <Link
-        href="/batches"
-        className="flex items-center justify-between rounded-lg border p-4 hover:border-indigo-500 transition-colors group"
-        style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-      >
-        <div>
-          <p className="font-semibold text-sm group-hover:text-white transition-colors" style={{ color: "var(--accent-light)" }}>
-            UC3 · Automated Renewal Batch
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-            Generate and process bulk renewal files through the file processing pipeline
-          </p>
-        </div>
-        <span className="text-lg" style={{ color: "var(--muted)" }}>→</span>
-      </Link>
-      <Link
-        href="/uc4"
-        className="flex items-center justify-between rounded-lg border p-4 hover:border-indigo-500 transition-colors group"
-        style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-      >
-        <div>
-          <div className="flex items-center gap-2">
-            <p className="font-semibold text-sm group-hover:text-white transition-colors" style={{ color: "var(--accent-light)" }}>
-              UC4 · Appraisal Documents
-            </p>
-            <span className="text-xs px-1.5 py-0.5 rounded font-bold" style={{ background: "#f59e0b22", color: "#f59e0b" }}>
-              ⚠️ DEMO
-            </span>
-          </div>
-          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-            RiskID status update → AppraisalReceivedSaga — UW determination, parallel execution, gateway stubs
-          </p>
-        </div>
-        <span className="text-lg" style={{ color: "var(--muted)" }}>→</span>
-      </Link>
-      <Link
-        href="/demo-control"
-        className="flex items-center justify-between rounded-lg border p-4 hover:border-yellow-500 transition-colors group"
-        style={{ borderColor: "#f59e0b44", background: "#f59e0b0d" }}
-      >
-        <div>
-          <p className="font-semibold text-sm group-hover:text-white transition-colors" style={{ color: "#f59e0b" }}>
-            🎛️ Demo Control Panel
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-            Reset demo environment · health checks · seed UC4 data · status log
-          </p>
-        </div>
-        <span className="text-lg" style={{ color: "#f59e0b" }}>→</span>
-      </Link>
     </div>
   );
 }

@@ -53,6 +53,14 @@ endpointConfiguration.EnableInstallers();
 endpointConfiguration.EnableOutbox();
 endpointConfiguration.UseSerialization<SystemJsonSerializer>();
 
+var recoverability = endpointConfiguration.Recoverability();
+recoverability.Immediate(immediate => immediate.NumberOfRetries(0));
+recoverability.Delayed(delayed =>
+{
+    delayed.NumberOfRetries(1);
+    delayed.TimeIncrease(TimeSpan.FromSeconds(3));
+});
+
 var loggerFactory = LoggerFactory.Create(logging =>
 {
     logging.AddSerilog(Log.Logger, dispose: false);

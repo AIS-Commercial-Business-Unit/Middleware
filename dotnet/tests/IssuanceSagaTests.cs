@@ -174,6 +174,38 @@ public sealed class IssuanceSagaTests
         Assert.That(context.PublishedMessages.Any(message => message.Message<PolicyIssuedEvent>() is not null), Is.True);
     }
 
+    [Test]
+    public void WhenDemoMagicAccountId_ThrowsBeforeAnySagaStateIsWritten()
+    {
+        var repo = new InMemoryIssuanceSagaRecordRepository();
+        var saga = new IssuanceSaga(repo);
+        var context = new TestableMessageHandlerContext();
+        var command = CreateCommand();
+        command.AccountId = "FAIL-SERVICEPULSE-001";
+
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(() => saga.Handle(command, context));
+
+        Assert.That(ex!.Message, Does.Contain("[DEMO]"));
+        Assert.That(ex.Message, Does.Contain("FAIL-SERVICEPULSE-001"));
+        Assert.That(context.PublishedMessages, Is.Empty, "No events should be published before the guard throws");
+        Assert.That(saga.Data, Is.Null.Or.EqualTo(new IssuanceSagaData()), "Saga state must not be committed");
+    }
+
+    [Test]
+    public async Task WhenDemoAccountIdCorrectedAndRetried_SagaProceedsNormally()
+    {
+        // Simulates the ServicePulse retry: same IssuanceId, AccountId corrected to a valid value.
+        var saga = new IssuanceSaga(new InMemoryIssuanceSagaRecordRepository());
+        var context = new TestableMessageHandlerContext();
+        var command = CreateCommand();
+        command.AccountId = "ACC-RETRY-001";
+
+        await saga.Handle(command, context);
+
+        Assert.That(saga.Data.Status, Is.EqualTo("AwaitingCompliance"));
+        Assert.That(context.PublishedMessages.Any(m => m.Message<PolicyIssuanceInitiatedEvent>() is not null), Is.True);
+    }
+
     private static IssuePolicyCommand CreateCommand()
     {
         return new IssuePolicyCommand

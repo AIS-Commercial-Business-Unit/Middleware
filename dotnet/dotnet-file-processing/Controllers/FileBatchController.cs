@@ -54,7 +54,7 @@ public sealed class FileBatchController : ControllerBase
     [HttpPost("batches/generate")]
     public async Task<IActionResult> GenerateSampleBatch([FromQuery] int count = 10, CancellationToken cancellationToken = default)
     {
-        count = Math.Clamp(count, 1, 50);
+        count = Math.Clamp(count, 1, 1000);
         Directory.CreateDirectory(_inboundDir);
 
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);

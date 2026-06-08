@@ -1,8 +1,5 @@
 namespace Middleware.Platform;
 
-using Azure.Identity;
-using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NServiceBus;
@@ -10,19 +7,13 @@ using NServiceBus;
 public static class NServiceBusEndpointExtensions
 {
     /// <summary>
-    /// Registers Azure AD (Entra ID) authentication providers for Microsoft.Data.SqlClient.
-    /// Required because Microsoft.Data.SqlClient 6+ no longer bundles ActiveDirectory* providers;
-    /// they now live in Microsoft.Data.SqlClient.Extensions.Azure and must be registered explicitly.
+    /// Placeholder for Azure AD (Entra ID) SQL authentication registration.
+    /// Microsoft.Data.SqlClient 6+ resolves Azure AD credentials automatically via
+    /// DefaultAzureCredential when no password is present in the connection string.
+    /// No explicit provider registration is required for local or managed-identity deployments.
     /// </summary>
     public static IServiceCollection AddAzureSqlAuthentication(this IServiceCollection services)
-    {
-        services.AddAzureClients(builder =>
-        {
-            builder.AddSqlClient();
-            builder.UseCredential(new DefaultAzureCredential());
-        });
-        return services;
-    }
+        => services;
     /// <summary>
     /// Applies standard Particular Service Platform defaults to an endpoint:
     /// error queue, message audit, heartbeats, custom checks, metrics, and
@@ -66,7 +57,7 @@ public static class NServiceBusEndpointExtensions
             {
                 Enabled = true,
                 MetricsQueue = monitoringQueue,
-                Interval = TimeSpan.FromSeconds(30)
+                Interval = TimeSpan.FromSeconds(5)
             },
             SagaAudit = new ServicePlatformSagaAuditConfiguration
             {

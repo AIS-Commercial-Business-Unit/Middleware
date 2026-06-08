@@ -39,6 +39,11 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
 
     public async Task Handle(IssuePolicyCommand message, IMessageHandlerContext context)
     {
+        if (ShouldTriggerServicePulseRetryDemo(message.AccountId))
+            throw new InvalidOperationException(
+                $"[DEMO] AccountId '{message.AccountId}' is a ServicePulse retry demo trigger. " +
+                "In ServicePulse, edit AccountId to a valid value (e.g. ACC-RETRY-001) and retry — the saga will continue normally.");
+
         Data ??= new IssuanceSagaData();
         var firstPolicy = message.Policies.First();
         Data.IssuanceId = message.IssuanceId;
@@ -314,6 +319,9 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
             Message = message
         }).ConfigureAwait(false);
     }
+
+    private static bool ShouldTriggerServicePulseRetryDemo(string accountId) =>
+        string.Equals(accountId, "FAIL-SERVICEPULSE-001", StringComparison.OrdinalIgnoreCase);
 
     private Task PersistAsync()
     {
