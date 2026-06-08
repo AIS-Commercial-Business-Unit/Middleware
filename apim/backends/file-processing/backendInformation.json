@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "url": "http://file-processing.middleware.internal/api/v1",
+    "title": "File Processing Backend",
+    "description": "Per-host AKS internal ingress for the platform-file-processing-service",
+    "protocol": "http",
+    "tls": {
+      "validateCertificateChain": false,
+      "validateCertificateName": false
+    }
+  }
+}

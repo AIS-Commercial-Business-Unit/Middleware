@@ -1,0 +1,1585 @@
+##############################################################################
+# Middleware Umbrella Chart — Global Defaults
+##############################################################################
+
+global:
+  registry: ""  # ACR login server, e.g. acrmiddlewaredev.azurecr.io
+  namespace: middleware
+  workloadIdentity:
+    clientId: ""  # From terraform output: workload identity client ID
+  keyvault:
+    name: ""      # From terraform output: keyvault_name (globally unique, includes random suffix)
+    tenantId: ""  # Azure AD tenant ID
+  eventhubs:
+    bootstrapServers: ""  # e.g. evhns-middleware-dev.servicebus.windows.net:9093
+  otel:
+    # Cluster-internal OTLP gRPC endpoint exposed by the otel-collector
+    # DaemonSet (fullnameOverride: middleware-otel-collector). All Java and
+    # .NET services point at this for traces, logs, and metrics.
+    endpoint: "http://middleware-otel-collector:4317"
+  apim:
+    gatewayUrl: ""  # From terraform output: APIM gateway URL
+  azure:
+    tenantId: ""              # Set per-environment in values-dev.yaml
+    clientId: ""              # Workload identity client ID from terraform output
+    eventhubsNamespace: ""    # e.g., evhns-middleware-dev
+    storageAccountName: ""    # e.g., stmiddlewaredevfiles
+    sqlServerFqdn: ""         # From terraform output: sql_server_fqdn (globally unique, includes random suffix)
+  ingress:
+    # NOTE: APIs now use per-service hostnames (e.g. policy.middleware.internal,
+    # file-processing.middleware.internal, integration.middleware.internal,
+    # appraisal.middleware.internal). The internalHost entry below is retained
+    # for the UI host pattern and any legacy reference; it is no longer the
+    # canonical host for backend APIs. See infra/terraform/dns.tf.
+    internalHost: "api.middleware.internal"  # Legacy/UI pattern only; APIs use per-service hosts
+    publicHost: ""                          # Public DNS (if UI exposed directly)
+    staticIp: "10.0.16.10"                  # Reserved from snet-aks-ilb subnet
+    ilbSubnetName: "snet-aks-ilb"           # Subnet where ILB gets deployed
+
+##############################################################################
+# Java Services
+##############################################################################
+
+policy-issuance-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: policy-issuance-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: policy-issuance-service
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "policy.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix
+
+customer-identity-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: customer-identity-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: customer-identity-service
+    ERM7X1_URL: "middleware-erm7x1-account-stub:80"
+    CRM40X1_URL: "middleware-crm40x1-customer-stub:80"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+platform-compliance-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: platform-compliance-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: platform-compliance-service
+    RSK3X3_URL: "middleware-rsk3x3-compliance-stub:80"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+platform-integration-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: platform-integration-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: platform-integration-service
+    DUCKCREEK_COMMERCIAL_URL: "middleware-duckcreek-commercial-stub:80"
+    DUCKCREEK_PERSONAL_URL: "middleware-duckcreek-personal-stub:80"
+    FOREFRONT_URL: "middleware-forefront-stub:80"
+    # Demo health-check service discovery (K8s Service names = middleware-{alias}:80)
+    DEMO_HEALTH_POLICY_ISSUANCE: "http://middleware-policy-issuance-service:80"
+    DEMO_HEALTH_PLATFORM_COMPLIANCE: "http://middleware-platform-compliance-service:80"
+    DEMO_HEALTH_CUSTOMER_IDENTITY: "http://middleware-customer-identity-service:80"
+    DEMO_HEALTH_PLATFORM_INTEGRATION: "http://middleware-platform-integration-service:80"
+    DEMO_HEALTH_BILLING_FINANCE: "http://middleware-billing-finance-service:80"
+    DEMO_HEALTH_PLATFORM_NOTIFICATION: "http://middleware-platform-notification-service:80"
+    DEMO_HEALTH_PLATFORM_FILE_PROCESSING: "http://middleware-platform-file-processing-service:80"
+    DEMO_HEALTH_PRS_APPRAISAL: "http://middleware-prs-appraisal-service:80"
+    DEMO_HEALTH_DOTNET_POLICY_ISSUANCE: "http://middleware-dotnet-policy-issuance:80"
+    DEMO_HEALTH_DOTNET_PLATFORM_COMPLIANCE: "http://middleware-dotnet-platform-compliance:80"
+    DEMO_HEALTH_DOTNET_CUSTOMER_IDENTITY: "http://middleware-dotnet-customer-identity:80"
+    DEMO_HEALTH_DOTNET_PLATFORM_INTEGRATION: "http://middleware-dotnet-platform-integration:80"
+    DEMO_HEALTH_DOTNET_BILLING_FINANCE: "http://middleware-dotnet-billing-finance:80"
+    DEMO_HEALTH_DOTNET_PLATFORM_NOTIFICATION: "http://middleware-dotnet-platform-notification:80"
+    DEMO_HEALTH_DOTNET_FILE_PROCESSING: "http://middleware-dotnet-file-processing:80"
+    DEMO_HEALTH_DOTNET_KAFKA_BRIDGE: "http://middleware-dotnet-kafka-bridge:80"
+    DEMO_HEALTH_DOTNET_PRS_APPRAISAL: "http://middleware-dotnet-prs-appraisal:80"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "integration.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix
+
+billing-finance-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: billing-finance-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: billing-finance-service
+    CRM19X1_URL: "middleware-crm19x1-billing-stub:80"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+platform-notification-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: platform-notification-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: platform-notification-service
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+platform-file-processing-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: platform-file-processing-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    AZURE_STORAGE_ACCOUNT_NAME: "{{ .Values.global.azure.storageAccountName }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: platform-file-processing-service
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "file-processing.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix
+
+prs-appraisal-service:
+  enabled: true
+  stack: java
+  port: 8081
+  image:
+    repository: prs-appraisal-service
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: SPRING_DATA_MONGODB_URI
+      - objectName: appinsights-connection-string
+        envVar: APPLICATIONINSIGHTS_CONNECTION_STRING
+  env:
+    SERVER_PORT: "8081"
+    SPRING_PROFILES_ACTIVE: azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    AZURE_EVENTHUBS_NAMESPACE: "{{ .Values.global.azure.eventhubsNamespace }}"
+    SPRING_KAFKA_BOOTSTRAP_SERVERS: "{{ .Values.global.eventhubs.bootstrapServers }}"
+    SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: SASL_SSL
+    SPRING_KAFKA_PROPERTIES_SASL_MECHANISM: OAUTHBEARER
+    SPRING_KAFKA_PROPERTIES_SASL_LOGIN_CALLBACK_HANDLER_CLASS: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: prs-appraisal-service
+    ARTEMIS_BROKER_URL: "tcp://middleware-artemis:61616"
+    ARTEMIS_USER: "admin"
+    ARTEMIS_PASSWORD: "admin"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "appraisal.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix
+
+##############################################################################
+# Java Stubs (disabled by default)
+##############################################################################
+
+duckcreek-commercial-stub:
+  enabled: false
+  stack: java
+  port: 8082
+  image:
+    repository: duckcreek-commercial-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8082"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+duckcreek-personal-stub:
+  enabled: false
+  stack: java
+  port: 8083
+  image:
+    repository: duckcreek-personal-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8083"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+forefront-stub:
+  enabled: false
+  stack: java
+  port: 8084
+  image:
+    repository: forefront-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8084"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+rsk3x3-compliance-stub:
+  enabled: false
+  stack: java
+  port: 8085
+  image:
+    repository: rsk3x3-compliance-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8085"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+erm7x1-account-stub:
+  enabled: false
+  stack: java
+  port: 8086
+  image:
+    repository: erm7x1-account-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8086"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+crm40x1-customer-stub:
+  enabled: false
+  stack: java
+  port: 8087
+  image:
+    repository: crm40x1-customer-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8087"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+crm19x1-billing-stub:
+  enabled: false
+  stack: java
+  port: 8088
+  image:
+    repository: crm19x1-billing-stub
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8088"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+deipde07-mq-simulator:
+  enabled: true
+  stack: java
+  port: 8089
+  image:
+    repository: deipde07-mq-simulator
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    SERVER_PORT: "8089"
+    ARTEMIS_BROKER_URL: "tcp://middleware-artemis:61616"
+    ARTEMIS_USER: "admin"
+    ARTEMIS_PASSWORD: "admin"
+    APPRAISAL_LIST_REQUEST_QUEUE: "APPRAISAL.LIST.REQUEST"
+    APPRAISAL_LIST_REPLY_QUEUE: "APPRAISAL.LIST.REPLY"
+    APPRAISAL_DOCUMENT_REQUEST_QUEUE: "APPRAISAL.DOCUMENT.REQUEST"
+    APPRAISAL_DOCUMENT_REPLY_QUEUE: "APPRAISAL.DOCUMENT.REPLY"
+    SIM_MESSAGE_DELAY_MS: "150"
+    SIM_CHUNK_DELAY_MS: "50"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+##############################################################################
+# .NET Services
+##############################################################################
+
+dotnet-policy-issuance:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-policy-issuance
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: ApplicationInsights__ConnectionString
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-policy-issuance
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "dotnet-policy.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix
+
+dotnet-customer-identity:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-customer-identity
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: ApplicationInsights__ConnectionString
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-customer-identity
+    ExternalServices__AccountServiceUrl: "http://middleware-erm7x1-account-stub:80/account-service"
+    ExternalServices__CustomerServiceUrl: "http://middleware-crm40x1-customer-stub:80/customer/update"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-platform-compliance:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-platform-compliance
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: ApplicationInsights__ConnectionString
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-platform-compliance
+    ExternalServices__ComplianceCheckUrl: "http://middleware-rsk3x3-compliance-stub:80/screen"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-platform-integration:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-platform-integration
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: ApplicationInsights__ConnectionString
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-platform-integration
+    ExternalServices__DuckCreekCommercialUrl: "http://middleware-duckcreek-commercial-stub:80/policy/issue"
+    ExternalServices__DuckCreekPersonalUrl: "http://middleware-duckcreek-personal-stub:80/policy/issue"
+    ExternalServices__ForeFrontUrl: "http://middleware-forefront-stub:80/policy/issue"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-billing-finance:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-billing-finance
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: ApplicationInsights__ConnectionString
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-billing-finance
+    ExternalServices__BillingUrl: "http://middleware-crm19x1-billing-stub:80/billing/associate"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-platform-notification:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-platform-notification
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: ApplicationInsights__ConnectionString
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-platform-notification
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-file-processing:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-file-processing
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: ApplicationInsights__ConnectionString
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    Azure__StorageAccountName: "{{ .Values.global.azure.storageAccountName }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-file-processing
+    ExternalServices__PolicyIssuanceUrl: "http://middleware-dotnet-policy-issuance:80"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "dotnet-file-processing.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix
+
+dotnet-kafka-bridge:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-kafka-bridge
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: ApplicationInsights__ConnectionString
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-kafka-bridge
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+dotnet-prs-appraisal:
+  enabled: true
+  stack: dotnet
+  port: 8181
+  image:
+    repository: dotnet-prs-appraisal
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: cosmos-mongodb-connection-string
+        envVar: ConnectionStrings__MongoDB
+      - objectName: sql-connection-string
+        envVar: ConnectionStrings__NServiceBus
+      - objectName: appinsights-connection-string
+        envVar: ApplicationInsights__ConnectionString
+  env:
+    ASPNETCORE_URLS: "http://+:8181"
+    ASPNETCORE_ENVIRONMENT: Azure
+    AZURE_TENANT_ID: "{{ .Values.global.azure.tenantId }}"
+    AZURE_CLIENT_ID: "{{ .Values.global.azure.clientId }}"
+    Azure__EventHubsNamespace: "{{ .Values.global.azure.eventhubsNamespace }}"
+    OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.global.otel.endpoint }}"
+    OTEL_SERVICE_NAME: dotnet-prs-appraisal
+    ExternalServices__CustomerIdentityUrl: "http://middleware-dotnet-customer-identity:80"
+    Artemis__BrokerUrl: "activemq:tcp://middleware-artemis:61616"
+    Artemis__User: "admin"
+    Artemis__Password: "admin"
+    Artemis__ListRequestQueue: "APPRAISAL.LIST.REQUEST"
+    Artemis__ListReplyQueue: "APPRAISAL.LIST.REPLY"
+    Artemis__DocumentRequestQueue: "APPRAISAL.DOCUMENT.REQUEST"
+    Artemis__DocumentReplyQueue: "APPRAISAL.DOCUMENT.REPLY"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+##############################################################################
+# Frontend
+##############################################################################
+
+platform-ui:
+  enabled: true
+  stack: ui
+  port: 3000
+  image:
+    repository: platform-ui
+    tag: latest
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+  keyvault:
+    enabled: false
+  env:
+    NODE_ENV: "production"
+    HOSTNAME: "0.0.0.0"
+    NEXT_PUBLIC_API_BASE: "{{ .Values.global.apim.gatewayUrl }}"
+    NEXT_PUBLIC_KAFDROP_URL: "/proxy/kafdrop"
+    NEXT_PUBLIC_GRAFANA_URL: "/proxy/grafana"
+    # Server-side runtime URLs for client-link injection (not inlined at build time)
+    KAFDROP_PUBLIC_URL: "/proxy/kafdrop"
+    GRAFANA_PUBLIC_URL: "/proxy/grafana"
+    # Server-side proxy targets (Next.js API routes → K8s services)
+    POLICY_ISSUANCE_SERVICE_URL: "http://middleware-policy-issuance-service:80"
+    DOTNET_POLICY_ISSUANCE_URL: "http://middleware-dotnet-policy-issuance:80"
+    FILE_PROCESSING_SERVICE_URL: "http://middleware-platform-file-processing-service:80"
+    DOTNET_FILE_PROCESSING_URL: "http://middleware-dotnet-file-processing:80"
+    PRS_APPRAISAL_SERVICE_URL: "http://middleware-dotnet-prs-appraisal:80"
+    INTEGRATION_SERVICE_URL: "http://middleware-platform-integration-service:80"
+    DEMO_API_URL: "http://middleware-policy-issuance-service:80"
+    LOKI_URL: "http://middleware-loki:3100"
+    PROMETHEUS_URL: "http://middleware-prometheus:80"
+    GRAFANA_URL: "http://middleware-grafana:80"
+    KAFDROP_URL: "http://middleware-kafdrop:80"
+    # Health check service discovery (K8s service names)
+    DEMO_HEALTH_POLICY_ISSUANCE: "http://middleware-policy-issuance-service:80"
+    DEMO_HEALTH_PLATFORM_COMPLIANCE: "http://middleware-platform-compliance-service:80"
+    DEMO_HEALTH_CUSTOMER_IDENTITY: "http://middleware-customer-identity-service:80"
+    DEMO_HEALTH_PLATFORM_INTEGRATION: "http://middleware-platform-integration-service:80"
+    DEMO_HEALTH_BILLING_FINANCE: "http://middleware-billing-finance-service:80"
+    DEMO_HEALTH_PLATFORM_NOTIFICATION: "http://middleware-platform-notification-service:80"
+    DEMO_HEALTH_PLATFORM_FILE_PROCESSING: "http://middleware-platform-file-processing-service:80"
+    DEMO_HEALTH_PRS_APPRAISAL: "http://middleware-prs-appraisal-service:80"
+    DEMO_HEALTH_DOTNET_POLICY_ISSUANCE: "http://middleware-dotnet-policy-issuance:80"
+    DEMO_HEALTH_DOTNET_PLATFORM_COMPLIANCE: "http://middleware-dotnet-platform-compliance:80"
+    DEMO_HEALTH_DOTNET_CUSTOMER_IDENTITY: "http://middleware-dotnet-customer-identity:80"
+    DEMO_HEALTH_DOTNET_PLATFORM_INTEGRATION: "http://middleware-dotnet-platform-integration:80"
+    DEMO_HEALTH_DOTNET_BILLING_FINANCE: "http://middleware-dotnet-billing-finance:80"
+    DEMO_HEALTH_DOTNET_PLATFORM_NOTIFICATION: "http://middleware-dotnet-platform-notification:80"
+    DEMO_HEALTH_DOTNET_FILE_PROCESSING: "http://middleware-dotnet-file-processing:80"
+    DEMO_HEALTH_DOTNET_KAFKA_BRIDGE: "http://middleware-dotnet-kafka-bridge:80"
+    DEMO_HEALTH_DOTNET_PRS_APPRAISAL: "http://middleware-dotnet-prs-appraisal:80"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+  ingress:
+    enabled: true
+    internal: true
+    host: "ui.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix
+
+##############################################################################
+# ActiveMQ Artemis — broker for UC4 scatter-gather (DEIPDE07 MQ simulation)
+##############################################################################
+
+activemq-artemis:
+  enabled: true
+  fullnameOverride: middleware-artemis
+  replicaCount: 1
+  image:
+    repository: apache/activemq-artemis
+    tag: "2.37.0"
+    pullPolicy: IfNotPresent
+  env:
+    ARTEMIS_USER: admin
+    ARTEMIS_PASSWORD: admin
+    ARTEMIS_EXTRA_ARGS: "--allow-anonymous true"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "384Mi"
+      cpu: "500m"
+
+##############################################################################
+# Observability Stack
+#
+# Storage strategy: ephemeral PVCs on the cluster default StorageClass
+# (managed-csi). Loki/Prometheus/Tempo all keep their data on disk; pods
+# losing their PVC means losing history. Acceptable for v1; switch to Azure
+# Blob backends in a follow-up (TODO tracked in decisions inbox).
+#
+# Service hostnames after fullnameOverride:
+#   middleware-loki:3100        (cluster-internal only)
+#   middleware-prometheus:9090  (cluster-internal only — see note below)
+#   middleware-tempo:3200       (cluster-internal only; OTLP gRPC on :4317)
+#   middleware-otel-collector:4317  (cluster-internal — global.otel.endpoint)
+#   middleware-grafana:3000     (exposed via grafana.middleware.internal)
+#   middleware-kafdrop:80       (exposed via kafdrop.middleware.internal)
+##############################################################################
+
+##############################################################################
+# Kafdrop — custom subchart (helm/charts/kafdrop)
+##############################################################################
+
+kafdrop:
+  enabled: true
+
+  # Event Hubs Kafka endpoint (port 9093 required for Kafka protocol)
+  kafkaBrokerConnect: "{{ .Values.global.eventhubs.bootstrapServers }}"
+
+  securityProtocol: SASL_SSL
+  saslMechanism: PLAIN
+
+  # Key Vault CSI — pulls SAS connection string at pod start
+  keyvault:
+    enabled: true
+    secrets:
+      - objectName: eventhubs-kafdrop-connection-string
+
+  jvmOpts: "-Xms32M -Xmx128M"
+
+  # Served via Next.js reverse proxy at /proxy/kafdrop on the platform-ui domain.
+  # Spring Boot context path makes Kafdrop generate URLs prefixed with /proxy/kafdrop.
+  serverServletContextPath: "/proxy/kafdrop"
+
+  serviceAccount:
+    name: middleware-workload
+  workloadIdentity:
+    enabled: true
+
+  ingress:
+    enabled: true
+    internal: true
+    host: "kafdrop.middleware.internal"
+    paths:
+      - path: /
+        pathType: Prefix
+
+##############################################################################
+# Loki — single-binary mode, ephemeral PVC (10Gi).
+# Cluster-internal at http://middleware-loki:3100.
+##############################################################################
+
+loki:
+  enabled: true
+  fullnameOverride: middleware-loki
+
+  deploymentMode: SingleBinary
+
+  loki:
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+    storage:
+      type: filesystem
+    schemaConfig:
+      configs:
+        - from: "2024-04-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+
+  singleBinary:
+    replicas: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: managed-csi
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  # Explicitly zero-out simple-scalable targets so validate.yaml doesn't complain
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  backend:
+    replicas: 0
+
+  # Disable cache & gateway components — single-binary handles everything
+  chunksCache:
+    enabled: false
+  resultsCache:
+    enabled: false
+  gateway:
+    enabled: false
+  test:
+    enabled: false
+  monitoring:
+    selfMonitoring:
+      enabled: false
+      grafanaAgent:
+        installOperator: false
+    lokiCanary:
+      enabled: false
+
+##############################################################################
+# Promtail — DaemonSet shipping pod logs to Loki.
+##############################################################################
+
+promtail:
+  enabled: true
+  fullnameOverride: middleware-promtail
+
+  config:
+    clients:
+      - url: http://middleware-loki:3100/loki/api/v1/push
+    snippets:
+      extraRelabelConfigs:
+        - target_label: deployment_environment
+          replacement: aks
+      pipelineStages:
+        - cri: {}
+        - drop:
+            expression: "Node -1 disconnected"
+        - drop:
+            expression: "Heartbeat"
+        - json:
+            expressions:
+              level: level
+        - labels:
+            level:
+
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+##############################################################################
+# Prometheus — single replica, ephemeral PVC (20Gi). Auto-discovers pods
+# carrying `prometheus.io/scrape: "true"` annotations (Java services'
+# /actuator/prometheus is wired in microservice template).
+##############################################################################
+
+prometheus:
+  enabled: true
+  fullnameOverride: middleware-prometheus
+
+  alertmanager:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  prometheus-node-exporter:
+    enabled: false
+  kube-state-metrics:
+    enabled: false
+
+  configmapReload:
+    prometheus:
+      enabled: true
+
+  server:
+    fullnameOverride: middleware-prometheus
+    replicaCount: 1
+    persistentVolume:
+      enabled: true
+      size: 20Gi
+      storageClass: managed-csi
+    retention: "7d"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+
+  serverFiles:
+    prometheus.yml:
+      scrape_configs:
+        - job_name: kubernetes-pods
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:
+            # Keep only pods carrying prometheus.io/scrape: "true"
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            # Optional path override (default /metrics; Spring Boot uses /actuator/prometheus)
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            # Optional port override
+            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+              action: replace
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+              target_label: __address__
+            - action: labelmap
+              regex: __meta_kubernetes_pod_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              action: replace
+              target_label: pod
+
+##############################################################################
+# Tempo — single binary, ephemeral PVC (10Gi). OTLP gRPC ingestion on 4317.
+##############################################################################
+
+tempo:
+  enabled: true
+  fullnameOverride: middleware-tempo
+
+  # Tempo runs as uid 10001; PVC mounts as root — fsGroup fixes permissions
+  securityContext:
+    fsGroup: 10001
+    runAsUser: 10001
+    runAsGroup: 10001
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClassName: managed-csi
+
+  tempo:
+    repository: grafana/tempo
+    pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "768Mi"
+    # GOMEMLIMIT mirrors local-dev decision (#Resource Limit Hardening).
+    extraArgs: {}
+    extraEnv:
+      - name: GOMEMLIMIT
+        value: "650MiB"
+
+  service:
+    type: ClusterIP
+
+  # Enable OTLP receivers so the otel-collector can forward traces.
+  config: |
+    multitenancy_enabled: false
+    compactor:
+      compaction:
+        block_retention: 168h
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+    ingester:
+      max_block_duration: 5m
+    server:
+      http_listen_port: 3200
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/traces
+        wal:
+          path: /var/tempo/wal
+
+##############################################################################
+# OpenTelemetry Collector — DaemonSet receiving OTLP from services,
+# forwarding traces to Tempo and logs to Loki.
+##############################################################################
+
+otel-collector:
+  enabled: true
+  fullnameOverride: middleware-otel-collector
+
+  mode: daemonset
+
+  image:
+    repository: otel/opentelemetry-collector-contrib
+
+  # Inject App Insights connection string from the shared service secrets.
+  # The microservices' SecretProviderClasses sync this from Key Vault into
+  # K8s Secrets. We reference the policy-issuance-service secret since it's
+  # always deployed. The azuremonitor exporter reads this env var.
+  extraEnvs:
+    - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+      valueFrom:
+        secretKeyRef:
+          name: middleware-policy-issuance-service-secrets
+          key: appinsights-connection-string
+
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  presets:
+    logsCollection:
+      enabled: false
+    kubernetesAttributes:
+      enabled: true
+
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      batch:
+        timeout: 1s
+        send_batch_size: 1024
+      resource:
+        attributes:
+          - action: upsert
+            key: deployment.environment
+            value: aks
+      transform/loki_labels:
+        log_statements:
+          - context: resource
+            statements:
+              - set(attributes["loki.resource.labels"], "service.name, deployment.environment")
+    exporters:
+      otlp/tempo:
+        endpoint: middleware-tempo:4317
+        tls:
+          insecure: true
+      loki:
+        endpoint: http://middleware-loki:3100/loki/api/v1/push
+        default_labels_enabled:
+          exporter: false
+          job: true
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        namespace: middleware
+      # Azure Monitor — sends traces + metrics to Application Insights
+      # Requires APPLICATIONINSIGHTS_CONNECTION_STRING env var on the collector pod
+      azuremonitor:
+        connection_string: ${env:APPLICATIONINSIGHTS_CONNECTION_STRING}
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [otlp/tempo, azuremonitor]
+        logs:
+          receivers: [otlp]
+          processors: [batch, resource, transform/loki_labels]
+          exporters: [loki]
+        metrics:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [prometheus, azuremonitor]
+
+  service:
+    enabled: true
+
+  ports:
+    otlp:
+      enabled: true
+      containerPort: 4317
+      servicePort: 4317
+      hostPort: 0
+      protocol: TCP
+    otlp-http:
+      enabled: true
+      containerPort: 4318
+      servicePort: 4318
+      hostPort: 0
+      protocol: TCP
+    metrics:
+      enabled: true
+      containerPort: 8889
+      servicePort: 8889
+      protocol: TCP
+
+##############################################################################
+# Grafana — single replica, ephemeral storage. Anonymous viewer access for
+# v1 (matches local dev). Replace with Entra ID OAuth in a follow-up — see
+# decisions inbox.
+##############################################################################
+
+grafana:
+  enabled: true
+  fullnameOverride: middleware-grafana
+
+  replicas: 1
+
+  # Azure Disk (managed-csi) is ReadWriteOnce — can only attach to one node.
+  # Recreate strategy ensures the old pod releases the volume before the new
+  # pod tries to attach it.
+  deploymentStrategy:
+    type: Recreate
+
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClassName: managed-csi
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "384Mi"
+
+  # Anonymous viewer — same posture as docker-compose dev. Replace with
+  # Entra ID OAuth once the AAD app registration lands. See
+  # .squad/decisions/inbox/platform-grafana-anonymous-auth.md.
+  grafana.ini:
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+      hide_version: true
+    auth:
+      disable_login_form: false
+    users:
+      allow_sign_up: false
+      viewers_can_edit: true  # Required for anonymous Viewers to use Explore (drill-deeper queries)
+    security:
+      # Grafana 10+ rejects POST/PUT/DELETE when Origin header doesn't match root_url.
+      # Trust the public host the UI is served from.
+      csrf_trusted_origins: "middleware-dev.eastus2.cloudapp.azure.com"
+      csrf_additional_headers: "X-Forwarded-Host"
+    server:
+      # Served via Next.js reverse proxy at /proxy/grafana on the platform-ui domain.
+      # Use a literal URL because Helm chart templating interferes with %(...)s tokens.
+      root_url: "http://middleware-dev.eastus2.cloudapp.azure.com/proxy/grafana/"
+      serve_from_sub_path: true
+
+  # Pre-wire datasources mirroring observability/grafana-datasources.yaml.
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          uid: prometheus
+          url: http://middleware-prometheus:80
+          access: proxy
+          isDefault: false
+        - name: Tempo
+          type: tempo
+          uid: tempo
+          url: http://middleware-tempo:3200
+          access: proxy
+          isDefault: false
+          jsonData:
+            tracesToLogsV2:
+              datasourceUid: loki
+              spanStartTimeShift: '-1h'
+              spanEndTimeShift: '1h'
+              filterByTraceID: true
+              filterBySpanID: false
+            tracesToMetrics:
+              datasourceUid: prometheus
+            serviceMap:
+              datasourceUid: prometheus
+            nodeGraph:
+              enabled: true
+            lokiSearch:
+              datasourceUid: loki
+        - name: Loki
+          type: loki
+          uid: loki
+          url: http://middleware-loki:3100
+          access: proxy
+          isDefault: true
+          jsonData:
+            derivedFields:
+              - name: TraceID
+                matcherRegex: '"traceId":"([a-f0-9]+)"'
+                url: '$${__value.raw}'
+                datasourceUid: tempo
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx-internal
+    annotations:
+      nginx.ingress.kubernetes.io/service-upstream: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    hosts:
+      - grafana.middleware.internal
+    path: /
+    pathType: Prefix
+
+  serviceAccount:
+    create: false
+    name: middleware-workload
+
+  # Workload identity label (Grafana does not need Azure auth for v1; flag
+  # set so future Entra ID wiring lands cleanly).
+  podLabels:
+    azure.workload.identity/use: "true"
+
+  testFramework:
+    enabled: false

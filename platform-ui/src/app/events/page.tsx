@@ -1,4 +1,11 @@
+export const dynamic = "force-dynamic";
+
 export default function EventsPage() {
+  // Read inside component so values are picked up per-request, not at module load.
+  // Use non-NEXT_PUBLIC_ prefix so values aren't inlined at build time.
+  const kafdropUrl = process.env.KAFDROP_PUBLIC_URL || "http://localhost:9000";
+  const grafanaUrl = process.env.GRAFANA_PUBLIC_URL || "http://localhost:3001";
+
   return (
     <div className="space-y-6">
       <div>
@@ -7,7 +14,7 @@ export default function EventsPage() {
           All Kafka events flowing through the middleware platform in real time.
           View the full event stream in{" "}
           <a
-            href="http://localhost:9000"
+            href={kafdropUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="underline"
@@ -17,7 +24,7 @@ export default function EventsPage() {
           </a>{" "}
           or structured logs in{" "}
           <a
-            href="http://localhost:3001"
+            href={grafanaUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="underline"
@@ -43,7 +50,7 @@ export default function EventsPage() {
         ].map((t) => (
           <a
             key={t.topic}
-            href={`http://localhost:9000/topic/${t.topic}`}
+            href={`${kafdropUrl}/topic/${t.topic}`}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-lg border p-4 hover:border-indigo-500 transition-colors"

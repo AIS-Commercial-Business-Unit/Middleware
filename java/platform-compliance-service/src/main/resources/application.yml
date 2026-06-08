@@ -23,6 +23,15 @@ management:
     web:
       exposure:
         include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState
   tracing:
     sampling:
       probability: 1.0
@@ -30,6 +39,8 @@ management:
 camel:
   springboot:
     main-run-controller: true
+  health:
+    enabled: false
   component:
     kafka:
       brokers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -48,3 +59,36 @@ logging:
   level:
     com.ais.middleware: DEBUG
     org.apache.camel: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: azure
+  data:
+    mongodb:
+      database: compliance_db
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net:443}
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: OAUTHBEARER
+      sasl.login.callback.handler.class: com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler
+      sasl.oauthbearer.token.endpoint.url: https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token
+      sasl.jaas.config: >-
+        org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required
+        clientId="${AZURE_CLIENT_ID}"
+        scope="https://${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net/.default";
+
+camel:
+  component:
+    kafka:
+      brokers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net:443}
+      security-protocol: SASL_SSL
+      sasl-mechanism: OAUTHBEARER
+      sasl-jaas-config: >-
+        org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required
+        clientId="${AZURE_CLIENT_ID}"
+        scope="https://${AZURE_EVENTHUBS_NAMESPACE}.servicebus.windows.net/.default";
+      additional-properties:
+        "[sasl.login.callback.handler.class]": com.ais.middleware.common.kafka.AzureEventHubsLoginCallbackHandler

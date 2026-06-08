@@ -7,6 +7,7 @@ import clsx from "clsx";
 import Link from "next/link";
 import type { LogEntry } from "@/app/api/loki/route";
 import type { FlowEvent } from "@/types/eda-flow";
+import { useRuntimeConfig } from "@/lib/runtime-config-context";
 
 // ─── Participants ──────────────────────────────────────────────────────────
 
@@ -1141,8 +1142,11 @@ function durationMs(start: string, end: string | null): string {
 
 // ─── Page ────────────────────────────────────────────────────────────────
 
+const mongoUrl = process.env.NEXT_PUBLIC_MONGO_URL ?? "http://localhost:27017";
+
 export default function OpsPage() {
   const { issuanceId } = useParams<{ issuanceId: string }>();
+  const { grafanaUrl, kafdropUrl } = useRuntimeConfig();
 
   const { data: saga, error: sagaError, isLoading: sagaLoading } = useSWR<SagaRecord>(
     issuanceId ? `/api/policies/${issuanceId}` : null,
@@ -1266,7 +1270,7 @@ export default function OpsPage() {
                 return (
                   <a
                     key={step.id}
-                    href={`http://localhost:9000/topic/${step.topic}`}
+                    href={`${kafdropUrl}/topic/${step.topic}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs font-mono px-2 py-0.5 rounded hover:opacity-100 transition-opacity"
@@ -1303,23 +1307,23 @@ export default function OpsPage() {
             {[
               {
                 label: "All-service Logs (Loki) →",
-                href: `http://localhost:3001/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{deployment_environment%3D%22local%22} |%3D \`${issuanceId}\`"}]`,
+                href: `${grafanaUrl}/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{deployment_environment%3D%22local%22} |%3D \`${issuanceId}\`"}]`,
               },
               {
                 label: "Service Logs (Loki) →",
-                href: `http://localhost:3001/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{service_name%3D~%22.%2B%22} |%3D \`${issuanceId}\`"}]`,
+                href: `${grafanaUrl}/explore?schemaVersion=1&queries=[{"datasource":{"type":"loki"},"expr":"{service_name%3D~%22.%2B%22} |%3D \`${issuanceId}\`"}]`,
               },
               {
                 label: "Traces (Tempo) →",
-                href: `http://localhost:3001/explore?datasource=tempo`,
+                href: `${grafanaUrl}/explore?datasource=tempo`,
               },
               {
                 label: "Kafka Topics (Kafdrop) →",
-                href: "http://localhost:9000",
+                href: kafdropUrl,
               },
               {
                 label: "Saga State (Mongo) →",
-                href: "http://localhost:8888",
+                href: mongoUrl,
               },
             ].map(({ label, href }) => (
               <a key={label} href={href} target="_blank" rel="noopener noreferrer"

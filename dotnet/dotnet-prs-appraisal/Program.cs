@@ -4,6 +4,9 @@ using dotnet_prs_appraisal.Infrastructure;
 using Microsoft.Data.SqlClient;
 using MongoDB.Driver;
 using NServiceBus;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using Azure.Monitor.OpenTelemetry.Exporter;
 using Middleware.Platform;
 using Serilog;
 using Serilog.Formatting.Json;
@@ -23,6 +26,20 @@ builder.Services.AddHealthChecks();
 
 var nServiceBusConnectionString = builder.Configuration.GetConnectionString("NServiceBus")
     ?? throw new InvalidOperationException("ConnectionStrings:NServiceBus is required.");
+
+var serviceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "dotnet-prs-appraisal";
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(serviceName))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddOtlpExporter();
+        var appInsightsCs = builder.Configuration["ApplicationInsights:ConnectionString"];
+        if (!string.IsNullOrEmpty(appInsightsCs))
+            tracing.AddAzureMonitorTraceExporter(o => o.ConnectionString = appInsightsCs);
+    });
 
 // ── UC4 services ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IArtemisAdapter, ArtemisAdapter>();

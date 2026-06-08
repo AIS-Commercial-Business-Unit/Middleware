@@ -1,4 +1,3 @@
-
 name: Deploy Infrastructure
 
 on:
@@ -16,7 +15,6 @@ on:
 permissions:
   id-token: write
   contents: read
-  actions: write      # Required to set repository variables via gh CLI
 
 jobs:
   plan:
@@ -119,7 +117,7 @@ jobs:
 
       - name: Export Terraform Outputs to GitHub Variables
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
@@ -130,12 +128,20 @@ jobs:
           RG_NAME=$(terraform output -raw resource_group_name)
           WORKLOAD_CLIENT_ID=$(terraform output -raw workload_identity_client_id)
           ACR_SERVER=$(terraform output -raw acr_login_server)
+          KEYVAULT_NAME=$(terraform output -raw keyvault_name)
+          SQL_FQDN=$(terraform output -raw sql_server_fqdn)
+          APIM_NAME=$(terraform output -raw apim_name)
+          APIM_GATEWAY_URL=$(terraform output -raw apim_gateway_url)
 
           # Save as GitHub repository variables (for deploy-apps workflow)
           gh variable set AKS_CLUSTER_NAME --body "$AKS_NAME"
           gh variable set AKS_RESOURCE_GROUP --body "$RG_NAME"
           gh variable set WORKLOAD_IDENTITY_CLIENT_ID --body "$WORKLOAD_CLIENT_ID"
           gh variable set ACR_LOGIN_SERVER --body "$ACR_SERVER"
+          gh variable set KEYVAULT_NAME --body "$KEYVAULT_NAME"
+          gh variable set SQL_SERVER_FQDN --body "$SQL_FQDN"
+          gh variable set APIM_NAME --body "$APIM_NAME"
+          gh variable set APIM_GATEWAY_URL --body "$APIM_GATEWAY_URL"
 
           echo "### Terraform Outputs Saved" >> $GITHUB_STEP_SUMMARY
           echo "| Variable | Value |" >> $GITHUB_STEP_SUMMARY
@@ -144,3 +150,6 @@ jobs:
           echo "| AKS_RESOURCE_GROUP | $RG_NAME |" >> $GITHUB_STEP_SUMMARY
           echo "| WORKLOAD_IDENTITY_CLIENT_ID | $WORKLOAD_CLIENT_ID |" >> $GITHUB_STEP_SUMMARY
           echo "| ACR_LOGIN_SERVER | $ACR_SERVER |" >> $GITHUB_STEP_SUMMARY
+          echo "| KEYVAULT_NAME | $KEYVAULT_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| SQL_SERVER_FQDN | $SQL_FQDN |" >> $GITHUB_STEP_SUMMARY
+          echo "| APIM_NAME | $APIM_NAME |" >> $GITHUB_STEP_SUMMARY

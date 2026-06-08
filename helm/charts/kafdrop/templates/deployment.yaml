@@ -1,0 +1,102 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kafdrop.fullname" . }}
+  labels:
+    {{- include "kafdrop.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "kafdrop.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kafdrop.selectorLabels" . | nindent 8 }}
+        {{- if .Values.workloadIdentity.enabled }}
+        azure.workload.identity/use: "true"
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: kafdrop
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 9000
+              protocol: TCP
+          {{- if .Values.keyvault.enabled }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              CONN=$(cat /mnt/secrets-store/{{ (index .Values.keyvault.secrets 0).objectName }})
+              cat >/tmp/kafka.properties <<EOF
+              security.protocol=SASL_SSL
+              sasl.mechanism=PLAIN
+              sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="\$ConnectionString" password="${CONN}";
+              client.id=kafdrop
+              request.timeout.ms=60000
+              session.timeout.ms=45000
+              EOF
+              # Strip leading whitespace from heredoc (indented for readability)
+              sed -i 's/^[[:space:]]*//' /tmp/kafka.properties
+              export KAFKA_BROKERCONNECT="{{ tpl .Values.kafkaBrokerConnect . }}"
+              export KAFKA_PROPERTIES_FILE=/tmp/kafka.properties
+              export JVM_OPTS="{{ .Values.jvmOpts }}"
+              export SERVER_SERVLET_CONTEXTPATH="{{ .Values.serverServletContextPath | default "/" }}"
+              exec java $JVM_OPTS -jar /kafdrop*/kafdrop*.jar
+          {{- else }}
+          env:
+            - name: KAFKA_BROKERCONNECT
+              value: "{{ tpl .Values.kafkaBrokerConnect . }}"
+            - name: KAFKA_PROPERTIES_FILE
+              value: /etc/kafdrop/kafka.properties
+            - name: JVM_OPTS
+              value: {{ printf "%s %s" .Values.jvmOpts .Values.extraJvmOpts | trim | quote }}
+            - name: SERVER_SERVLET_CONTEXTPATH
+              value: "{{ .Values.serverServletContextPath | default "/" }}"
+          {{- end }}
+          volumeMounts:
+            {{- if .Values.keyvault.enabled }}
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+            {{- else }}
+            - name: kafka-config
+              mountPath: /etc/kafdrop
+              readOnly: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        {{- if .Values.keyvault.enabled }}
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "kafdrop.fullname" . }}-secrets
+        {{- else }}
+        - name: kafka-config
+          configMap:
+            name: {{ include "kafdrop.fullname" . }}-config
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

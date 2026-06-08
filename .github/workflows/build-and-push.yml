@@ -153,9 +153,9 @@ jobs:
   build:
     name: Build ${{ matrix.service }}
     runs-on: ubuntu-latest
-    environment: dev-plan
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.matrix != '{"include":[]}' }}
+    environment: dev-plan
     strategy:
       matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
       fail-fast: false

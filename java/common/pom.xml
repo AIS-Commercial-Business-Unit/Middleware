@@ -31,5 +31,18 @@
             <artifactId>opentelemetry-api</artifactId>
             <version>1.41.0</version>
         </dependency>
+
+        <!-- Azure Identity — for Event Hubs OAuth via workload identity -->
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-identity</artifactId>
+        </dependency>
+
+        <!-- Kafka client API — for OAuthBearerToken interface -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 </project>

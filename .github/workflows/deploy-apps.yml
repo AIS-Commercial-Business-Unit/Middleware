@@ -97,6 +97,7 @@ jobs:
             --set-string global.azure.tenantId="${{ secrets.AZURE_TENANT_ID }}"
             --set-string global.azure.clientId="${{ vars.WORKLOAD_IDENTITY_CLIENT_ID }}"
             --set-string global.azure.sqlServerFqdn="${{ vars.SQL_SERVER_FQDN }}"
+            --set-string global.apim.gatewayUrl="${{ vars.APIM_GATEWAY_URL }}"
           )
 
           # Apply environment-specific values if file exists

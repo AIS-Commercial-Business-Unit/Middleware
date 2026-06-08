@@ -2,6 +2,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Azure.Monitor.OpenTelemetry.Exporter;
 using Serilog;
 using Serilog.Formatting.Json;
 using dotnet_policy_issuance.Behaviors;
@@ -26,10 +27,16 @@ builder.Services.AddHealthChecks();
 builder.Services.AddSingleton<IssuePolicyCommandHandler>();
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName))
-    .WithTracing(tracing => tracing
-        .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation()
-        .AddOtlpExporter());
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddOtlpExporter();
+        var appInsightsCs = builder.Configuration["ApplicationInsights:ConnectionString"];
+        if (!string.IsNullOrEmpty(appInsightsCs))
+            tracing.AddAzureMonitorTraceExporter(o => o.ConnectionString = appInsightsCs);
+    });
 
 var mongoClient = new MongoDB.Driver.MongoClient(builder.Configuration.GetConnectionString("MongoDB") ?? "mongodb://localhost:27017");
 var repository = new MongoIssuanceSagaRepository(mongoClient, "dotnet_policy_issuance_db", "issuance_sagas");

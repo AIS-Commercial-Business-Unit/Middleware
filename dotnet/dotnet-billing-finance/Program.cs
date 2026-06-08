@@ -2,6 +2,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Azure.Monitor.OpenTelemetry.Exporter;
 using Serilog;
 using Serilog.Formatting.Json;
 using NServiceBus;
@@ -22,10 +23,16 @@ builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName))
-    .WithTracing(tracing => tracing
-        .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation()
-        .AddOtlpExporter());
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddOtlpExporter();
+        var appInsightsCs = builder.Configuration["ApplicationInsights:ConnectionString"];
+        if (!string.IsNullOrEmpty(appInsightsCs))
+            tracing.AddAzureMonitorTraceExporter(o => o.ConnectionString = appInsightsCs);
+    });
 
 BillingRuntime.BillingUrl = builder.Configuration["ExternalServices:BillingUrl"]
     ?? "http://crm19x1-billing-stub:9007/api/billing";

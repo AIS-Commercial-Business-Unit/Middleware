@@ -1,0 +1,12 @@
+{
+  "properties": {
+    "url": "http://policy.middleware.internal/api/v1/policies",
+    "title": "Policy Issuance Backend",
+    "description": "Per-host AKS internal ingress for the policy-issuance-service",
+    "protocol": "http",
+    "tls": {
+      "validateCertificateChain": false,
+      "validateCertificateName": false
+    }
+  }
+}

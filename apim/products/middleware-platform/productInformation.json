@@ -1,0 +1,9 @@
+{
+  "properties": {
+    "displayName": "Middleware Platform",
+    "description": "Internal middleware APIs for policy issuance, file processing, and platform integration",
+    "subscriptionRequired": true,
+    "approvalRequired": false,
+    "state": "published"
+  }
+}

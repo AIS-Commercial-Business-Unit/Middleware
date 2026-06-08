@@ -1,0 +1,71 @@
+# Kafdrop subchart defaults — overridden via umbrella values.yaml under
+# the `kafdrop:` key.
+
+enabled: true
+
+image:
+  repository: obsidiandynamics/kafdrop
+  tag: "4.0.2"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# Kafka API endpoint. In Azure this is the Event Hubs namespace bootstrap
+# server (port 9093 standard, 443 over Kafka-API on premium). Override via
+# umbrella values.
+kafkaBrokerConnect: "kafka:9092"
+
+# Server-side connection mode. For Event Hubs use SASL_SSL.
+# Allowed: PLAINTEXT | SASL_SSL
+securityProtocol: PLAINTEXT
+
+# Java options passed to Kafdrop. These are merged with whatever the user
+# provides in `extraJvmOpts`.
+jvmOpts: "-Xms64M -Xmx256M"
+extraJvmOpts: ""
+
+# JAAS login config string. Required when securityProtocol=SASL_SSL.
+# Azure agent supplies the OAUTHBEARER snippet — left as a placeholder
+# until the value lands in .squad/decisions/inbox/azure-kafdrop-eventhubs.md.
+# When unset, the JAAS file is omitted and Kafdrop runs in PLAINTEXT mode.
+saslJaasConfig: ""
+saslMechanism: "OAUTHBEARER"
+
+# Optional: any extra static properties for the Kafka client (one per line in
+# Java properties format). Rendered into kafka.properties on disk.
+extraKafkaProperties: ""
+
+# Workload Identity is required when securityProtocol is SASL_SSL because
+# OAUTHBEARER token acquisition uses the federated identity bound to the
+# pod service account.
+serviceAccount:
+  name: middleware-workload
+
+workloadIdentity:
+  enabled: true
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "192Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 9000
+
+ingress:
+  enabled: true
+  internal: true
+  host: "kafdrop.middleware.internal"
+  annotations: {}
+  paths:
+    - path: /
+      pathType: Prefix
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -113,3 +113,7 @@
 - Added the UC4 REST facade, callback registry, Artemis MQ adapter/listeners, and new Middleware.Contracts commands/events/models.
 - Updated Program.cs and appsettings.json for the UC4 NServiceBus + Artemis wiring and verified dotnet build dotnet\\dotnet-prs-appraisal\\dotnet-prs-appraisal.csproj -nologo succeeds.
 - **Key learning (2026-05-31):** .NET TaskCompletionSource callback registry bridges async NServiceBus sagas to sync HTTP facades. When DocumentListSaga completes (all Artemis replies received), it fires a completion event that the callback handler matches via correlation ID and resolves the waiting Task. This keeps the HTTP response synchronous while preserving asynchronous MQ integration — critical for UC4 because HTTP clients (browser, Postman) expect response payload, not streaming/webhooks.
+
+### 2026-06-01 — Ingress no longer strips paths (heads-up from Scribe)
+
+Per decisions #49 + #50, backend APIs now use per-service hostnames (`policy`, `file-processing`, `integration`, `appraisal` under `.middleware.internal`) with `path: /` ingress rules. **Controllers receive their full original path unchanged** — no rewrite, no prefix stripping. Keep your `@RequestMapping` values as the canonical contract; ingress no longer participates in URL routing. APIM `serviceUrl` is now bare hostname (no path prefix), and operation `urlTemplate` values concatenate as before.

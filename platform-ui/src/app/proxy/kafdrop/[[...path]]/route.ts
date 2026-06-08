@@ -1,0 +1,65 @@
+import { NextRequest } from "next/server";
+
+export const dynamic = "force-dynamic";
+
+async function proxy(req: NextRequest, path: string[]) {
+  const target = process.env.KAFDROP_URL || "http://middleware-kafdrop:80";
+  // Forward the full /proxy/kafdrop/... path because Kafdrop's context path is set to /proxy/kafdrop.
+  const subPath = path.length ? `/${path.join("/")}` : "";
+  const url = `${target}/proxy/kafdrop${subPath}${req.nextUrl.search}`;
+
+  const headers = new Headers(req.headers);
+  headers.delete("host");
+  headers.delete("connection");
+
+  const init: RequestInit = {
+    method: req.method,
+    headers,
+    redirect: "manual",
+  };
+
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    init.body = await req.arrayBuffer();
+  }
+
+  try {
+    const upstream = await fetch(url, init);
+    const respHeaders = new Headers(upstream.headers);
+    respHeaders.delete("x-frame-options");
+    respHeaders.delete("content-security-policy");
+    return new Response(upstream.body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: respHeaders,
+    });
+  } catch (err) {
+    return new Response(`Proxy error: ${err instanceof Error ? err.message : String(err)}`, {
+      status: 502,
+    });
+  }
+}
+
+export async function GET(req: NextRequest, ctx: { params: Promise<{ path?: string[] }> }) {
+  const { path } = await ctx.params;
+  return proxy(req, path || []);
+}
+
+export async function POST(req: NextRequest, ctx: { params: Promise<{ path?: string[] }> }) {
+  const { path } = await ctx.params;
+  return proxy(req, path || []);
+}
+
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ path?: string[] }> }) {
+  const { path } = await ctx.params;
+  return proxy(req, path || []);
+}
+
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ path?: string[] }> }) {
+  const { path } = await ctx.params;
+  return proxy(req, path || []);
+}
+
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ path?: string[] }> }) {
+  const { path } = await ctx.params;
+  return proxy(req, path || []);
+}

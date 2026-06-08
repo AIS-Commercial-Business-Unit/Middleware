@@ -1,0 +1,25 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kafdrop.fullname" . }}-config
+  labels:
+    {{- include "kafdrop.labels" . | nindent 4 }}
+data:
+  kafka.properties: |
+    security.protocol={{ .Values.securityProtocol }}
+    {{- if eq .Values.securityProtocol "SASL_SSL" }}
+    sasl.mechanism={{ .Values.saslMechanism }}
+    {{- if .Values.saslJaasConfig }}
+    sasl.jaas.config={{ .Values.saslJaasConfig }}
+    {{- else }}
+    # TODO: sasl.jaas.config not yet supplied. Azure agent will publish the
+    # OAUTHBEARER snippet via .squad/decisions/inbox/azure-kafdrop-eventhubs.md.
+    # Until then Kafdrop will fail to authenticate to Event Hubs.
+    {{- end }}
+    sasl.login.callback.handler.class=org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginCallbackHandler
+    {{- end }}
+    {{- with .Values.extraKafkaProperties }}
+    {{ . | nindent 4 }}
+    {{- end }}
+{{- end }}

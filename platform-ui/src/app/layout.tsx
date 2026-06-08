@@ -1,16 +1,31 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import Link from "next/link";
 import { BackendSwitcher } from "@/components/BackendSwitcher";
+import { RuntimeConfigProvider } from "@/lib/runtime-config-context";
 
 export const metadata: Metadata = {
   title: "AIS Middleware Platform",
   description: "UC1: Policy Issuance Demo — Apache Camel + Kafka + MongoDB",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  await headers(); // Force dynamic rendering — ensures env vars are read at request time
+  // Use non-NEXT_PUBLIC_ prefix so Next.js doesn't inline these at build time.
+  // These are read from pod env at request time and injected into window for client components.
+  const grafanaUrl = process.env.GRAFANA_PUBLIC_URL || "http://localhost:3001";
+  const kafdropUrl = process.env.KAFDROP_PUBLIC_URL || "http://localhost:9000";
+
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__RUNTIME_CONFIG__=${JSON.stringify({ grafanaUrl, kafdropUrl })};if(!crypto.randomUUID){crypto.randomUUID=function(){return'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,function(c){return(+c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>+c/4).toString(16)})}}`,
+          }}
+        />
+      </head>
       <body className="min-h-screen antialiased" style={{ background: "var(--bg)", color: "var(--text)" }}>
         <nav
           className="border-b px-6 py-3 flex items-center gap-8"
@@ -27,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </Link>
           <div className="ml-auto flex items-center gap-4">
             <a
-              href={process.env.NEXT_PUBLIC_GRAFANA_URL ?? "http://localhost:3001"}
+              href={grafanaUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm hover:text-white transition-colors"
@@ -38,7 +53,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <BackendSwitcher />
           </div>
         </nav>
-        <main className="px-6 py-8 max-w-[1800px] mx-auto">{children}</main>
+        <main className="px-6 py-8 max-w-[1800px] mx-auto">
+          <RuntimeConfigProvider config={{ grafanaUrl, kafdropUrl }}>
+            {children}
+          </RuntimeConfigProvider>
+        </main>
       </body>
     </html>
   );

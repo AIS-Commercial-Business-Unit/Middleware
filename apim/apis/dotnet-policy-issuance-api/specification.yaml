@@ -1,0 +1,130 @@
+openapi: 3.0.1
+info:
+  title: Policy Issuance API
+  description: Manages end-to-end policy issuance workflows via Kafka-driven sagas
+  version: "1.0"
+paths:
+  /issue:
+    post:
+      operationId: issuePolicy
+      summary: Start a policy issuance workflow
+      description: Accepts an IssuePolicy command and returns immediately with a correlation ID. The actual workflow runs asynchronously via Kafka.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssuePolicyCommand"
+            example:
+              accountId: "ACC-ACME-001"
+              policies:
+                - policyNumber: "POL-001-2026"
+                  policyTypeCode: 1
+                  policyTypeSubCode: 0
+                  premiumAmount: 2500.00
+              submittingChannel: "DirectRequest"
+      responses:
+        "202":
+          description: Policy issuance workflow initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssuanceAcceptedResponse"
+              example:
+                issuanceId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                status: "Initiated"
+                message: "Policy issuance workflow started. Use issuanceId to track progress."
+  /issue/{issuanceId}:
+    get:
+      operationId: getSagaState
+      summary: Get saga state by issuance ID
+      description: Returns the current saga state for a given issuance. Used by the Platform UI Saga Explorer.
+      parameters:
+        - name: issuanceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The issuance correlation ID returned from POST /issue
+      responses:
+        "200":
+          description: Current saga state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssuanceSagaRecord"
+        "404":
+          description: Saga not found
+components:
+  schemas:
+    IssuePolicyCommand:
+      type: object
+      required:
+        - accountId
+        - policies
+      properties:
+        issuanceId:
+          type: string
+          description: Optional correlation ID (auto-generated if omitted)
+        accountId:
+          type: string
+          description: The account to issue policies for
+        policies:
+          type: array
+          items:
+            $ref: "#/components/schemas/PolicyItem"
+        submittingChannel:
+          type: string
+          enum: [DirectRequest, AutomatedRenewal, AgentPortal]
+          default: DirectRequest
+        requestedAt:
+          type: string
+          format: date-time
+    PolicyItem:
+      type: object
+      properties:
+        policyNumber:
+          type: string
+        policyTypeCode:
+          type: integer
+        policyTypeSubCode:
+          type: integer
+        premiumAmount:
+          type: number
+          format: double
+    IssuanceAcceptedResponse:
+      type: object
+      properties:
+        issuanceId:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+    IssuanceSagaRecord:
+      type: object
+      properties:
+        issuanceId:
+          type: string
+        accountId:
+          type: string
+        currentState:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              stepName:
+                type: string
+              status:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
