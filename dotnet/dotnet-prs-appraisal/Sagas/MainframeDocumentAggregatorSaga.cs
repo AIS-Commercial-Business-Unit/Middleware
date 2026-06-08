@@ -1,5 +1,4 @@
 using dotnet_prs_appraisal.Infrastructure;
-using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using NServiceBus;
 using NServiceBus.Persistence.Sql;
@@ -10,7 +9,7 @@ namespace dotnet_prs_appraisal.Sagas;
 [SqlSaga(tableSuffix: "MfDocumentAggregator")]
 public sealed class MainframeDocumentAggregatorSaga :
     Saga<MainframeDocumentAggregatorSagaData>,
-    IAmStartedByMessages<StartMainframeDocumentAggregationCommand>,
+    IAmStartedByMessages<AppraisalDocumentRetrievalRequestedEvent>,
     IHandleMessages<MainframeDocumentAccumulationCompleteEvent>,
     IHandleTimeouts<MainframeDocumentAggregatorTimeoutMessage>
 {
@@ -28,19 +27,27 @@ public sealed class MainframeDocumentAggregatorSaga :
     protected override void ConfigureHowToFindSaga(SagaPropertyMapper<MainframeDocumentAggregatorSagaData> mapper)
     {
         mapper.MapSaga(sagaData => sagaData.RequestId)
-            .ToMessage<StartMainframeDocumentAggregationCommand>(message => message.RequestId)
+            .ToMessage<AppraisalDocumentRetrievalRequestedEvent>(message => message.RequestId)
             .ToMessage<MainframeDocumentAccumulationCompleteEvent>(message => message.RequestId)
             .ToMessage<MainframeDocumentAggregatorTimeoutMessage>(message => message.RequestId);
     }
 
-    public async Task Handle(StartMainframeDocumentAggregationCommand message, IMessageHandlerContext context)
+    public async Task Handle(AppraisalDocumentRetrievalRequestedEvent message, IMessageHandlerContext context)
     {
+        // Only the mainframe path is handled here; AtWork requests are handled by AtWorkDocumentRetrievalHandler.
+        if (string.Equals(message.SourceSystem, "AtWork", StringComparison.OrdinalIgnoreCase)
+            || message.DocumentKey.Contains("_RiskID_", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Data ??= new MainframeDocumentAggregatorSagaData();
+        Data.RequestId = message.RequestId;
         Data.DocumentKey = message.DocumentKey;
-        Data.StartedAt = message.RequestedAt;
 
         if (Data.MqSendInitiated)
         {
-            _logger.LogWarning("Duplicate StartMainframeDocumentAggregationCommand for {RequestId} — skipping MQ send.", message.RequestId);
+            _logger.LogWarning("Duplicate AppraisalDocumentRetrievalRequestedEvent for {RequestId} — skipping MQ send.", message.RequestId);
             return;
         }
 

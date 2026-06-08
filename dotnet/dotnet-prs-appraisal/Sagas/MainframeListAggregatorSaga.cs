@@ -38,6 +38,8 @@ public sealed class MainframeListAggregatorSaga :
 
     public async Task Handle(AppraisalDocumentListRequestedEvent message, IMessageHandlerContext context)
     {
+        Data ??= new MainframeListAggregatorSagaData();
+        Data.RequestId = message.RequestId;
         Data.PolicyNumber = message.PolicyNumber;
         Data.StartedAt = message.RequestedAt;
 

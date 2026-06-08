@@ -3,6 +3,6 @@
     <RootNamespace>Middleware.Contracts</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="NServiceBus" Version="8.*" />
+    <PackageReference Include="NServiceBus" Version="9.*" />
   </ItemGroup>
 </Project>

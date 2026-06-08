@@ -1,6 +1,5 @@
 using dotnet_prs_appraisal.Sagas;
 using Microsoft.Extensions.Logging.Abstractions;
-using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using NServiceBus.Testing;
 using NUnit.Framework;
@@ -17,11 +16,11 @@ public sealed class MainframeDocumentAggregatorSagaTests
         var saga = new MainframeDocumentAggregatorSaga(adapter, NullLogger<MainframeDocumentAggregatorSaga>.Instance);
         var context = new TestableMessageHandlerContext();
 
-        await saga.Handle(new StartMainframeDocumentAggregationCommand
+        await saga.Handle(new AppraisalDocumentRetrievalRequestedEvent
         {
             RequestId = "REQ-DOC-1",
             DocumentKey = "DOC-123",
-            RequestedAt = DateTimeOffset.UtcNow
+            SourceSystem = "Mainframe"
         }, context);
 
         Assert.That(adapter.DocumentRequestCount, Is.EqualTo(1));
@@ -35,11 +34,11 @@ public sealed class MainframeDocumentAggregatorSagaTests
         var saga = new MainframeDocumentAggregatorSaga(adapter, NullLogger<MainframeDocumentAggregatorSaga>.Instance);
         var context = new TestableMessageHandlerContext();
 
-        await saga.Handle(new StartMainframeDocumentAggregationCommand
+        await saga.Handle(new AppraisalDocumentRetrievalRequestedEvent
         {
             RequestId = "REQ-DOC-2",
             DocumentKey = "DOC-456",
-            RequestedAt = DateTimeOffset.UtcNow
+            SourceSystem = "Mainframe"
         }, context);
 
         await saga.Handle(new MainframeDocumentAccumulationCompleteEvent
@@ -69,11 +68,11 @@ public sealed class MainframeDocumentAggregatorSagaTests
         var saga = new MainframeDocumentAggregatorSaga(adapter, NullLogger<MainframeDocumentAggregatorSaga>.Instance);
         var context = new TestableMessageHandlerContext();
 
-        await saga.Handle(new StartMainframeDocumentAggregationCommand
+        await saga.Handle(new AppraisalDocumentRetrievalRequestedEvent
         {
             RequestId = "REQ-DOC-3",
             DocumentKey = "DOC-EMPTY",
-            RequestedAt = DateTimeOffset.UtcNow
+            SourceSystem = "Mainframe"
         }, context);
 
         await saga.Timeout(new MainframeDocumentAggregatorTimeoutMessage
@@ -90,5 +89,24 @@ public sealed class MainframeDocumentAggregatorSagaTests
         Assert.That(published.DocumentKey, Is.EqualTo("DOC-EMPTY"));
         Assert.That(published.ContentBase64, Is.EqualTo(string.Empty));
         Assert.That(published.ContentType, Is.EqualTo(string.Empty));
+    }
+
+    [Test]
+    public async Task WhenAtWorkRequest_SagaSkipsProcessing()
+    {
+        var adapter = new FakeArtemisAdapter();
+        var saga = new MainframeDocumentAggregatorSaga(adapter, NullLogger<MainframeDocumentAggregatorSaga>.Instance);
+        var context = new TestableMessageHandlerContext();
+
+        await saga.Handle(new AppraisalDocumentRetrievalRequestedEvent
+        {
+            RequestId = "REQ-DOC-AW-1",
+            DocumentKey = "DOC_RiskID_I_TEST001",
+            SourceSystem = "AtWork"
+        }, context);
+
+        Assert.That(adapter.DocumentRequestCount, Is.EqualTo(0));
+        Assert.That(saga.Data is null || !saga.Data.MqSendInitiated, Is.True);
+        Assert.That(context.TimeoutMessages, Is.Empty);
     }
 }

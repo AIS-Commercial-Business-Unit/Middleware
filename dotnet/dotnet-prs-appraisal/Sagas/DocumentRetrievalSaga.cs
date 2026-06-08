@@ -42,20 +42,14 @@ public sealed class DocumentRetrievalSaga :
             || message.DocumentKey.Contains("_RiskID_", StringComparison.OrdinalIgnoreCase))
         {
             Data.AtWorkPending = true;
-            await context.Publish(new AppraisalDocumentRetrievalRequestedEvent
-            {
-                RequestId = message.RequestId,
-                PolicyNumber = Data.PolicyNumber,
-                DocumentKey = message.DocumentKey
-            }).ConfigureAwait(false);
-            return;
         }
 
-        await context.Send(new StartMainframeDocumentAggregationCommand
+        await context.Publish(new AppraisalDocumentRetrievalRequestedEvent
         {
             RequestId = message.RequestId,
+            PolicyNumber = Data.PolicyNumber,
             DocumentKey = message.DocumentKey,
-            RequestedAt = message.RequestedAt
+            SourceSystem = message.SourceSystem
         }).ConfigureAwait(false);
     }
 
@@ -110,4 +104,3 @@ public sealed class DocumentRetrievalSaga :
         MarkAsComplete();
     }
 }
-

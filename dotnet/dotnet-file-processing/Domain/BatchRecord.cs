@@ -14,4 +14,15 @@ public sealed class BatchRecord
     public string? ProcessorResult { get; set; }
     public DateTimeOffset? ProcessedAt { get; set; }
     public string CorrelationId { get; set; } = string.Empty;
+
+    // Parsed renewal fields stored at intake to avoid re-parsing during fan-out
+    public string PolicyNumber { get; set; } = string.Empty;
+    public string ExpirationDate { get; set; } = string.Empty;
+    public string InsuredName { get; set; } = string.Empty;
+    public int PolicyTypeCode { get; set; }
+    public int PolicyTypeSubCode { get; set; }
+    public decimal PremiumAmount { get; set; }
+    public string ProducerCode { get; set; } = string.Empty;
+    public string BillingType { get; set; } = "DirectBill";
+    public string AccountId { get; set; } = string.Empty;
 }

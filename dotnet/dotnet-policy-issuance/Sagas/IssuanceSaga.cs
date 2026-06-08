@@ -145,7 +145,9 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
             IssuanceId = Data.IssuanceId,
             AccountId = Data.AccountId,
             Reason = message.Reason,
-            FailedAt = Data.CompletedAt.Value
+            FailedAt = Data.CompletedAt.Value,
+            BatchId = Data.BatchId,
+            RecordId = Data.RecordId
         }).ConfigureAwait(false);
 
         await SendNotificationAsync(context, "ComplianceBlocked", message.Reason).ConfigureAwait(false);
@@ -232,7 +234,9 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
             IssuanceId = Data.IssuanceId,
             AccountId = Data.AccountId,
             Reason = message.Reason,
-            FailedAt = Data.CompletedAt.Value
+            FailedAt = Data.CompletedAt.Value,
+            BatchId = Data.BatchId,
+            RecordId = Data.RecordId
         }).ConfigureAwait(false);
 
         await SendNotificationAsync(context, "IssuanceFailed", message.Reason).ConfigureAwait(false);
@@ -295,7 +299,9 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
             IssuanceId = Data.IssuanceId,
             AccountId = Data.AccountId,
             PolicyNumbers = Data.PolicyNumbers,
-            CompletedAt = Data.CompletedAt.Value
+            CompletedAt = Data.CompletedAt.Value,
+            BatchId = Data.BatchId,
+            RecordId = Data.RecordId
         }).ConfigureAwait(false);
 
         await SendNotificationAsync(context, "PolicyIssued", "Policy issuance completed successfully.").ConfigureAwait(false);

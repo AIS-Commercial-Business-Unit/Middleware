@@ -69,10 +69,8 @@ file static class AppraisalParticipantMap
     {
         ["GetAppraisalDocumentListCommand"]             = "DocumentListSaga",
         ["RetrieveAppraisalDocumentCommand"]            = "DocumentRetrievalSaga",
-        ["AppraisalDocumentRetrievalRequestedEvent"] = "AtWorkDocumentRetrievalHandler",
         ["AtWorkDocumentListCompletedEvent"]         = "DocumentListSaga",
         ["AtWorkDocumentRetrievedEvent"]             = "DocumentRetrievalSaga",
-        ["StartMainframeDocumentAggregationCommand"]       = "MainframeDocumentAggregator",
         ["MainframeAppraisalListPartReceivedEvent"]        = "MainframeListAggregator",
         ["MainframeListAccumulationCompleteEvent"]         = "MainframeListAggregator",
         ["MainframeDocumentChunkReceivedEvent"]            = "MainframeDocumentAggregator",

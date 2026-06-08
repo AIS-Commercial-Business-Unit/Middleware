@@ -1,4 +1,7 @@
+using Microsoft.Data.SqlClient;
+using Middleware.Contracts.Commands;
 using MongoDB.Driver;
+using NServiceBus;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -16,7 +19,6 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
-builder.Services.AddHttpClient("policy-issuance");
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName))
     .WithTracing(tracing => tracing
@@ -27,8 +29,44 @@ builder.Services.AddOpenTelemetry()
 var mongoClient = new MongoClient(builder.Configuration.GetConnectionString("MongoDB") ?? "mongodb://localhost:27017");
 builder.Services.AddSingleton<IMongoClient>(mongoClient);
 builder.Services.AddSingleton<FileProcessingStore>();
-builder.Services.AddSingleton<FileBatchKafkaPublisher>();
+builder.Services.AddSingleton<IFileBatchProgressManager, FileBatchProgressManager>();
 builder.Services.AddHostedService<FilePollingService>();
+
+var nsbConnectionString = builder.Configuration.GetConnectionString("NServiceBus")
+    ?? throw new InvalidOperationException("ConnectionStrings:NServiceBus is required.");
+
+builder.Host.UseNServiceBus(_ =>
+{
+    var endpointConfiguration = new EndpointConfiguration("dotnet-file-processing");
+
+    var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
+    transport.ConnectionString(nsbConnectionString);
+    transport.DefaultSchema("dbo");
+    transport.Transactions(TransportTransactionMode.SendsAtomicWithReceive);
+
+    var routing = transport.Routing();
+    routing.RouteToEndpoint(typeof(IssuePolicyCommand), "dotnet-policy-issuance");
+
+    var persistence = endpointConfiguration.UsePersistence<SqlPersistence>();
+    persistence.SqlDialect<SqlDialect.MsSqlServer>();
+    persistence.ConnectionBuilder(() => new SqlConnection(nsbConnectionString));
+
+    endpointConfiguration.EnableInstallers();
+    endpointConfiguration.UseSerialization<SystemJsonSerializer>();
+
+    var recoverability = endpointConfiguration.Recoverability();
+    recoverability.Immediate(immediate => immediate.NumberOfRetries(3));
+    recoverability.Delayed(delayed =>
+    {
+        delayed.NumberOfRetries(2);
+        delayed.TimeIncrease(TimeSpan.FromSeconds(10));
+    });
+
+    endpointConfiguration.SendFailedMessagesTo("error");
+    endpointConfiguration.AuditProcessedMessagesTo("audit");
+
+    return endpointConfiguration;
+});
 
 var app = builder.Build();
 app.UseSerilogRequestLogging();

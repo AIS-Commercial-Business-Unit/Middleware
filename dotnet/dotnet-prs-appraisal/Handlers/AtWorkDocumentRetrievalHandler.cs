@@ -16,6 +16,12 @@ public sealed class AtWorkDocumentRetrievalHandler : IHandleMessages<AppraisalDo
 
     public async Task Handle(AppraisalDocumentRetrievalRequestedEvent message, IMessageHandlerContext context)
     {
+        if (!string.Equals(message.SourceSystem, "AtWork", StringComparison.OrdinalIgnoreCase)
+            && !message.DocumentKey.Contains("_RiskID_", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         LogEdaFlow(message.RequestId, "AtWorkDocumentRetrieve", "AtWorkDocumentRetrievalHandler", "AtWork", "atwork.retrieve.document", "published");
         var result = AtWorkFixture.BuildRetrievalResult(message.RequestId, message.DocumentKey);
         LogEdaFlow(message.RequestId, "AtWorkDocumentRetrieved", "AtWork", "AtWorkDocumentRetrievalHandler", "atwork.retrieve.document", "consumed");

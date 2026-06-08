@@ -1,6 +1,6 @@
 using dotnet_prs_appraisal.Infrastructure;
-using dotnet_prs_appraisal.Sagas;
 using Middleware.Contracts.Commands;
+using dotnet_prs_appraisal.Sagas;
 using Middleware.Contracts.Events;
 using NServiceBus.Testing;
 using NUnit.Framework;
@@ -77,7 +77,7 @@ public sealed class DocumentRetrievalSagaTests
     }
 
     [Test]
-    public async Task WhenMainframeRequest_SagaSendsAggregationCommandAndDoesNotCompleteYet()
+    public async Task WhenMainframeRequest_SagaPublishesRetrievalRequestedEventAndDoesNotCompleteYet()
     {
         var repository = new FakeDocumentRetrievalRequestRepository();
         var saga = new DocumentRetrievalSaga(repository);
@@ -91,12 +91,13 @@ public sealed class DocumentRetrievalSagaTests
             RequestedAt = DateTimeOffset.UtcNow
         }, context);
 
-        var sent = context.SentMessages
-            .Select(m => m.Message<StartMainframeDocumentAggregationCommand>())
+        var published = context.PublishedMessages
+            .Select(m => m.Message<AppraisalDocumentRetrievalRequestedEvent>())
             .SingleOrDefault(m => m is not null);
 
-        Assert.That(sent, Is.Not.Null);
-        Assert.That(sent!.RequestId, Is.EqualTo("REQ-DOC-MF-1"));
+        Assert.That(published, Is.Not.Null);
+        Assert.That(published!.RequestId, Is.EqualTo("REQ-DOC-MF-1"));
+        Assert.That(published.SourceSystem, Is.EqualTo("Mainframe"));
         Assert.That(repository.CompletedRecords, Is.Empty);
     }
 
