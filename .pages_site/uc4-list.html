@@ -30,7 +30,7 @@
 
   <div class="callout">
     <strong>Try it:</strong>
-    <code>GET /api/appraisal/list?policyNumber=POL-BOTH-001</code>
+    <code>GET /api/appraisals/list?policyNumber=POL-001-TEST</code>
     &nbsp;·&nbsp; Flow Tracer: <a href="http://localhost:3000" target="_blank">localhost:3000</a><code>/ops/{correlationId}</code>
   </div>
 
@@ -82,54 +82,65 @@
       </thead>
       <tbody>
         <tr>
-          <td class="label">POL-BOTH-001</td>
-          <td>4 records · <code>partialResult=false</code></td>
-          <td>Both branches complete. @Work returns 2 RiskID records, DEIPDE07 returns 2 numeric records. Position indicators: "1 of 2", "2 of 2".</td>
+          <td class="label">POL-001-TEST</td>
+          <td>5 records · <code>partialResult=false</code></td>
+          <td>Full scatter-gather. @Work returns 2 docs (Insured Full Appraisal, Agent Appraisal Report). Mainframe MQ sends 3 messages ("1 of 3", "2 of 3", "3 of 3"): Full Appraisal Report, Exterior Appraisal, Replacement Cost Report. Multi-message MQ aggregation + merge.</td>
         </tr>
         <tr>
-          <td class="label">POL-SQL-001</td>
-          <td>3 records · <code>partialResult=false</code></td>
-          <td>DEIPDE07 returns 0 messages. @Work-only result. No error raised.</td>
-        </tr>
-        <tr>
-          <td class="label">POL-MQ-001</td>
+          <td class="label">POL-002-TEST</td>
           <td>0 records · <code>partialResult=false</code></td>
-          <td>Mainframe-only result. All records have numeric document keys.</td>
+          <td>Empty results path. @Work returns 0 docs. Mainframe MQ sends 0 messages. MQ listener times out, saga returns empty result. No error raised.</td>
         </tr>
         <tr>
-          <td class="label">POL-TIMEOUT-001</td>
-          <td>2 records · <code>partialResult=true</code></td>
-          <td>DEIPDE07 times out. @Work results returned immediately. Timeout logged with elapsed time.</td>
+          <td class="label">POL-003-TEST</td>
+          <td>2 records · <code>partialResult=false</code></td>
+          <td>Minimal data. @Work returns 1 Reinspection Report. Mainframe MQ sends 1 Single Property Report ("1 of 1"). Small-dataset merge.</td>
+        </tr>
+        <tr>
+          <td class="label">POL-AW-ONLY</td>
+          <td>2 records · <code>partialResult=false</code></td>
+          <td>AtWork-only result. @Work returns 2 docs (Comprehensive Property Review, Market Value Assessment). Mainframe MQ listener times out — 0 MQ records. Shows scatter-gather completing cleanly when only the SQL branch has data.</td>
+        </tr>
+        <tr>
+          <td class="label">POL-MF-ONLY</td>
+          <td>2 records · <code>partialResult=false</code></td>
+          <td>Mainframe-only result. @Work returns 0 docs. Mainframe MQ sends 2 messages ("1 of 2", "2 of 2"): Structural Assessment, Interior Inspection Report. Shows scatter-gather completing cleanly when only the IBM MQ branch has data.</td>
+        </tr>
+        <tr>
+          <td class="label">POL-TIMEOUT</td>
+          <td>1 record · <code>partialResult=true</code></td>
+          <td>Mainframe simulator sleeps 35 s (saga timeout 30 s). @Work default doc returned. API returns 202 Accepted while saga is still processing. Timeout logged with elapsed time.</td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <h2>Structured Log — Happy Path (POL-BOTH-001)</h2>
+  <h2>Structured Log — Happy Path (POL-001-TEST)</h2>
   <details>
     <summary>Show expected log output</summary>
     <div class="card" style="margin-top:12px">
-      <pre style="font-size:12px; overflow-x:auto; margin:0">ScatterGather.FanOut.Started       correlationId=xxx  policyNumber=POL-BOTH-001
+      <pre style="font-size:12px; overflow-x:auto; margin:0">ScatterGather.FanOut.Started       correlationId=xxx  policyNumber=POL-001-TEST
 AtWork.Query.Started               correlationId=xxx
-DEIPDE07.MQ.Send                   correlationId=xxx  queue=REQUEST
+DEIPDE07.MQ.Send                   correlationId=xxx  queue=APPRAISAL.LIST.REQUEST
 AtWork.Query.Completed             correlationId=xxx  rowCount=2  durationMs=45
-DEIPDE07.MQ.MessageReceived        correlationId=xxx  position="1 of 2"
-DEIPDE07.MQ.MessageReceived        correlationId=xxx  position="2 of 2"
-Aggregator.Merge.Started           correlationId=xxx  atWorkCount=2  deipde07Count=2
+DEIPDE07.MQ.MessageReceived        correlationId=xxx  position="1 of 3"
+DEIPDE07.MQ.MessageReceived        correlationId=xxx  position="2 of 3"
+DEIPDE07.MQ.MessageReceived        correlationId=xxx  position="3 of 3"
+Aggregator.Merge.Started           correlationId=xxx  atWorkCount=2  deipde07Count=3
 Aggregator.Deduplicate             correlationId=xxx  duplicatesRemoved=0
-Aggregator.Merge.Completed         correlationId=xxx  totalCount=4
-AppraisalListRetrieved             correlationId=xxx  recordCount=4  partialResult=false</pre>
+Aggregator.Merge.Completed         correlationId=xxx  totalCount=5
+AppraisalListRetrieved             correlationId=xxx  recordCount=5  partialResult=false</pre>
     </div>
   </details>
 
   <details>
-    <summary>Show timeout log output (POL-TIMEOUT-001)</summary>
+    <summary>Show timeout log output (POL-TIMEOUT)</summary>
     <div class="card" style="margin-top:12px">
-      <pre style="font-size:12px; overflow-x:auto; margin:0">ScatterGather.FanOut.Started       correlationId=xxx  policyNumber=POL-TIMEOUT-001
-AtWork.Query.Completed             correlationId=xxx  rowCount=2  durationMs=38
-DEIPDE07.MQ.Timeout                correlationId=xxx  timeoutMs=1000
-Aggregator.Merge.Completed         correlationId=xxx  totalCount=2  partialResult=true
-AppraisalListRetrieved             correlationId=xxx  recordCount=2  partialResult=true</pre>
+      <pre style="font-size:12px; overflow-x:auto; margin:0">ScatterGather.FanOut.Started       correlationId=xxx  policyNumber=POL-TIMEOUT
+AtWork.Query.Completed             correlationId=xxx  rowCount=1  durationMs=38
+DEIPDE07.MQ.Timeout                correlationId=xxx  timeoutMs=30000
+Aggregator.Merge.Completed         correlationId=xxx  totalCount=1  partialResult=true
+AppraisalListRetrieved             correlationId=xxx  recordCount=1  partialResult=true</pre>
     </div>
   </details>
 

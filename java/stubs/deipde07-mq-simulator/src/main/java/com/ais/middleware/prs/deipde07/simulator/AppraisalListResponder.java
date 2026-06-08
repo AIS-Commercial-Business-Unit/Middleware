@@ -36,7 +36,13 @@ public class AppraisalListResponder {
             "POL-002-TEST", List.of(), // zero results — consumer will time out on MQ side
             "POL-003-TEST", List.of(
                     new AppraisalRecord("APR-004", "POL-003-TEST", "321 PINE AVENUE", "MINNEAPOLIS", "MN", "55404", "2024-04-01", "APPRAISAL", "Single Property Report",  "10000000004")
-            )
+            ),
+            "POL-AW-ONLY",  List.of(), // AtWork returns docs; no MQ messages — tests left-branch-only merge
+            "POL-MF-ONLY",  List.of(
+                    new AppraisalRecord("APR-MF1", "POL-MF-ONLY", "100 MAIN STREET", "CHICAGO",     "IL", "60601", "2024-05-01", "APPRAISAL", "Structural Assessment",        "10000000005"),
+                    new AppraisalRecord("APR-MF2", "POL-MF-ONLY", "200 ELM AVENUE",  "CHICAGO",     "IL", "60602", "2024-05-02", "APPRAISAL", "Interior Inspection Report",   "10000000006")
+            ),
+            "POL-NO-DOCS",  List.of() // both branches return 0 docs
             // POL-TIMEOUT handled separately via special-case logic below
     );
 

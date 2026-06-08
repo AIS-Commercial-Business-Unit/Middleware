@@ -6,6 +6,7 @@ using Azure.Monitor.OpenTelemetry.Exporter;
 using Serilog;
 using Serilog.Formatting.Json;
 using NServiceBus;
+using Middleware.Platform;
 using dotnet_platform_notification.Infrastructure;
 using dotnet_platform_notification.Handlers;
 
@@ -50,7 +51,9 @@ persistence.SqlDialect<SqlDialect.MsSqlServer>();
 persistence.ConnectionBuilder(() => new SqlConnection(sqlConnectionString));
 persistence.TablePrefix("nsb");
 
-var endpointInstance = await NServiceBus.Endpoint.Start(endpointConfiguration).ConfigureAwait(false);
+endpointConfiguration.ApplyParticularPlatformDefaults(builder.Configuration);
+builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
+
 var app = builder.Build();
 
 NotificationRuntime.Logger = app.Services.GetService<ILogger<NotificationDispatchHandler>>();
@@ -58,6 +61,5 @@ NotificationRuntime.Logger = app.Services.GetService<ILogger<NotificationDispatc
 app.UseSerilogRequestLogging();
 app.MapHealthChecks("/health");
 app.MapControllers();
-app.Lifetime.ApplicationStopping.Register(() => endpointInstance.Stop().GetAwaiter().GetResult());
 await app.RunAsync().ConfigureAwait(false);
 

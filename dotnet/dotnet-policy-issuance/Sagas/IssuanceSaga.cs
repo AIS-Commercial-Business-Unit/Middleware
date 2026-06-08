@@ -19,14 +19,9 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
 {
     private readonly IIssuanceSagaRecordRepository _repository;
 
-    public IssuanceSaga() : this(PolicyIssuanceRuntime.Repository)
-    {
-    }
-
     public IssuanceSaga(IIssuanceSagaRecordRepository repository)
     {
         _repository = repository;
-        Data = new IssuanceSagaData();
     }
 
     protected override void ConfigureHowToFindSaga(SagaPropertyMapper<IssuanceSagaData> mapper)
@@ -44,6 +39,7 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
 
     public async Task Handle(IssuePolicyCommand message, IMessageHandlerContext context)
     {
+        Data ??= new IssuanceSagaData();
         var firstPolicy = message.Policies.First();
         Data.IssuanceId = message.IssuanceId;
         Data.AccountId = message.AccountId;
@@ -145,7 +141,9 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
             IssuanceId = Data.IssuanceId,
             AccountId = Data.AccountId,
             Reason = message.Reason,
-            FailedAt = Data.CompletedAt.Value
+            FailedAt = Data.CompletedAt.Value,
+            BatchId = Data.BatchId,
+            RecordId = Data.RecordId
         }).ConfigureAwait(false);
 
         await SendNotificationAsync(context, "ComplianceBlocked", message.Reason).ConfigureAwait(false);
@@ -232,7 +230,9 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
             IssuanceId = Data.IssuanceId,
             AccountId = Data.AccountId,
             Reason = message.Reason,
-            FailedAt = Data.CompletedAt.Value
+            FailedAt = Data.CompletedAt.Value,
+            BatchId = Data.BatchId,
+            RecordId = Data.RecordId
         }).ConfigureAwait(false);
 
         await SendNotificationAsync(context, "IssuanceFailed", message.Reason).ConfigureAwait(false);
@@ -295,7 +295,9 @@ public sealed class IssuanceSaga : Saga<IssuanceSagaData>,
             IssuanceId = Data.IssuanceId,
             AccountId = Data.AccountId,
             PolicyNumbers = Data.PolicyNumbers,
-            CompletedAt = Data.CompletedAt.Value
+            CompletedAt = Data.CompletedAt.Value,
+            BatchId = Data.BatchId,
+            RecordId = Data.RecordId
         }).ConfigureAwait(false);
 
         await SendNotificationAsync(context, "PolicyIssued", "Policy issuance completed successfully.").ConfigureAwait(false);

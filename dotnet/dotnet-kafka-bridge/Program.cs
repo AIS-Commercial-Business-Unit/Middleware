@@ -5,6 +5,7 @@ using OpenTelemetry.Trace;
 using Azure.Identity;
 using Azure.Monitor.OpenTelemetry.Exporter;
 using NServiceBus;
+using Middleware.Platform;
 using Serilog;
 using Serilog.Formatting.Json;
 using dotnet_kafka_bridge.Infrastructure;
@@ -75,7 +76,9 @@ var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
 transport.ConnectionString(sqlConnectionString);
 transport.Transactions(TransportTransactionMode.ReceiveOnly);
 
-var endpointInstance = await NServiceBus.Endpoint.Start(endpointConfiguration).ConfigureAwait(false);
+endpointConfiguration.ApplyParticularPlatformDefaults(builder.Configuration);
+builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
+
 var app = builder.Build();
 
 KafkaBridgeRuntime.Logger = app.Services.GetService<ILogger<PolicyIssuedEventHandler>>();
@@ -85,7 +88,6 @@ app.MapHealthChecks("/health");
 app.MapControllers();
 app.Lifetime.ApplicationStopping.Register(() =>
 {
-    endpointInstance.Stop().GetAwaiter().GetResult();
     KafkaBridgeRuntime.Producer?.Flush(TimeSpan.FromSeconds(5));
     KafkaBridgeRuntime.Producer?.Dispose();
 });

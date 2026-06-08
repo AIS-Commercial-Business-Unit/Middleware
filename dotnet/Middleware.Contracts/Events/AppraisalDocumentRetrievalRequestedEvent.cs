@@ -9,4 +9,6 @@ public sealed class AppraisalDocumentRetrievalRequestedEvent : IEvent
     public string PolicyNumber { get; set; } = string.Empty;
 
     public string DocumentKey { get; set; } = string.Empty;
+
+    public string SourceSystem { get; set; } = string.Empty;
 }

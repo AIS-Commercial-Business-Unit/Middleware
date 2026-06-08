@@ -8,4 +8,6 @@ public sealed class IssuanceFailedEvent : IEvent
     public string AccountId { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
     public DateTimeOffset FailedAt { get; set; } = DateTimeOffset.UtcNow;
+    public string? BatchId { get; set; }
+    public string? RecordId { get; set; }
 }

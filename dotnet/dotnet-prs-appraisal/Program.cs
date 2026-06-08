@@ -1,12 +1,13 @@
 using dotnet_prs_appraisal.Behaviors;
+using Middleware.Contracts.Commands;
 using dotnet_prs_appraisal.Infrastructure;
 using Microsoft.Data.SqlClient;
-using Middleware.Contracts.Commands;
 using MongoDB.Driver;
 using NServiceBus;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Azure.Monitor.OpenTelemetry.Exporter;
+using Middleware.Platform;
 using Serilog;
 using Serilog.Formatting.Json;
 
@@ -22,6 +23,9 @@ builder.Host.UseSerilog();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHealthChecks();
+
+var nServiceBusConnectionString = builder.Configuration.GetConnectionString("NServiceBus")
+    ?? throw new InvalidOperationException("ConnectionStrings:NServiceBus is required.");
 
 var serviceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "dotnet-prs-appraisal";
 builder.Services.AddOpenTelemetry()
@@ -39,6 +43,7 @@ builder.Services.AddOpenTelemetry()
 
 // ── UC4 services ──────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IArtemisAdapter, ArtemisAdapter>();
+builder.Services.AddSingleton<IAccumulatorRepository>(_ => new AccumulatorRepository(nServiceBusConnectionString));
 builder.Services.AddHostedService<ArtemisListReplyListener>();
 builder.Services.AddHostedService<ArtemisDocumentReplyListener>();
 
@@ -51,36 +56,31 @@ builder.Services.AddSingleton<IDocumentListRequestRepository>(sp =>
 builder.Services.AddSingleton<IDocumentRetrievalRequestRepository>(sp =>
     new MongoDocumentRetrievalRequestRepository(sp.GetRequiredService<IMongoClient>(), "prs_appraisal"));
 
-builder.Host.UseNServiceBus(_ =>
-{
-    var endpointConfiguration = new EndpointConfiguration("dotnet-prs-appraisal");
-    var connectionString = builder.Configuration.GetConnectionString("NServiceBus")
-        ?? throw new InvalidOperationException("ConnectionStrings:NServiceBus is required.");
+var endpointConfiguration = new EndpointConfiguration("dotnet-prs-appraisal");
 
-    var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
-    transport.ConnectionString(connectionString);
-    transport.DefaultSchema("dbo");
+var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
+transport.ConnectionString(nServiceBusConnectionString);
+transport.DefaultSchema("dbo");
+transport.Transactions(TransportTransactionMode.SendsAtomicWithReceive);
 
-    var routing = transport.Routing();
-    routing.RouteToEndpoint(typeof(GetAppraisalDocumentListCommand), "dotnet-prs-appraisal");
-    routing.RouteToEndpoint(typeof(RetrieveAppraisalDocumentCommand), "dotnet-prs-appraisal");
-    routing.RouteToEndpoint(typeof(StartMainframeDocumentAggregationCommand), "dotnet-prs-appraisal");
+var routing = transport.Routing();
+routing.RouteToEndpoint(typeof(GetAppraisalDocumentListCommand), "dotnet-prs-appraisal");
+routing.RouteToEndpoint(typeof(RetrieveAppraisalDocumentCommand), "dotnet-prs-appraisal");
 
-    var persistence = endpointConfiguration.UsePersistence<SqlPersistence>();
-    persistence.SqlDialect<SqlDialect.MsSqlServer>();
-    persistence.ConnectionBuilder(() => new SqlConnection(connectionString));
+var persistence = endpointConfiguration.UsePersistence<SqlPersistence>();
+persistence.SqlDialect<SqlDialect.MsSqlServer>();
+persistence.ConnectionBuilder(() => new SqlConnection(nServiceBusConnectionString));
 
-    endpointConfiguration.EnableInstallers();
-    endpointConfiguration.UseSerialization<SystemJsonSerializer>();
-    endpointConfiguration.SendFailedMessagesTo("error");
-    endpointConfiguration.AuditProcessedMessagesTo("audit");
-    endpointConfiguration.Pipeline.Register(typeof(AppraisalEDAFlowHandlerInvokeBehavior), "Logs EDA flow events at handler invocation for subscriber fan-out visibility.");
-    endpointConfiguration.Pipeline.Register(typeof(AppraisalEDAFlowOutgoingBehavior), "Logs outgoing EDA flow events.");
+endpointConfiguration.EnableInstallers();
+endpointConfiguration.UseSerialization<SystemJsonSerializer>();
+endpointConfiguration.ApplyParticularPlatformDefaults(builder.Configuration, withSagaAudit: true);
+endpointConfiguration.Pipeline.Register(typeof(AppraisalEDAFlowHandlerInvokeBehavior), "Logs EDA flow events at handler invocation for subscriber fan-out visibility.");
+endpointConfiguration.Pipeline.Register(typeof(AppraisalEDAFlowOutgoingBehavior), "Logs outgoing EDA flow events.");
 
-    return endpointConfiguration;
-});
+builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
 
 var app = builder.Build();
+await app.Services.GetRequiredService<IAccumulatorRepository>().EnsureCreatedAsync();
 
 app.UseSerilogRequestLogging();
 

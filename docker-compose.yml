@@ -1135,6 +1135,7 @@ services:
       - ./.docker-data/renewals/dotnet/error:/app/data/renewals/error
     environment:
       ASPNETCORE_URLS: http://+:8187
+      ConnectionStrings__NServiceBus: "Server=sqlserver;Database=middleware_nsb;User=sa;Password=AIS_Middleware_2024!;TrustServerCertificate=True"
       ConnectionStrings__MongoDB: "mongodb://mongodb:27017"
       ExternalServices__PolicyIssuanceUrl: "http://dotnet-policy-issuance:8181"
       FileProcessing__InboundDir: "/app/data/renewals/inbound"

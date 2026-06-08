@@ -1,7 +1,7 @@
-using dotnet_prs_appraisal.Sagas;
+using dotnet_prs_appraisal.Infrastructure;
 using Middleware.Contracts.Commands;
+using dotnet_prs_appraisal.Sagas;
 using Middleware.Contracts.Events;
-using Middleware.Contracts.Messages;
 using NServiceBus.Testing;
 using NUnit.Framework;
 
@@ -10,12 +10,11 @@ namespace Middleware.Tests;
 [TestFixture]
 public sealed class DocumentRetrievalSagaTests
 {
-    // ── AtWork path ──────────────────────────────────────────────────────────────
-
     [Test]
-    public async Task WhenAtWorkRequest_SagaPublishesRetrievalRequestedEventAndDoesNotReplyYet()
+    public async Task WhenAtWorkRequest_SagaPublishesRetrievalRequestedEventAndDoesNotCompleteYet()
     {
-        var saga = new DocumentRetrievalSaga();
+        var repository = new FakeDocumentRetrievalRequestRepository();
+        var saga = new DocumentRetrievalSaga(repository);
         var context = new TestableMessageHandlerContext();
 
         await saga.Handle(CreateAtWorkCommand("REQ-DOC-AW-1", "DOC_RiskID_I_TEST001"), context);
@@ -24,22 +23,22 @@ public sealed class DocumentRetrievalSagaTests
             .Select(m => m.Message<AppraisalDocumentRetrievalRequestedEvent>())
             .SingleOrDefault(m => m is not null);
 
-        Assert.That(retrievalEvent, Is.Not.Null, "Saga must publish AppraisalDocumentRetrievalRequestedEvent");
+        Assert.That(retrievalEvent, Is.Not.Null);
         Assert.That(retrievalEvent!.RequestId, Is.EqualTo("REQ-DOC-AW-1"));
         Assert.That(retrievalEvent.DocumentKey, Is.EqualTo("DOC_RiskID_I_TEST001"));
-        Assert.That(saga.Data.AtWorkPending, Is.True, "AtWorkPending must be set");
-        Assert.That(context.RepliedMessages, Is.Empty, "Saga must not reply until async result arrives");
+        Assert.That(saga.Data.AtWorkPending, Is.True);
+        Assert.That(repository.CompletedRecords, Is.Empty);
     }
 
     [Test]
-    public async Task WhenAtWorkRetrievedEventArrives_SagaRepliesWithContent()
+    public async Task WhenAtWorkRetrievedEventArrives_SagaCompletesRepositoryRecord()
     {
-        var saga = new DocumentRetrievalSaga();
+        var repository = new FakeDocumentRetrievalRequestRepository();
+        var saga = new DocumentRetrievalSaga(repository);
         var context = new TestableMessageHandlerContext();
 
         await saga.Handle(CreateAtWorkCommand("REQ-DOC-AW-2", "DOC_RiskID_I_TEST001"), context);
 
-        // Simulate AtWorkDocumentRetrievalHandler response
         await saga.Handle(new AtWorkDocumentRetrievedEvent
         {
             RequestId = "REQ-DOC-AW-2",
@@ -48,22 +47,19 @@ public sealed class DocumentRetrievalSagaTests
             MimeType = "application/pdf"
         }, context);
 
-        Assert.That(saga.Data.AtWorkDone, Is.True, "AtWorkDone must be set after receiving result");
-        var reply = context.RepliedMessages
-            .Select(m => m.Message<RetrieveAppraisalDocumentResponse>())
-            .SingleOrDefault(m => m is not null);
-
-        Assert.That(reply, Is.Not.Null, "Saga must reply after AtWork result arrives");
-        Assert.That(reply!.RequestId, Is.EqualTo("REQ-DOC-AW-2"));
-        Assert.That(reply.ContentType, Is.EqualTo("application/pdf"));
-        Assert.That(reply.ContentBase64, Is.EqualTo("AAAA"));
-        Assert.That(reply.SourceSystem, Is.EqualTo("AtWork"));
+        Assert.That(saga.Data.AtWorkDone, Is.True);
+        Assert.That(repository.CompletedRecords, Has.Count.EqualTo(1));
+        Assert.That(repository.CompletedRecords[0].RequestId, Is.EqualTo("REQ-DOC-AW-2"));
+        Assert.That(repository.CompletedRecords[0].ContentType, Is.EqualTo("application/pdf"));
+        Assert.That(repository.CompletedRecords[0].ContentBase64, Is.EqualTo("AAAA"));
+        Assert.That(repository.CompletedRecords[0].SourceSystem, Is.EqualTo("AtWork"));
     }
 
     [Test]
     public async Task WhenAtWorkRequestWithSourceSystemHeader_SagaRoutesToAtWorkPath()
     {
-        var saga = new DocumentRetrievalSaga();
+        var repository = new FakeDocumentRetrievalRequestRepository();
+        var saga = new DocumentRetrievalSaga(repository);
         var context = new TestableMessageHandlerContext();
 
         await saga.Handle(new RetrieveAppraisalDocumentCommand
@@ -80,12 +76,11 @@ public sealed class DocumentRetrievalSagaTests
             .Any(m => m is not null), Is.True);
     }
 
-    // ── Mainframe path ───────────────────────────────────────────────────────────
-
     [Test]
-    public async Task WhenMainframeRequest_SagaSendsAggregationCommandAndDoesNotReplyYet()
+    public async Task WhenMainframeRequest_SagaPublishesRetrievalRequestedEventAndDoesNotCompleteYet()
     {
-        var saga = new DocumentRetrievalSaga();
+        var repository = new FakeDocumentRetrievalRequestRepository();
+        var saga = new DocumentRetrievalSaga(repository);
         var context = new TestableMessageHandlerContext();
 
         await saga.Handle(new RetrieveAppraisalDocumentCommand
@@ -96,19 +91,21 @@ public sealed class DocumentRetrievalSagaTests
             RequestedAt = DateTimeOffset.UtcNow
         }, context);
 
-        var sent = context.SentMessages
-            .Select(m => m.Message<StartMainframeDocumentAggregationCommand>())
+        var published = context.PublishedMessages
+            .Select(m => m.Message<AppraisalDocumentRetrievalRequestedEvent>())
             .SingleOrDefault(m => m is not null);
 
-        Assert.That(sent, Is.Not.Null, "Saga must send StartMainframeDocumentAggregationCommand");
-        Assert.That(sent!.RequestId, Is.EqualTo("REQ-DOC-MF-1"));
-        Assert.That(context.RepliedMessages, Is.Empty, "Saga must not reply until Mainframe result arrives");
+        Assert.That(published, Is.Not.Null);
+        Assert.That(published!.RequestId, Is.EqualTo("REQ-DOC-MF-1"));
+        Assert.That(published.SourceSystem, Is.EqualTo("Mainframe"));
+        Assert.That(repository.CompletedRecords, Is.Empty);
     }
 
     [Test]
-    public async Task WhenMainframeDocumentRetrievedEventArrives_SagaRepliesWithContent()
+    public async Task WhenMainframeDocumentRetrievedEventArrives_SagaCompletesRepositoryRecord()
     {
-        var saga = new DocumentRetrievalSaga();
+        var repository = new FakeDocumentRetrievalRequestRepository();
+        var saga = new DocumentRetrievalSaga(repository);
         var context = new TestableMessageHandlerContext();
 
         await saga.Handle(new RetrieveAppraisalDocumentCommand
@@ -129,14 +126,11 @@ public sealed class DocumentRetrievalSagaTests
             FileName = "mainframe-doc.pdf"
         }, context);
 
-        var reply = context.RepliedMessages
-            .Select(m => m.Message<RetrieveAppraisalDocumentResponse>())
-            .SingleOrDefault(m => m is not null);
-
-        Assert.That(reply, Is.Not.Null);
-        Assert.That(reply!.RequestId, Is.EqualTo("REQ-DOC-MF-2"));
-        Assert.That(reply.ContentBase64, Is.EqualTo("BBBB"));
-        Assert.That(reply.SourceSystem, Is.EqualTo("Mainframe"));
+        Assert.That(repository.CompletedRecords, Has.Count.EqualTo(1));
+        Assert.That(repository.CompletedRecords[0].RequestId, Is.EqualTo("REQ-DOC-MF-2"));
+        Assert.That(repository.CompletedRecords[0].ContentBase64, Is.EqualTo("BBBB"));
+        Assert.That(repository.CompletedRecords[0].SourceSystem, Is.EqualTo("Mainframe"));
+        Assert.That(repository.CompletedRecords[0].FileName, Is.EqualTo("mainframe-doc.pdf"));
     }
 
     private static RetrieveAppraisalDocumentCommand CreateAtWorkCommand(string requestId, string documentKey) => new()
@@ -147,3 +141,25 @@ public sealed class DocumentRetrievalSagaTests
         RequestedAt = DateTimeOffset.UtcNow
     };
 }
+
+internal sealed class FakeDocumentRetrievalRequestRepository : IDocumentRetrievalRequestRepository
+{
+    public List<CompletedDocumentRecord> CompletedRecords { get; } = [];
+
+    public Task CreateAsync(string requestId, string documentKey, string sourceSystem) => Task.CompletedTask;
+
+    public Task<DocumentRetrievalRequestRecord?> FindAsync(string requestId) => Task.FromResult<DocumentRetrievalRequestRecord?>(null);
+
+    public Task CompleteAsync(string requestId, string contentType, string contentBase64, string fileName, string sourceSystem)
+    {
+        CompletedRecords.Add(new CompletedDocumentRecord(requestId, contentType, contentBase64, fileName, sourceSystem));
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed record CompletedDocumentRecord(
+    string RequestId,
+    string ContentType,
+    string ContentBase64,
+    string FileName,
+    string SourceSystem);

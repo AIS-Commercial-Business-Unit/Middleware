@@ -3,15 +3,22 @@
     <RootNamespace>dotnet_file_processing</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Confluent.Kafka" Version="2.*" />
-    <PackageReference Include="MongoDB.Driver" Version="2.*" />
+    <ProjectReference Include="..\Middleware.Contracts\Middleware.Contracts.csproj" />
+    <ProjectReference Include="..\Middleware.Platform\Middleware.Platform.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.*" />
+    <PackageReference Include="MongoDB.Driver" Version="3.*" />
+    <PackageReference Include="NServiceBus" Version="10.*" />
+    <PackageReference Include="NServiceBus.Persistence.Sql" Version="9.*" />
+    <PackageReference Include="NServiceBus.Transport.SqlServer" Version="9.*" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.*" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.*" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.*" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.*" />
-    <PackageReference Include="Serilog.AspNetCore" Version="7.*" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="5.*" />
-    <PackageReference Include="Serilog.Sinks.OpenTelemetry" Version="3.*" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.*" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.*" />
+    <PackageReference Include="Serilog.Sinks.OpenTelemetry" Version="4.*" />
     <PackageReference Include="Azure.Identity" Version="1.*" />
     <PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.*" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.*" />

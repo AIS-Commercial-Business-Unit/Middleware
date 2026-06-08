@@ -1,6 +1,4 @@
-using System.Text.Json;
 using dotnet_prs_appraisal.Infrastructure;
-using Middleware.Contracts.Commands;
 using Middleware.Contracts.Events;
 using NServiceBus;
 using NServiceBus.Persistence.Sql;
@@ -11,12 +9,10 @@ namespace dotnet_prs_appraisal.Sagas;
 [SqlSaga(tableSuffix: "MfDocumentAggregator")]
 public sealed class MainframeDocumentAggregatorSaga :
     Saga<MainframeDocumentAggregatorSagaData>,
-    IAmStartedByMessages<StartMainframeDocumentAggregationCommand>,
-    IHandleMessages<MainframeDocumentChunkReceivedEvent>,
+    IAmStartedByMessages<AppraisalDocumentRetrievalRequestedEvent>,
+    IHandleMessages<MainframeDocumentAccumulationCompleteEvent>,
     IHandleTimeouts<MainframeDocumentAggregatorTimeoutMessage>
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
     private readonly IArtemisAdapter _artemisAdapter;
     private readonly ILogger<MainframeDocumentAggregatorSaga> _logger;
 
@@ -31,17 +27,31 @@ public sealed class MainframeDocumentAggregatorSaga :
     protected override void ConfigureHowToFindSaga(SagaPropertyMapper<MainframeDocumentAggregatorSagaData> mapper)
     {
         mapper.MapSaga(sagaData => sagaData.RequestId)
-            .ToMessage<StartMainframeDocumentAggregationCommand>(message => message.RequestId)
-            .ToMessage<MainframeDocumentChunkReceivedEvent>(message => message.RequestId)
+            .ToMessage<AppraisalDocumentRetrievalRequestedEvent>(message => message.RequestId)
+            .ToMessage<MainframeDocumentAccumulationCompleteEvent>(message => message.RequestId)
             .ToMessage<MainframeDocumentAggregatorTimeoutMessage>(message => message.RequestId);
     }
 
-    public async Task Handle(StartMainframeDocumentAggregationCommand message, IMessageHandlerContext context)
+    public async Task Handle(AppraisalDocumentRetrievalRequestedEvent message, IMessageHandlerContext context)
     {
+        // Only the mainframe path is handled here; AtWork requests are handled by AtWorkDocumentRetrievalHandler.
+        if (string.Equals(message.SourceSystem, "AtWork", StringComparison.OrdinalIgnoreCase)
+            || message.DocumentKey.Contains("_RiskID_", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         Data ??= new MainframeDocumentAggregatorSagaData();
         Data.RequestId = message.RequestId;
         Data.DocumentKey = message.DocumentKey;
-        Data.StartedAt = message.RequestedAt;
+
+        if (Data.MqSendInitiated)
+        {
+            _logger.LogWarning("Duplicate AppraisalDocumentRetrievalRequestedEvent for {RequestId} — skipping MQ send.", message.RequestId);
+            return;
+        }
+
+        Data.MqSendInitiated = true;
 
         await RequestTimeout(context, TimeSpan.FromSeconds(18), new MainframeDocumentAggregatorTimeoutMessage
         {
@@ -59,45 +69,37 @@ public sealed class MainframeDocumentAggregatorSaga :
         }
     }
 
-    public async Task Handle(MainframeDocumentChunkReceivedEvent message, IMessageHandlerContext context)
+    public async Task Handle(MainframeDocumentAccumulationCompleteEvent message, IMessageHandlerContext context)
     {
-        Data ??= new MainframeDocumentAggregatorSagaData();
-        var accumulatedChunks = GetAccumulatedChunks();
-        accumulatedChunks.Add(message.ChunkPayload);
-        Data.AccumulatedChunksJson = JsonSerializer.Serialize(accumulatedChunks, JsonOptions);
-
-        if (!message.IsFinal)
-        {
-            return;
-        }
-
-        Data.IsFinalChunkReceived = true;
-        await PublishCompletionAsync(context, accumulatedChunks, timedOut: false).ConfigureAwait(false);
-    }
-
-    public Task Timeout(MainframeDocumentAggregatorTimeoutMessage state, IMessageHandlerContext context)
-        => PublishCompletionAsync(context, [], timedOut: true);
-
-    private async Task PublishCompletionAsync(IMessageHandlerContext context, List<string> accumulatedChunks, bool timedOut)
-    {
-        var payload = timedOut ? string.Empty : string.Concat(accumulatedChunks);
+        var documentKey = string.IsNullOrWhiteSpace(message.DocumentKey) ? Data.DocumentKey : message.DocumentKey;
 
         await context.Publish(new AppraisalDocumentRetrievedEvent
         {
-            RequestId = Data.RequestId,
-            DocumentKey = Data.DocumentKey,
+            RequestId = message.RequestId,
+            DocumentKey = documentKey,
             SourceSystem = "Mainframe",
-            ContentType = timedOut ? string.Empty : "application/pdf",
-            ContentBase64 = timedOut ? string.Empty : payload,
-            FileName = timedOut ? string.Empty : $"appraisal-{Data.DocumentKey}.pdf"
+            ContentType = "application/pdf",
+            ContentBase64 = message.ContentBase64,
+            FileName = $"appraisal-{documentKey}.pdf"
         }).ConfigureAwait(false);
 
         MarkAsComplete();
     }
 
-    private List<string> GetAccumulatedChunks() => string.IsNullOrWhiteSpace(Data.AccumulatedChunksJson)
-        ? []
-        : JsonSerializer.Deserialize<List<string>>(Data.AccumulatedChunksJson, JsonOptions) ?? [];
+    public async Task Timeout(MainframeDocumentAggregatorTimeoutMessage state, IMessageHandlerContext context)
+    {
+        await context.Publish(new AppraisalDocumentRetrievedEvent
+        {
+            RequestId = string.IsNullOrWhiteSpace(Data?.RequestId) ? state.RequestId : Data.RequestId,
+            DocumentKey = Data?.DocumentKey ?? string.Empty,
+            SourceSystem = "Mainframe",
+            ContentType = string.Empty,
+            ContentBase64 = string.Empty,
+            FileName = string.Empty
+        }).ConfigureAwait(false);
+
+        MarkAsComplete();
+    }
 
     private void LogEdaFlow(string requestId, string messageType, string from, string to, string topic, string direction = "consumed")
     {

@@ -32,6 +32,33 @@ internal static class AtWorkFixture
             }
         ],
         ["POL-002-TEST"] = [],
+        ["POL-AW-ONLY"] =
+        [
+            new DocumentSummary
+            {
+                DocumentId = "DOC-AW-010",
+                DocumentKey = "DOC_RiskID_I_AW010",
+                SourceSystem = "AtWork",
+                DocumentType = "Appraisal",
+                DocumentName = "Comprehensive Property Review",
+                DocumentDate = "2024-06-10",
+                PolicyNumber = "POL-AW-ONLY",
+                Status = "Available"
+            },
+            new DocumentSummary
+            {
+                DocumentId = "DOC-AW-011",
+                DocumentKey = "DOC_RiskID_A_AW011",
+                SourceSystem = "AtWork",
+                DocumentType = "Appraisal",
+                DocumentName = "Market Value Assessment",
+                DocumentDate = "2024-06-12",
+                PolicyNumber = "POL-AW-ONLY",
+                Status = "Available"
+            }
+        ],
+        ["POL-MF-ONLY"] = [],
+        ["POL-NO-DOCS"] = [],
         ["POL-003-TEST"] =
         [
             new DocumentSummary

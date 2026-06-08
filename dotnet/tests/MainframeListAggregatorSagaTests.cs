@@ -12,136 +12,131 @@ namespace Middleware.Tests;
 public sealed class MainframeListAggregatorSagaTests
 {
     [Test]
-    public async Task WhenAllPartsReceived_SagaPublishesCompletedEventWithAllDocuments()
+    public async Task WhenStarted_SagaSendsMainframeListRequest()
     {
         var adapter = new FakeArtemisAdapter();
-        var saga = new MainframeListAggregatorSaga(adapter, NullLogger<MainframeListAggregatorSaga>.Instance);
-        var context = new TestableMessageHandlerContext();
-        var startEvent = CreateStartEvent();
-
-        await saga.Handle(startEvent, context);
-        await saga.Handle(CreatePart(startEvent.RequestId, 1, 3, "DOC-1"), context);
-        await saga.Handle(CreatePart(startEvent.RequestId, 2, 3, "DOC-2"), context);
-        await saga.Handle(CreatePart(startEvent.RequestId, 3, 3, "DOC-3"), context);
-
-        Assert.That(adapter.ListRequests, Is.EqualTo(1));
-        var completed = context.PublishedMessages
-            .Select(message => message.Message<MainframeDocumentListCompletedEvent>())
-            .LastOrDefault(message => message is not null);
-
-        Assert.That(completed, Is.Not.Null);
-        Assert.That(completed!.Documents.Select(document => document.DocumentKey), Is.EqualTo(new[] { "DOC-1", "DOC-2", "DOC-3" }));
-    }
-
-    [Test]
-    public async Task WhenTimeoutOccursWithPartialParts_SagaPublishesPartialCompletion()
-    {
-        var saga = new MainframeListAggregatorSaga(new FakeArtemisAdapter(), NullLogger<MainframeListAggregatorSaga>.Instance);
-        var context = new TestableMessageHandlerContext();
-        var startEvent = CreateStartEvent();
-
-        await saga.Handle(startEvent, context);
-        await saga.Handle(CreatePart(startEvent.RequestId, 1, 3, "DOC-1"), context);
-        await saga.Handle(CreatePart(startEvent.RequestId, 2, 3, "DOC-2"), context);
-        await saga.Timeout(new MainframeListAggregatorTimeoutMessage { RequestId = startEvent.RequestId }, context);
-
-        var completed = context.PublishedMessages
-            .Select(message => message.Message<MainframeDocumentListCompletedEvent>())
-            .LastOrDefault(message => message is not null);
-
-        Assert.That(completed, Is.Not.Null);
-        Assert.That(completed!.Documents.Select(document => document.DocumentKey), Is.EqualTo(new[] { "DOC-1", "DOC-2" }));
-    }
-
-    [Test]
-    public async Task WhenPartsArriveOutOfOrder_SagaPublishesDocumentsInSequenceOrder()
-    {
-        var saga = new MainframeListAggregatorSaga(new FakeArtemisAdapter(), NullLogger<MainframeListAggregatorSaga>.Instance);
-        var context = new TestableMessageHandlerContext();
-        var startEvent = CreateStartEvent();
-
-        await saga.Handle(startEvent, context);
-        await saga.Handle(CreatePart(startEvent.RequestId, 3, 3, "DOC-3"), context);
-        await saga.Handle(CreatePart(startEvent.RequestId, 1, 3, "DOC-1"), context);
-        await saga.Handle(CreatePart(startEvent.RequestId, 2, 3, "DOC-2"), context);
-
-        var completed = context.PublishedMessages
-            .Select(message => message.Message<MainframeDocumentListCompletedEvent>())
-            .LastOrDefault(message => message is not null);
-
-        Assert.That(completed, Is.Not.Null);
-        Assert.That(completed!.Documents.Select(document => document.DocumentKey), Is.EqualTo(new[] { "DOC-1", "DOC-2", "DOC-3" }));
-    }
-
-    [Test]
-    public async Task WhenDuplicateSequenceArrives_SagaOverwritesDocumentWithoutDoubleCounting()
-    {
-        var saga = new MainframeListAggregatorSaga(new FakeArtemisAdapter(), NullLogger<MainframeListAggregatorSaga>.Instance);
-        var context = new TestableMessageHandlerContext();
-        var startEvent = CreateStartEvent(totalExpected: 2);
-
-        await saga.Handle(startEvent, context);
-        await saga.Handle(CreatePart(startEvent.RequestId, 1, 2, "DOC-OLD", "Old name"), context);
-        await saga.Handle(CreatePart(startEvent.RequestId, 1, 2, "DOC-NEW", "Updated name"), context);
-        await saga.Handle(CreatePart(startEvent.RequestId, 2, 2, "DOC-2"), context);
-
-        var completed = context.PublishedMessages
-            .Select(message => message.Message<MainframeDocumentListCompletedEvent>())
-            .LastOrDefault(message => message is not null);
-
-        Assert.That(completed, Is.Not.Null);
-        Assert.That(completed!.Documents.Count, Is.EqualTo(2));
-        Assert.That(completed.Documents[0].DocumentKey, Is.EqualTo("DOC-NEW"));
-        Assert.That(completed.Documents[0].DocumentName, Is.EqualTo("Updated name"));
-    }
-
-    [Test]
-    public async Task WhenStartedByEvent_SagaSendsArtemisListRequest()
-    {
-        var adapter = new FakeArtemisAdapter();
-        var saga = new MainframeListAggregatorSaga(adapter, NullLogger<MainframeListAggregatorSaga>.Instance);
+        var accumulatorRepository = new FakeAccumulatorRepository();
+        var saga = new MainframeListAggregatorSaga(accumulatorRepository, adapter, NullLogger<MainframeListAggregatorSaga>.Instance);
         var context = new TestableMessageHandlerContext();
 
-        await saga.Handle(CreateStartEvent(), context);
-
-        Assert.That(adapter.ListRequests, Is.EqualTo(1));
-    }
-
-    private static AppraisalDocumentListRequestedEvent CreateStartEvent(int totalExpected = 3) => new()
-    {
-        RequestId = $"REQ-LIST-{totalExpected}",
-        PolicyNumber = "POL-001-TEST",
-        RequestedAt = DateTimeOffset.UtcNow
-    };
-
-    private static MainframeAppraisalListPartReceivedEvent CreatePart(string requestId, int sequenceNumber, int totalExpected, string documentKey, string? documentName = null) => new()
-    {
-        RequestId = requestId,
-        SequenceNumber = sequenceNumber,
-        TotalExpected = totalExpected,
-        Document = new AppraisalDocumentSummary
+        await saga.Handle(new AppraisalDocumentListRequestedEvent
         {
-            DocumentId = $"ID-{documentKey}",
-            DocumentKey = documentKey,
-            SourceSystem = "Mainframe",
-            DocumentType = "Appraisal",
-            DocumentName = documentName ?? documentKey,
-            DocumentDate = $"2026-05-0{sequenceNumber}",
-            PolicyNumber = "POL-001-TEST",
-            Status = "Available"
-        }
+            RequestId = "REQ-LIST-1",
+            PolicyNumber = "POL123",
+            RequestedAt = DateTimeOffset.UtcNow
+        }, context);
+
+        Assert.That(adapter.ListRequestCount, Is.EqualTo(1));
+        Assert.That(context.PublishedMessages, Is.Empty);
+    }
+
+    [Test]
+    public async Task WhenAccumulationCompletes_SagaPublishesCompletedList()
+    {
+        var adapter = new FakeArtemisAdapter();
+        var accumulatorRepository = new FakeAccumulatorRepository();
+        var saga = new MainframeListAggregatorSaga(accumulatorRepository, adapter, NullLogger<MainframeListAggregatorSaga>.Instance);
+        var context = new TestableMessageHandlerContext();
+
+        await saga.Handle(new AppraisalDocumentListRequestedEvent
+        {
+            RequestId = "REQ-LIST-2",
+            PolicyNumber = "POL456",
+            RequestedAt = DateTimeOffset.UtcNow
+        }, context);
+
+        await saga.Handle(new MainframeListAccumulationCompleteEvent
+        {
+            RequestId = "REQ-LIST-2",
+            Documents =
+            [
+                CreateDocument("DOC-1"),
+                CreateDocument("DOC-2")
+            ]
+        }, context);
+
+        var published = context.PublishedMessages
+            .Select(entry => entry.Message<MainframeDocumentListCompletedEvent>())
+            .SingleOrDefault(message => message is not null);
+
+        Assert.That(published, Is.Not.Null);
+        Assert.That(published!.RequestId, Is.EqualTo("REQ-LIST-2"));
+        Assert.That(published.Documents.Select(document => document.DocumentKey), Is.EqualTo(new[] { "DOC-1", "DOC-2" }));
+    }
+
+    [Test]
+    public async Task WhenTimeoutFires_SagaPublishesPartialListFromAccumulatorStore()
+    {
+        var adapter = new FakeArtemisAdapter();
+        var accumulatorRepository = new FakeAccumulatorRepository
+        {
+            ListDocuments =
+            [
+                CreateDocument("DOC-A"),
+                CreateDocument("DOC-B")
+            ]
+        };
+        var saga = new MainframeListAggregatorSaga(accumulatorRepository, adapter, NullLogger<MainframeListAggregatorSaga>.Instance);
+        var context = new TestableMessageHandlerContext();
+
+        await saga.Handle(new AppraisalDocumentListRequestedEvent
+        {
+            RequestId = "REQ-LIST-3",
+            PolicyNumber = "POL789",
+            RequestedAt = DateTimeOffset.UtcNow
+        }, context);
+
+        await saga.Timeout(new MainframeListAggregatorTimeoutMessage
+        {
+            RequestId = "REQ-LIST-3"
+        }, context);
+
+        var published = context.PublishedMessages
+            .Select(entry => entry.Message<MainframeDocumentListCompletedEvent>())
+            .SingleOrDefault(message => message is not null);
+
+        Assert.That(published, Is.Not.Null);
+        Assert.That(published!.Documents.Select(document => document.DocumentKey), Is.EqualTo(new[] { "DOC-A", "DOC-B" }));
+    }
+
+    private static AppraisalDocumentSummary CreateDocument(string documentKey) => new()
+    {
+        DocumentKey = documentKey,
+        SourceSystem = "Mainframe"
     };
+}
+
+internal sealed class FakeAccumulatorRepository : IAccumulatorRepository
+{
+    public List<AppraisalDocumentSummary> ListDocuments { get; set; } = [];
+
+    public Task EnsureCreatedAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task CreateListPartAsync(string requestId, int sequenceNumber, int totalExpected, AppraisalDocumentSummary document, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task<(bool won, List<AppraisalDocumentSummary> documents)> TryCompleteListAsync(string requestId, CancellationToken cancellationToken = default)
+        => Task.FromResult((false, ListDocuments));
+
+    public Task<List<AppraisalDocumentSummary>> GetListDocumentsAsync(string requestId, CancellationToken cancellationToken = default)
+        => Task.FromResult(ListDocuments);
+
+    public Task CreateDocumentChunkAsync(string requestId, string chunkPayload, bool isFinal, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    public Task<(bool won, string assembledContent)> TryCompleteDocumentAsync(string requestId, CancellationToken cancellationToken = default)
+        => Task.FromResult((false, string.Empty));
 }
 
 internal sealed class FakeArtemisAdapter : IArtemisAdapter
 {
-    public int ListRequests { get; private set; }
+    public int ListRequestCount { get; private set; }
 
-    public int DocumentRequests { get; private set; }
+    public int DocumentRequestCount { get; private set; }
 
     public void SendListRequest(string requestId, string policyNumber)
-        => ListRequests++;
+        => ListRequestCount++;
 
     public void SendDocumentRequest(string requestId, string documentKey)
-        => DocumentRequests++;
+        => DocumentRequestCount++;
 }

@@ -1,0 +1,150 @@
+# UC4 — PRS Appraisal Document Services
+# VS Code REST Client (.http file)
+# Install extension: humao.rest-client
+#
+# After any request, copy the requestId from the response and open the Flow Tracer:
+#   http://localhost:3000/ops/{requestId}
+
+@baseUrl = http://localhost:3000
+@directUrl = http://localhost:8189
+
+
+### ── GetAppraisalList ────────────────────────────────────────────────────────
+
+# POL-001-TEST — Full scatter-gather
+# Expected: 5 documents (2 AtWork + 3 Mainframe MQ), partialResult=false
+# AtWork:    Insured Full Appraisal (DOC_RiskID_I_TEST001)
+#            Agent Appraisal Report (DOC_RiskID_A_TEST002)
+# Mainframe: Full Appraisal Report (10000000001)
+#            Exterior Appraisal    (10000000002)
+#            Replacement Cost      (10000000003)
+GET {{baseUrl}}/api/appraisals/list?policyNumber=POL-001-TEST
+
+###
+
+# POL-002-TEST — Empty results
+# Expected: 0 documents, partialResult=false
+# Both AtWork and Mainframe return no records.
+GET {{baseUrl}}/api/appraisals/list?policyNumber=POL-002-TEST
+
+###
+
+# POL-003-TEST — Minimal data
+# Expected: 2 documents (1 AtWork + 1 Mainframe), partialResult=false
+# AtWork:    Reinspection Report  (DOC_RiskID_I_TEST100)
+# Mainframe: Single Property      (10000000004)
+GET {{baseUrl}}/api/appraisals/list?policyNumber=POL-003-TEST
+
+###
+
+# POL-AW-ONLY — AtWork only (Mainframe returns 0)
+# Expected: 2 documents from AtWork, partialResult=false
+# AtWork:    Comprehensive Property Review (DOC_RiskID_I_AW010)
+#            Market Value Assessment       (DOC_RiskID_A_AW011)
+# Mainframe: 0 messages → MQ consumer times out
+GET {{baseUrl}}/api/appraisals/list?policyNumber=POL-AW-ONLY
+
+###
+
+# POL-MF-ONLY — Mainframe only (AtWork returns 0)
+# Expected: 2 documents from Mainframe, partialResult=false
+# AtWork:    0 docs
+# Mainframe: Structural Assessment       (10000000005)
+#            Interior Inspection Report  (10000000006)
+GET {{baseUrl}}/api/appraisals/list?policyNumber=POL-MF-ONLY
+
+###
+
+# POL-TIMEOUT — Mainframe timeout
+# Expected: partial result, partialResult=true
+# Mainframe simulator sleeps 35s; saga times out at 30s.
+# API returns 202 Accepted while saga is still running.
+# Check Flow Tracer after 30s to see the timeout event.
+GET {{baseUrl}}/api/appraisals/list?policyNumber=POL-TIMEOUT
+
+
+### ── GetAppraisalDocument (AtWork / RiskID path) ───────────────────────────
+
+# Insured Full Appraisal — from POL-001-TEST list result
+# Route: AtWork (key contains _RiskID_)
+GET {{baseUrl}}/api/appraisals/document?documentKey=DOC_RiskID_I_TEST001&sourceSystem=AtWork
+
+###
+
+# Agent Appraisal Report — from POL-001-TEST list result
+GET {{baseUrl}}/api/appraisals/document?documentKey=DOC_RiskID_A_TEST002&sourceSystem=AtWork
+
+###
+
+# Reinspection Report — from POL-003-TEST list result
+GET {{baseUrl}}/api/appraisals/document?documentKey=DOC_RiskID_I_TEST100&sourceSystem=AtWork
+
+###
+
+# Comprehensive Property Review — from POL-AW-ONLY list result
+GET {{baseUrl}}/api/appraisals/document?documentKey=DOC_RiskID_I_AW010&sourceSystem=AtWork
+
+###
+
+# Market Value Assessment — from POL-AW-ONLY list result
+GET {{baseUrl}}/api/appraisals/document?documentKey=DOC_RiskID_A_AW011&sourceSystem=AtWork
+
+
+### ── GetAppraisalDocument (Mainframe / DEIPDE07 IBM MQ path) ───────────────
+
+# Full Appraisal Report — from POL-001-TEST list result
+# Route: DEIPDE07 MQ (numeric key). PDF assembled from multiple MQ chunks.
+GET {{baseUrl}}/api/appraisals/document?documentKey=10000000001&sourceSystem=Mainframe
+
+###
+
+# Exterior Appraisal — from POL-001-TEST list result
+GET {{baseUrl}}/api/appraisals/document?documentKey=10000000002&sourceSystem=Mainframe
+
+###
+
+# Replacement Cost Report — from POL-001-TEST list result
+GET {{baseUrl}}/api/appraisals/document?documentKey=10000000003&sourceSystem=Mainframe
+
+###
+
+# Single Property Report — from POL-003-TEST list result
+GET {{baseUrl}}/api/appraisals/document?documentKey=10000000004&sourceSystem=Mainframe
+
+###
+
+# Structural Assessment — from POL-MF-ONLY list result
+GET {{baseUrl}}/api/appraisals/document?documentKey=10000000005&sourceSystem=Mainframe
+
+###
+
+# Interior Inspection Report — from POL-MF-ONLY list result
+GET {{baseUrl}}/api/appraisals/document?documentKey=10000000006&sourceSystem=Mainframe
+
+
+### ── Direct service calls (bypass Next.js proxy) ───────────────────────────
+
+# Useful for checking raw JSON wire format without the proxy layer.
+
+# List — direct to dotnet-prs-appraisal
+GET {{directUrl}}/api/policies/POL-001-TEST/appraisals/documents
+
+###
+
+# Document — direct to dotnet-prs-appraisal (AtWork)
+GET {{directUrl}}/api/appraisals/documents/DOC_RiskID_I_TEST001?sourceSystem=AtWork
+
+###
+
+# Document — direct to dotnet-prs-appraisal (Mainframe)
+GET {{directUrl}}/api/appraisals/documents/10000000001?sourceSystem=Mainframe
+
+
+### ── Flow Tracer ─────────────────────────────────────────────────────────────
+# After any request above, copy the requestId from the JSON response body and
+# open the flow tracer in a browser:
+#
+#   http://localhost:3000/ops/{requestId}
+#
+# The tracer shows every NServiceBus message, saga state transition, and
+# structured log entry for that correlation in real time.

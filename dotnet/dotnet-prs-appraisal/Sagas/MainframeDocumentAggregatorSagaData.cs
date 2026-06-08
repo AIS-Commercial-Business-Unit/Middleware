@@ -8,9 +8,7 @@ public sealed class MainframeDocumentAggregatorSagaData : ContainSagaData
 
     public string DocumentKey { get; set; } = string.Empty;
 
-    public string AccumulatedChunksJson { get; set; } = string.Empty;
-
-    public bool IsFinalChunkReceived { get; set; }
-
     public DateTimeOffset StartedAt { get; set; }
+
+    public bool MqSendInitiated { get; set; }
 }

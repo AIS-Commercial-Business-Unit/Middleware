@@ -11,6 +11,7 @@ using dotnet_policy_issuance.Infrastructure;
 using dotnet_policy_issuance.Sagas;
 using Middleware.Contracts.Commands;
 using NServiceBus;
+using Middleware.Platform;
 
 var builder = WebApplication.CreateBuilder(args);
 var serviceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "dotnet-policy-issuance";
@@ -73,13 +74,12 @@ persistence.SqlDialect<SqlDialect.MsSqlServer>();
 persistence.ConnectionBuilder(() => new SqlConnection(sqlConnectionString));
 persistence.TablePrefix("nsb");
 
-var endpointInstance = await NServiceBus.Endpoint.Start(endpointConfiguration).ConfigureAwait(false);
-builder.Services.AddSingleton<IMessageSession>(endpointInstance);
+endpointConfiguration.ApplyParticularPlatformDefaults(builder.Configuration, withSagaAudit: true);
+builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
 
 var app = builder.Build();
 PolicyIssuanceRuntime.Logger = app.Services.GetService<ILogger<IssuanceSaga>>();
 app.UseSerilogRequestLogging();
 app.MapHealthChecks("/health");
 app.MapControllers();
-app.Lifetime.ApplicationStopping.Register(() => endpointInstance.Stop().GetAwaiter().GetResult());
 await app.RunAsync().ConfigureAwait(false);
