@@ -2,10 +2,6 @@
   <ItemGroup>
     <PackageReference Include="NServiceBus.ServicePlatform.Connector" Version="4.*" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.*" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.*" />
-    <PackageReference Include="Microsoft.Extensions.Azure" Version="1.*" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.*" />
     <PackageReference Include="Microsoft.Data.SqlClient.Extensions.Azure" Version="1.*" />
-    <PackageReference Include="Azure.Identity" Version="1.*" />
   </ItemGroup>
 </Project>

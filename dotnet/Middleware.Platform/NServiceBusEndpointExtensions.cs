@@ -1,28 +1,10 @@
 namespace Middleware.Platform;
 
-using Azure.Identity;
-using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using NServiceBus;
 
 public static class NServiceBusEndpointExtensions
 {
-    /// <summary>
-    /// Registers Azure AD (Entra ID) authentication providers for Microsoft.Data.SqlClient.
-    /// Required because Microsoft.Data.SqlClient 6+ no longer bundles ActiveDirectory* providers;
-    /// they now live in Microsoft.Data.SqlClient.Extensions.Azure and must be registered explicitly.
-    /// </summary>
-    public static IServiceCollection AddAzureSqlAuthentication(this IServiceCollection services)
-    {
-        services.AddAzureClients(builder =>
-        {
-            builder.AddSqlClient();
-            builder.UseCredential(new DefaultAzureCredential());
-        });
-        return services;
-    }
     /// <summary>
     /// Applies standard Particular Service Platform defaults to an endpoint:
     /// error queue, message audit, heartbeats, custom checks, metrics, and
