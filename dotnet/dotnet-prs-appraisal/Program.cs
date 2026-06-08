@@ -21,6 +21,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
+builder.Services.AddAzureSqlAuthentication();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHealthChecks();
 

@@ -22,6 +22,7 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 builder.Services.AddControllers();
+builder.Services.AddAzureSqlAuthentication();
 builder.Services.AddHealthChecks();
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName))
