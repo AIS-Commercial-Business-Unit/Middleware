@@ -35,38 +35,35 @@ builder.Services.AddHostedService<FilePollingService>();
 var nsbConnectionString = builder.Configuration.GetConnectionString("NServiceBus")
     ?? throw new InvalidOperationException("ConnectionStrings:NServiceBus is required.");
 
-builder.Host.UseNServiceBus(_ =>
+var endpointConfiguration = new EndpointConfiguration("dotnet-file-processing");
+
+var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
+transport.ConnectionString(nsbConnectionString);
+transport.DefaultSchema("dbo");
+transport.Transactions(TransportTransactionMode.SendsAtomicWithReceive);
+
+var routing = transport.Routing();
+routing.RouteToEndpoint(typeof(IssuePolicyCommand), "dotnet-policy-issuance");
+
+var persistence = endpointConfiguration.UsePersistence<SqlPersistence>();
+persistence.SqlDialect<SqlDialect.MsSqlServer>();
+persistence.ConnectionBuilder(() => new SqlConnection(nsbConnectionString));
+
+endpointConfiguration.EnableInstallers();
+endpointConfiguration.UseSerialization<SystemJsonSerializer>();
+
+var recoverability = endpointConfiguration.Recoverability();
+recoverability.Immediate(immediate => immediate.NumberOfRetries(3));
+recoverability.Delayed(delayed =>
 {
-    var endpointConfiguration = new EndpointConfiguration("dotnet-file-processing");
-
-    var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
-    transport.ConnectionString(nsbConnectionString);
-    transport.DefaultSchema("dbo");
-    transport.Transactions(TransportTransactionMode.SendsAtomicWithReceive);
-
-    var routing = transport.Routing();
-    routing.RouteToEndpoint(typeof(IssuePolicyCommand), "dotnet-policy-issuance");
-
-    var persistence = endpointConfiguration.UsePersistence<SqlPersistence>();
-    persistence.SqlDialect<SqlDialect.MsSqlServer>();
-    persistence.ConnectionBuilder(() => new SqlConnection(nsbConnectionString));
-
-    endpointConfiguration.EnableInstallers();
-    endpointConfiguration.UseSerialization<SystemJsonSerializer>();
-
-    var recoverability = endpointConfiguration.Recoverability();
-    recoverability.Immediate(immediate => immediate.NumberOfRetries(3));
-    recoverability.Delayed(delayed =>
-    {
-        delayed.NumberOfRetries(2);
-        delayed.TimeIncrease(TimeSpan.FromSeconds(10));
-    });
-
-    endpointConfiguration.SendFailedMessagesTo("error");
-    endpointConfiguration.AuditProcessedMessagesTo("audit");
-
-    return endpointConfiguration;
+    delayed.NumberOfRetries(2);
+    delayed.TimeIncrease(TimeSpan.FromSeconds(10));
 });
+
+endpointConfiguration.SendFailedMessagesTo("error");
+endpointConfiguration.AuditProcessedMessagesTo("audit");
+
+builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
 
 var app = builder.Build();
 app.UseSerilogRequestLogging();

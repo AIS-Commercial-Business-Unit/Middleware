@@ -40,7 +40,8 @@ var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
 transport.ConnectionString(sqlConnectionString);
 transport.Transactions(TransportTransactionMode.ReceiveOnly);
 
-var endpointInstance = await NServiceBus.Endpoint.Start(endpointConfiguration).ConfigureAwait(false);
+builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
+
 var app = builder.Build();
 
 KafkaBridgeRuntime.Logger = app.Services.GetService<ILogger<PolicyIssuedEventHandler>>();
@@ -50,7 +51,6 @@ app.MapHealthChecks("/health");
 app.MapControllers();
 app.Lifetime.ApplicationStopping.Register(() =>
 {
-    endpointInstance.Stop().GetAwaiter().GetResult();
     KafkaBridgeRuntime.Producer?.Flush(TimeSpan.FromSeconds(5));
     KafkaBridgeRuntime.Producer?.Dispose();
 });

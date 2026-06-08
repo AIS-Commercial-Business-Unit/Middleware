@@ -48,7 +48,8 @@ persistence.SqlDialect<SqlDialect.MsSqlServer>();
 persistence.ConnectionBuilder(() => new SqlConnection(sqlConnectionString));
 persistence.TablePrefix("nsb");
 
-var endpointInstance = await NServiceBus.Endpoint.Start(endpointConfiguration).ConfigureAwait(false);
+builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
+
 var app = builder.Build();
 
 CustomerIdentityRuntime.Logger = app.Services.GetService<ILogger<GetOrCreateAccountServiceRecordHandler>>();
@@ -56,5 +57,4 @@ CustomerIdentityRuntime.Logger = app.Services.GetService<ILogger<GetOrCreateAcco
 app.UseSerilogRequestLogging();
 app.MapHealthChecks("/health");
 app.MapControllers();
-app.Lifetime.ApplicationStopping.Register(() => endpointInstance.Stop().GetAwaiter().GetResult());
 await app.RunAsync().ConfigureAwait(false);

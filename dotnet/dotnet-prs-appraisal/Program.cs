@@ -38,32 +38,29 @@ builder.Services.AddSingleton<IDocumentListRequestRepository>(sp =>
 builder.Services.AddSingleton<IDocumentRetrievalRequestRepository>(sp =>
     new MongoDocumentRetrievalRequestRepository(sp.GetRequiredService<IMongoClient>(), "prs_appraisal"));
 
-builder.Host.UseNServiceBus(_ =>
-{
-    var endpointConfiguration = new EndpointConfiguration("dotnet-prs-appraisal");
+var endpointConfiguration = new EndpointConfiguration("dotnet-prs-appraisal");
 
-    var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
-    transport.ConnectionString(nServiceBusConnectionString);
-    transport.DefaultSchema("dbo");
-    transport.Transactions(TransportTransactionMode.SendsAtomicWithReceive);
+var transport = endpointConfiguration.UseTransport<SqlServerTransport>();
+transport.ConnectionString(nServiceBusConnectionString);
+transport.DefaultSchema("dbo");
+transport.Transactions(TransportTransactionMode.SendsAtomicWithReceive);
 
-    var routing = transport.Routing();
-    routing.RouteToEndpoint(typeof(GetAppraisalDocumentListCommand), "dotnet-prs-appraisal");
-    routing.RouteToEndpoint(typeof(RetrieveAppraisalDocumentCommand), "dotnet-prs-appraisal");
+var routing = transport.Routing();
+routing.RouteToEndpoint(typeof(GetAppraisalDocumentListCommand), "dotnet-prs-appraisal");
+routing.RouteToEndpoint(typeof(RetrieveAppraisalDocumentCommand), "dotnet-prs-appraisal");
 
-    var persistence = endpointConfiguration.UsePersistence<SqlPersistence>();
-    persistence.SqlDialect<SqlDialect.MsSqlServer>();
-    persistence.ConnectionBuilder(() => new SqlConnection(nServiceBusConnectionString));
+var persistence = endpointConfiguration.UsePersistence<SqlPersistence>();
+persistence.SqlDialect<SqlDialect.MsSqlServer>();
+persistence.ConnectionBuilder(() => new SqlConnection(nServiceBusConnectionString));
 
-    endpointConfiguration.EnableInstallers();
-    endpointConfiguration.UseSerialization<SystemJsonSerializer>();
-    endpointConfiguration.SendFailedMessagesTo("error");
-    endpointConfiguration.AuditProcessedMessagesTo("audit");
-    endpointConfiguration.Pipeline.Register(typeof(AppraisalEDAFlowHandlerInvokeBehavior), "Logs EDA flow events at handler invocation for subscriber fan-out visibility.");
-    endpointConfiguration.Pipeline.Register(typeof(AppraisalEDAFlowOutgoingBehavior), "Logs outgoing EDA flow events.");
+endpointConfiguration.EnableInstallers();
+endpointConfiguration.UseSerialization<SystemJsonSerializer>();
+endpointConfiguration.SendFailedMessagesTo("error");
+endpointConfiguration.AuditProcessedMessagesTo("audit");
+endpointConfiguration.Pipeline.Register(typeof(AppraisalEDAFlowHandlerInvokeBehavior), "Logs EDA flow events at handler invocation for subscriber fan-out visibility.");
+endpointConfiguration.Pipeline.Register(typeof(AppraisalEDAFlowOutgoingBehavior), "Logs outgoing EDA flow events.");
 
-    return endpointConfiguration;
-});
+builder.Services.AddNServiceBusEndpoint(endpointConfiguration);
 
 var app = builder.Build();
 await app.Services.GetRequiredService<IAccumulatorRepository>().EnsureCreatedAsync();
