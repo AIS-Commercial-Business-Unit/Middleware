@@ -64,6 +64,13 @@ resource "azurerm_cosmosdb_mongo_collection" "file_batches" {
   }
 }
 
+# issuance_sagas was created directly via CLI before Terraform managed it.
+# This import block adopts it into state on the next apply.
+import {
+  to = azurerm_cosmosdb_mongo_collection.issuance_sagas
+  id = "/subscriptions/c4fb1c99-fb99-4dc1-9926-a3a4356fd44a/resourceGroups/rg-middleware-dev/providers/Microsoft.DocumentDB/databaseAccounts/cosmos-middleware-dev-g01g/mongodbDatabases/middleware-platform/collections/issuance_sagas"
+}
+
 resource "azurerm_cosmosdb_mongo_collection" "issuance_sagas" {
   name                = "issuance_sagas"
   resource_group_name = azurerm_resource_group.main.name
@@ -123,8 +130,7 @@ resource "azurerm_cosmosdb_mongo_collection" "document_list_requests" {
   }
 
   index {
-    keys   = ["RequestId"]
-    unique = true
+    keys = ["RequestId"]
   }
 
   index {
@@ -147,8 +153,7 @@ resource "azurerm_cosmosdb_mongo_collection" "document_retrieval_requests" {
   }
 
   index {
-    keys   = ["RequestId"]
-    unique = true
+    keys = ["RequestId"]
   }
 
   index {
