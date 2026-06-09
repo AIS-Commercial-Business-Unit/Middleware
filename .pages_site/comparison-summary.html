@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Platform Summary | Middleware POC</title>
+<link rel="stylesheet" href="style.css">
+<style>
+/* ── Platform summary extras ──────────────── */
+:root {
+  --azure:    #0078D4;
+  --ltazure:  #E6F3FF;
+}
+
+.three-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin: 20px 0;
+}
+@media (max-width: 860px) { .three-col { grid-template-columns: 1fr; } }
+
+.stack-azure { border-top: 3px solid var(--azure); }
+.stack-label-azure {
+  font-size: 11px; font-weight: 700; color: var(--azure);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+
+.score-summary-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin: 24px 0;
+}
+@media (max-width: 860px) { .score-summary-3 { grid-template-columns: 1fr; } }
+
+.score-azure-box { background: var(--ltazure); color: var(--azure); border: 2px solid var(--azure); }
+
+.harvey-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.harvey-cell .score-num {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ltgray);
+  min-width: 22px;
+}
+
+.positioning-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin: 16px 0;
+}
+@media (max-width: 860px) { .positioning-grid { grid-template-columns: 1fr; } }
+
+.pos-card { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.pos-card-head { padding: 10px 14px; color: #fff; font-weight: 700; font-size: 13px; }
+.pos-card-body { padding: 14px; background: var(--white); }
+.pos-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  margin-bottom: 4px; margin-top: 10px; color: var(--ltgray);
+}
+.pos-label:first-child { margin-top: 0; }
+.pos-card-body p { font-size: 13px; color: var(--gray); margin-bottom: 0; }
+
+.legend-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 8px 0 20px;
+  font-size: 12px;
+  color: var(--ltgray);
+}
+.legend-row span { display: flex; align-items: center; gap: 5px; }
+
+.detail-link-bar {
+  margin-top: 36px;
+  padding: 18px 22px;
+  background: var(--ltblue);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.detail-link-bar p { margin: 0; font-size: 13.5px; color: var(--navy); }
+.btn-primary {
+  display: inline-block;
+  background: var(--navy);
+  color: #fff;
+  padding: 10px 22px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-primary:hover { background: var(--blue); }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="brand">Middleware POC</a>
+  <a href="index.html">Home</a>
+  <a href="uc4-list.html">UC4: List Appraisals</a>
+  <a href="uc4-document.html">UC4: Get Document</a>
+  <a href="comparison-summary.html" class="active">Platform Summary</a>
+  <a href="comparison.html">Stack Comparison</a>
+  <a href="azure-services.html">Azure Services</a>
+  <a href="patterns-scope.html">Pattern Scope</a>
+  <a href="patterns-detail.html">Pattern Detail</a>
+  <a href="decisions.html">5 Questions</a>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>Integration Platform — Quick Summary</h1>
+    <p>Three platforms, 18 criteria, Harvey ball scores at a glance.
+      For detailed weighted scoring and per-criterion notes see
+      <a href="comparison.html">Stack Comparison →</a>
+    </p>
+  </div>
+
+  <!-- Bottom-line callouts -->
+  <div class="callout">
+    <strong>Bottom Line:</strong> For simple Azure-native workflows, Logic Apps is the fastest tactical choice.
+    For large-scale BizTalk modernization — durable sagas, complex orchestration, failed-message operations,
+    and strong SDLC governance — <strong>NServiceBus + .NET + AI-assisted development is the strongest fit</strong>.
+    Apache Camel + Java is a compelling alternative for Java-centric organisations.
+  </div>
+
+  <div class="callout warn">
+    <strong>Key Insight — AI changes the tradeoff:</strong> The historical advantage of low-code was speed.
+    With GitHub Copilot and agents generating handlers, sagas, tests, and infrastructure, that speed gap narrows
+    significantly. The decision then shifts to <strong>maintainability, testability, observability, and complex
+    pattern support</strong> — where NServiceBus leads.
+  </div>
+
+  <!-- Overall scores -->
+  <h2>Overall Scores</h2>
+  <p class="muted">18 criteria · scored 1–5 · maximum 90.</p>
+  <div class="score-summary-3">
+    <div class="score-box score-azure-box">
+      <div class="big">47<span style="font-size:18px;font-weight:400">/90</span></div>
+      <div class="lbl">Azure Logic Apps</div>
+      <div style="font-size:12px;margin-top:4px">52%</div>
+    </div>
+    <div class="score-box score-ais-box">
+      <div class="big">87<span style="font-size:18px;font-weight:400">/90</span></div>
+      <div class="lbl">NServiceBus + .NET + Agents</div>
+      <div style="font-size:12px;margin-top:4px">97%</div>
+    </div>
+    <div class="score-box score-java-box">
+      <div class="big">77<span style="font-size:18px;font-weight:400">/90</span></div>
+      <div class="lbl">Apache Camel + Java + Agents</div>
+      <div style="font-size:12px;margin-top:4px">86%</div>
+    </div>
+  </div>
+
+  <!-- At-a-glance table -->
+  <h2>At-a-Glance Comparison</h2>
+  <div class="legend-row" id="legend"></div>
+  <div id="comparison-table"></div>
+
+  <!-- Positioning -->
+  <h2>When to Use Each Platform</h2>
+  <div class="positioning-grid">
+    <div class="pos-card">
+      <div class="pos-card-head" style="background:var(--azure)">Azure Logic Apps</div>
+      <div class="pos-card-body">
+        <div class="pos-label">✓ Use When</div>
+        <p>Workflow is simple, Azure-native, and connector-heavy. Low SDLC overhead is a priority. A visual or citizen-developer experience is preferred.</p>
+        <div class="pos-label">⚠ Be Careful When</div>
+        <p>The solution needs aggregation, scatter-gather, durable long-running state, complex retries, or large-scale SDLC governance.</p>
+      </div>
+    </div>
+    <div class="pos-card">
+      <div class="pos-card-head" style="background:var(--blue)">NServiceBus + .NET + Agents</div>
+      <div class="pos-card-body">
+        <div class="pos-label">✓ Use When</div>
+        <p>The solution requires durable messaging, sagas, complex orchestration, failed-message operations, strong testing, and long-term maintainability.</p>
+        <div class="pos-label">⚠ Be Careful When</div>
+        <p>The team lacks .NET experience, or the requirement is primarily visual / citizen-developer oriented.</p>
+      </div>
+    </div>
+    <div class="pos-card">
+      <div class="pos-card-head" style="background:var(--orange)">Apache Camel + Java + Agents</div>
+      <div class="pos-card-body">
+        <div class="pos-label">✓ Use When</div>
+        <p>The organisation is Java-centric and wants code-first integration with strong EIP routing patterns and broad legacy connector support.</p>
+        <div class="pos-label">⚠ Be Careful When</div>
+        <p>The solution needs first-class saga/state management or turnkey operational tooling comparable to NServiceBus ServicePulse.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Link to detail -->
+  <div class="detail-link-bar">
+    <p>
+      This page shows summary scores. For full per-criterion notes, weighted scoring, and
+      Java&nbsp;vs&nbsp;.NET detailed breakdown see the
+      <strong>Stack Comparison</strong> page.
+    </p>
+    <a href="comparison.html" class="btn-primary">Full Stack Comparison →</a>
+  </div>
+
+</div>
+
+<script>
+// ── Harvey ball SVG generator ──────────────────────────────────────────────
+function harvey(score, color) {
+  const c = color || '#555';
+  const labels = ['', 'Poor (1)', 'Limited (2)', 'Adequate (3)', 'Strong (4)', 'Excellent (5)'];
+  const quarter = `<path d="M10,10 L10,1 A9,9 0 0,1 19,10 Z" fill="${c}"/>`;
+  const half    = `<path d="M10,10 L10,1 A9,9 0 0,1 10,19 Z" fill="${c}"/>`;
+  const threeq  = `<path d="M10,10 L10,1 A9,9 0 1,1 1,10 Z" fill="${c}"/>`;
+  const pieMap  = { 1: '', 2: quarter, 3: half, 4: threeq };
+  const title   = labels[score] || `${score}/5`;
+  const baseFill = score === 5 ? c : 'white';
+  const pie      = score === 5 ? '' : (pieMap[score] || '');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 20 20" role="img" aria-label="${title}">
+    <title>${title}</title>
+    <circle cx="10" cy="10" r="9" fill="${baseFill}" stroke="${c}" stroke-width="2"/>
+    ${pie}
+  </svg>`;
+}
+
+// ── Platform colours ───────────────────────────────────────────────────────
+const AZURE_CLR = '#0078D4';
+const AIS_CLR   = '#2E5FA3';
+const JAVA_CLR  = '#E87722';
+
+// ── Legend ─────────────────────────────────────────────────────────────────
+const legendItems = [
+  [1, '1 – Poor'],
+  [2, '2 – Limited'],
+  [3, '3 – Adequate'],
+  [4, '4 – Strong'],
+  [5, '5 – Excellent'],
+];
+document.getElementById('legend').innerHTML = legendItems
+  .map(([s, lbl]) => `<span>${harvey(s, '#666')} ${lbl}</span>`)
+  .join('');
+
+// ── Comparison data ────────────────────────────────────────────────────────
+// [criterion, azureLA-score, NServiceBus-score, Camel-score]
+const rows = [
+  ['Solution Design',                    4, 4, 4],
+  ['Developer Productivity',             3, 5, 5],
+  ['Local Development Experience',       3, 5, 5],
+  ['Pull Request Validation',            2, 5, 5],
+  ['Unit Testing',                       2, 5, 5],
+  ['End-to-End Testing',                 3, 5, 4],
+  ['CI/CD Environment Isolation',        3, 4, 4],
+  ['Scatter-Gather Pattern',             2, 5, 4],
+  ['Aggregator Pattern',                 2, 5, 4],
+  ['Long-Running Workflow State',        3, 5, 3],
+  ['Mainframe Chunking Scenario',        2, 5, 4],
+  ['Failed Message Handling',            3, 5, 4],
+  ['Observability',                      3, 5, 4],
+  ['Maintainability',                    2, 5, 4],
+  ['Security & Governance',              3, 5, 5],
+  ['Azure SRE Agent Fit',                5, 4, 4],
+  ['Team Learnability',                  3, 4, 4],
+  ['Enterprise BizTalk Modernization',   2, 5, 4],
+];
+
+// ── Build table ────────────────────────────────────────────────────────────
+let html = `<table>
+  <thead>
+    <tr>
+      <th style="width:34%">Criterion</th>
+      <th style="width:22%;text-align:center;background:#0078D4">Azure Logic Apps</th>
+      <th style="width:22%;text-align:center;background:#2E5FA3">NServiceBus + .NET</th>
+      <th style="width:22%;text-align:center;background:#E87722">Apache Camel + Java</th>
+    </tr>
+  </thead>
+  <tbody>`;
+
+rows.forEach(([name, az, ais, java]) => {
+  function cell(score, color) {
+    return `<td style="text-align:center">
+      <div class="harvey-cell">
+        ${harvey(score, color)}
+        <span class="score-num">${score}/5</span>
+      </div>
+    </td>`;
+  }
+  html += `<tr>
+    <td class="label">${name}</td>
+    ${cell(az,   AZURE_CLR)}
+    ${cell(ais,  AIS_CLR)}
+    ${cell(java, JAVA_CLR)}
+  </tr>`;
+});
+
+// Totals row
+const totAz  = rows.reduce((s, r) => s + r[1], 0);
+const totAis = rows.reduce((s, r) => s + r[2], 0);
+const totJava= rows.reduce((s, r) => s + r[3], 0);
+html += `<tr style="font-weight:700;background:var(--navy);color:#fff">
+  <td style="color:#fff">Total</td>
+  <td style="text-align:center;color:#fff">${totAz}/90</td>
+  <td style="text-align:center;color:#fff">${totAis}/90</td>
+  <td style="text-align:center;color:#fff">${totJava}/90</td>
+</tr>`;
+
+html += '</tbody></table>';
+document.getElementById('comparison-table').innerHTML = html;
+</script>
+
+</body>
+</html>

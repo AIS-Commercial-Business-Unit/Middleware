@@ -14,6 +14,8 @@
   --redBg:  #FDF0F0;
   --amber:  #7A4F00;
   --amberBg:#FFF8E1;
+  --azure:   #0078D4;
+  --ltazure: #E6F3FF;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
