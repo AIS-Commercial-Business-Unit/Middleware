@@ -8,6 +8,7 @@ public sealed class BatchRecord
     public string RecordId { get; set; } = string.Empty;
     [BsonElement("batchId")]
     public string BatchId { get; set; } = string.Empty;
+    [BsonElement("sequenceNumber")]
     public int SequenceNumber { get; set; }
     public string RawContent { get; set; } = string.Empty;
     [BsonElement("status")]

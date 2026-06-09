@@ -83,6 +83,10 @@ resource "azurerm_cosmosdb_mongo_collection" "batch_records" {
   }
 
   index {
+    keys = ["sequenceNumber"]
+  }
+
+  index {
     keys = ["status"]
   }
 }
