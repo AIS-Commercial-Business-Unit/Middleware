@@ -52,9 +52,9 @@ var mongoConnectionString = builder.Configuration.GetConnectionString("MongoDB")
     ?? "mongodb://localhost:27017";
 builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConnectionString));
 builder.Services.AddSingleton<IDocumentListRequestRepository>(sp =>
-    new MongoDocumentListRequestRepository(sp.GetRequiredService<IMongoClient>(), "prs_appraisal"));
+    new MongoDocumentListRequestRepository(sp.GetRequiredService<IMongoClient>(), "middleware-platform"));
 builder.Services.AddSingleton<IDocumentRetrievalRequestRepository>(sp =>
-    new MongoDocumentRetrievalRequestRepository(sp.GetRequiredService<IMongoClient>(), "prs_appraisal"));
+    new MongoDocumentRetrievalRequestRepository(sp.GetRequiredService<IMongoClient>(), "middleware-platform"));
 
 var endpointConfiguration = new EndpointConfiguration("dotnet-prs-appraisal");
 

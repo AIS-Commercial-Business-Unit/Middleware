@@ -105,3 +105,53 @@ resource "azurerm_cosmosdb_mongo_collection" "batch_records" {
     keys = ["status"]
   }
 }
+
+# ─── PRS Appraisal collections ──────────────────────────────────────────────────
+
+resource "azurerm_cosmosdb_mongo_collection" "document_list_requests" {
+  name                = "document_list_requests"
+  resource_group_name = azurerm_resource_group.main.name
+  account_name        = azurerm_cosmosdb_account.main.name
+  database_name       = azurerm_cosmosdb_mongo_database.platform.name
+
+  default_ttl_seconds = 86400 # 24-hour TTL matches application-level expiry
+  shard_key           = "_id"
+
+  index {
+    keys   = ["_id"]
+    unique = true
+  }
+
+  index {
+    keys   = ["RequestId"]
+    unique = true
+  }
+
+  index {
+    keys = ["CreatedAt"]
+  }
+}
+
+resource "azurerm_cosmosdb_mongo_collection" "document_retrieval_requests" {
+  name                = "document_retrieval_requests"
+  resource_group_name = azurerm_resource_group.main.name
+  account_name        = azurerm_cosmosdb_account.main.name
+  database_name       = azurerm_cosmosdb_mongo_database.platform.name
+
+  default_ttl_seconds = 86400 # 24-hour TTL matches application-level expiry
+  shard_key           = "_id"
+
+  index {
+    keys   = ["_id"]
+    unique = true
+  }
+
+  index {
+    keys   = ["RequestId"]
+    unique = true
+  }
+
+  index {
+    keys = ["CreatedAt"]
+  }
+}
