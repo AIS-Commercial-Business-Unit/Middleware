@@ -1,5 +1,8 @@
 using Microsoft.Data.SqlClient;
 using Middleware.Contracts.Commands;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using NServiceBus;
 using Middleware.Platform;
@@ -14,6 +17,8 @@ using dotnet_file_processing.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 var serviceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "dotnet-file-processing";
+
+BsonSerializer.RegisterSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
 
 Log.Logger = new LoggerConfiguration()
     .Enrich.FromLogContext()

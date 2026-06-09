@@ -5,8 +5,11 @@
 # After any request, copy the requestId from the response and open the Flow Tracer:
 #   http://localhost:3000/ops/{requestId}
 
-@baseUrl = http://localhost:3000
+#@baseUrl = http://localhost:3000
 @directUrl = http://localhost:8189
+
+
+@baseUrl = http://middleware-dev.eastus2.cloudapp.azure.com
 
 
 ### ── GetAppraisalList ────────────────────────────────────────────────────────

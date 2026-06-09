@@ -9,7 +9,8 @@ const databases = [
     "billing_finance_db",
     "notification_db",
     "file_processing_db",
-    "prs_appraisal_db"
+    "prs_appraisal_db",
+    "middleware-platform"
 ];
 
 databases.forEach(dbName => {

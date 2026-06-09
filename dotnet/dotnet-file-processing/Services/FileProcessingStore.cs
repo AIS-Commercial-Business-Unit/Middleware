@@ -10,7 +10,7 @@ public sealed class FileProcessingStore
 
     public FileProcessingStore(IMongoClient client)
     {
-        var database = client.GetDatabase("dotnet_file_processing_db");
+        var database = client.GetDatabase("middleware-platform");
         _batches = database.GetCollection<FileBatch>("file_batches");
         _records = database.GetCollection<BatchRecord>("batch_records");
     }

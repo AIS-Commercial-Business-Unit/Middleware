@@ -16,9 +16,13 @@ public sealed class FileBatch
     public int SucceededRecords { get; set; }
     public int FailedRecords { get; set; }
     public double PercentComplete { get; set; }
+    [BsonElement("status")]
     public string Status { get; set; } = "Received";
+    [BsonElement("receivedAt")]
     public DateTimeOffset ReceivedAt { get; set; } = DateTimeOffset.UtcNow;
+    [BsonElement("parsingCompletedAt")]
     public DateTimeOffset? ParsingCompletedAt { get; set; }
+    [BsonElement("processingCompletedAt")]
     public DateTimeOffset? ProcessingCompletedAt { get; set; }
     public string ProcessingMode { get; set; } = "AutomatedRenewal";
 }
