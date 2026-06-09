@@ -17,7 +17,9 @@ public sealed class IssuanceSagaRecord
     public bool BillingComplete { get; set; }
     public bool CustomerUpdateComplete { get; set; }
     public string? FailureReason { get; set; }
+    [BsonElement("requestedAt")]
     public DateTimeOffset RequestedAt { get; set; }
+    [BsonElement("completedAt")]
     public DateTimeOffset? CompletedAt { get; set; }
     public string SubmittingChannel { get; set; } = "DirectRequest";
     public string? RecordId { get; set; }

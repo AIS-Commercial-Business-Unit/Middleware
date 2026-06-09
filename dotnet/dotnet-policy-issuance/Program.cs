@@ -1,5 +1,8 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Azure.Monitor.OpenTelemetry.Exporter;
@@ -15,6 +18,8 @@ using Middleware.Platform;
 
 var builder = WebApplication.CreateBuilder(args);
 var serviceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "dotnet-policy-issuance";
+
+BsonSerializer.RegisterSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
 
 Log.Logger = new LoggerConfiguration()
     .Enrich.FromLogContext()
@@ -39,7 +44,7 @@ builder.Services.AddOpenTelemetry()
     });
 
 var mongoClient = new MongoDB.Driver.MongoClient(builder.Configuration.GetConnectionString("MongoDB") ?? "mongodb://localhost:27017");
-var repository = new MongoIssuanceSagaRepository(mongoClient, "dotnet_policy_issuance_db", "issuance_sagas");
+var repository = new MongoIssuanceSagaRepository(mongoClient, "middleware-platform", "issuance_sagas");
 builder.Services.AddSingleton<MongoDB.Driver.IMongoClient>(mongoClient);
 builder.Services.AddSingleton<IIssuanceSagaRecordRepository>(repository);
 PolicyIssuanceRuntime.Repository = repository;

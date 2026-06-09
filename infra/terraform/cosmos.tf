@@ -64,6 +64,21 @@ resource "azurerm_cosmosdb_mongo_collection" "file_batches" {
   }
 }
 
+resource "azurerm_cosmosdb_mongo_collection" "issuance_sagas" {
+  name                = "issuance_sagas"
+  resource_group_name = azurerm_resource_group.main.name
+  account_name        = azurerm_cosmosdb_account.main.name
+  database_name       = azurerm_cosmosdb_mongo_database.platform.name
+
+  default_ttl_seconds = -1
+  shard_key           = "_id"
+
+  index {
+    keys   = ["_id"]
+    unique = true
+  }
+}
+
 resource "azurerm_cosmosdb_mongo_collection" "batch_records" {
   name                = "batch_records"
   resource_group_name = azurerm_resource_group.main.name
