@@ -10,7 +10,7 @@ public sealed class FileBatchProgressManager : IFileBatchProgressManager
     public FileBatchProgressManager(IMongoClient mongoClient)
     {
         _records = mongoClient
-            .GetDatabase("dotnet_file_processing_db")
+            .GetDatabase("middleware-platform")
             .GetCollection<BatchRecord>("batch_records");
     }
 
