@@ -53,6 +53,19 @@ resource "azurerm_network_security_group" "vm" {
     destination_address_prefix = "VirtualNetwork"
   }
 
+  # Inbound: Particular Platform custom ports from Internet
+  security_rule {
+    name                       = "AllowParticularPlatformInbound"
+    priority                   = 120
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_ranges    = ["33333", "33733"]
+    source_address_prefix      = "Internet"
+    destination_address_prefix = "VirtualNetwork"
+  }
+
   # Outbound: VM → anything in the VNet (AKS pods, ILB, Key Vault PE, SQL, etc.)
   security_rule {
     name                       = "AllowVnetOutbound"
