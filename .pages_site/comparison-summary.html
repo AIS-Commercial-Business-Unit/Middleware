@@ -104,6 +104,21 @@
   flex-shrink: 0;
 }
 .btn-primary:hover { background: var(--blue); }
+
+/* Smaller, muted overall score boxes */
+.score-summary-sm .score-box { padding: 10px 16px; }
+.score-summary-sm .score-box .big { font-size: 22px; font-weight: 600; }
+.score-summary-sm .score-box .lbl { font-size: 10px; }
+
+/* Brief comment below each Harvey ball */
+.cell-note {
+  font-size: 11px;
+  color: var(--ltgray);
+  margin-top: 3px;
+  line-height: 1.3;
+  text-align: center;
+  padding: 0 4px;
+}
 </style>
 </head>
 <body>
@@ -125,7 +140,7 @@
 
   <div class="page-header">
     <h1>Integration Platform — Quick Summary</h1>
-    <p>Three platforms, 18 criteria, Harvey ball scores at a glance.
+    <p>LogicApps, Java/Apache Camel, and .NET/NServiceBus platforms.
       For detailed weighted scoring and per-criterion notes see
       <a href="comparison.html">Stack Comparison →</a>
     </p>
@@ -140,16 +155,18 @@
   </div>
 
   <div class="callout warn">
-    <strong>Key Insight — AI changes the tradeoff:</strong> The historical advantage of low-code was speed.
-    With GitHub Copilot and agents generating handlers, sagas, tests, and infrastructure, that speed gap narrows
-    significantly. The decision then shifts to <strong>maintainability, testability, observability, and complex
-    pattern support</strong> — where NServiceBus leads.
+    <strong>Key Insight — AI-assisted development has largely eliminated the historical productivity advantage 
+      of low-code and no-code platforms, allowing teams to generate enterprise-grade solutions with 
+      the speed once reserved for visual tooling. For complex, long-lived integration systems, 
+      the ability to reuse proven patterns, packages, tests, and operational tooling in a mature 
+      code ecosystem delivers significantly greater maintainability, scalability, and operational 
+      excellence than drag-and-drop workflow designers.
   </div>
 
   <!-- Overall scores -->
   <h2>Overall Scores</h2>
   <p class="muted">18 criteria · scored 1–5 · maximum 90.</p>
-  <div class="score-summary-3">
+  <div class="score-summary-3 score-summary-sm">
     <div class="score-box score-azure-box">
       <div class="big">47<span style="font-size:18px;font-weight:400">/90</span></div>
       <div class="lbl">Azure Logic Apps</div>
@@ -252,27 +269,82 @@ document.getElementById('legend').innerHTML = legendItems
   .map(([s, lbl]) => `<span>${harvey(s, '#666')} ${lbl}</span>`)
   .join('');
 
-// ── Comparison data ────────────────────────────────────────────────────────
-// [criterion, azureLA-score, NServiceBus-score, Camel-score]
+// ── Comparison data ───────────────────────────────────────────────────────
+// [criterion, [az_score, az_note], [ais_score, ais_note], [java_score, java_note]]
+// Score 5 note is always rendered as 'Great'
 const rows = [
-  ['Solution Design',                    4, 4, 4],
-  ['Developer Productivity',             3, 5, 5],
-  ['Local Development Experience',       3, 5, 5],
-  ['Pull Request Validation',            2, 5, 5],
-  ['Unit Testing',                       2, 5, 5],
-  ['End-to-End Testing',                 3, 5, 4],
-  ['CI/CD Environment Isolation',        3, 4, 4],
-  ['Scatter-Gather Pattern',             2, 5, 4],
-  ['Aggregator Pattern',                 2, 5, 4],
-  ['Long-Running Workflow State',        3, 5, 3],
-  ['Mainframe Chunking Scenario',        2, 5, 4],
-  ['Failed Message Handling',            3, 5, 4],
-  ['Observability',                      3, 5, 4],
-  ['Maintainability',                    2, 5, 4],
-  ['Security & Governance',              3, 5, 5],
-  ['Azure SRE Agent Fit',                5, 4, 4],
-  ['Team Learnability',                  3, 4, 4],
-  ['Enterprise BizTalk Modernization',   2, 5, 4],
+  ['Solution Design',
+    [4, 'Complex patterns become hard to structure'],
+    [4, 'Clear design with sagas and handlers'],
+    [4, 'Patterns strong; design discipline varies']],
+  ['Developer Productivity',
+    [3, 'Complex flows become difficult to refactor'],
+    [5, ''],
+    [5, '']],
+  ['Local Development Experience',
+    [3, 'Not a normal code/debug/test loop'],
+    [5, ''],
+    [5, '']],
+  ['Pull Request Validation',
+    [2, 'Meaningful behavioral testing is harder'],
+    [5, ''],
+    [5, '']],
+  ['Unit Testing',
+    [2, 'Testing tends to be integration-heavy'],
+    [5, ''],
+    [5, '']],
+  ['End-to-End Testing',
+    [3, 'Isolation and environment setup difficult'],
+    [5, ''],
+    [4, 'Stateful workflow testing needs custom design']],
+  ['CI/CD Environment Isolation',
+    [3, 'Per-PR environments add complexity and cost'],
+    [4, 'Standard IaC patterns support isolation'],
+    [4, 'Container patterns support isolation']],
+  ['Scatter-Gather Pattern',
+    [2, 'Fan-out/fan-in becomes visually unmanageable'],
+    [5, ''],
+    [4, 'Aggregation needs careful configuration']],
+  ['Aggregator Pattern',
+    [2, 'Timeout and retry behavior can be awkward'],
+    [5, ''],
+    [4, 'Durable workflow state less turnkey']],
+  ['Long-Running Workflow State',
+    [3, 'Complex business state hard to reason about'],
+    [5, ''],
+    [3, 'Custom state management usually required']],
+  ['Mainframe Chunking Scenario',
+    [2, 'Chunk tracking and reassembly become complex'],
+    [5, ''],
+    [4, 'Stateful tracking needs more engineering']],
+  ['Failed Message Handling',
+    [3, 'Operational retry workflow is fragmented'],
+    [5, ''],
+    [4, 'Needs custom dashboards and retry tooling']],
+  ['Observability',
+    [3, 'Business-process visibility can be limited'],
+    [5, ''],
+    [4, 'Strong but less turnkey than ServicePulse']],
+  ['Maintainability',
+    [2, 'Visual workflows hard to review and refactor'],
+    [5, ''],
+    [4, 'Route sprawl can become an issue']],
+  ['Security & Governance',
+    [3, 'Workflow-level code quality controls limited'],
+    [5, ''],
+    [5, '']],
+  ['Azure SRE Agent Fit',
+    [5, ''],
+    [4, 'Requires ServicePulse telemetry wiring'],
+    [4, 'Requires OpenTelemetry + Azure Monitor setup']],
+  ['Team Learnability',
+    [3, 'Hard to master for complex patterns'],
+    [4, 'Agents reduce boilerplate for .NET teams'],
+    [4, 'Agents reduce boilerplate for Java teams']],
+  ['Enterprise BizTalk Modernization',
+    [2, 'Risky as default for hundreds of complex apps'],
+    [5, ''],
+    [4, 'Less compelling without durable sagas']],
 ];
 
 // ── Build table ────────────────────────────────────────────────────────────
@@ -287,27 +359,26 @@ let html = `<table>
   </thead>
   <tbody>`;
 
-rows.forEach(([name, az, ais, java]) => {
-  function cell(score, color) {
-    return `<td style="text-align:center">
-      <div class="harvey-cell">
-        ${harvey(score, color)}
-        <span class="score-num">${score}/5</span>
-      </div>
+rows.forEach(([name, [az, azNote], [ais, aisNote], [java, javaNote]]) => {
+  function cell(score, note, color) {
+    const comment = score === 5 ? 'Great' : note;
+    return `<td style="text-align:center;vertical-align:top;padding:8px 10px">
+      <div class="harvey-cell">${harvey(score, color)}</div>
+      <div class="cell-note">${comment}</div>
     </td>`;
   }
   html += `<tr>
     <td class="label">${name}</td>
-    ${cell(az,   AZURE_CLR)}
-    ${cell(ais,  AIS_CLR)}
-    ${cell(java, JAVA_CLR)}
+    ${cell(az,   azNote,  AZURE_CLR)}
+    ${cell(ais,  aisNote, AIS_CLR)}
+    ${cell(java, javaNote,JAVA_CLR)}
   </tr>`;
 });
 
 // Totals row
-const totAz  = rows.reduce((s, r) => s + r[1], 0);
-const totAis = rows.reduce((s, r) => s + r[2], 0);
-const totJava= rows.reduce((s, r) => s + r[3], 0);
+const totAz  = rows.reduce((s, r) => s + r[1][0], 0);
+const totAis = rows.reduce((s, r) => s + r[2][0], 0);
+const totJava= rows.reduce((s, r) => s + r[3][0], 0);
 html += `<tr style="font-weight:700;background:var(--navy);color:#fff">
   <td style="color:#fff">Total</td>
   <td style="text-align:center;color:#fff">${totAz}/90</td>
