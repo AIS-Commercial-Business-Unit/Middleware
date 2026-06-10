@@ -411,7 +411,7 @@
           <tr>
             <td class="label">BRE-driven routing (Clearance BRE)</td>
             <td><span class="badge badge-amber">Medium</span></td>
-            <td>CHUBB.Sanctions.Clearance.BRE determines target system (Cadence or UWP) based on clearance notification attributes.</td>
+            <td>Insurance.Sanctions.Clearance.BRE determines target system (Cadence or UWP) based on clearance notification attributes.</td>
             <td><span class="badge badge-amber">Documented</span></td>
             <td>BRE rules translated to C# conditional logic in the clearance message handler. Rules are few and stable — a code-based implementation is more transparent and testable than an external rules engine for this use case. If rules complexity grows, Azure Logic Apps Decision Tables or a custom rule service can replace the C# conditions.</td>
           </tr>
@@ -425,7 +425,7 @@
           <tr>
             <td class="label">Message transformation (canonical maps)</td>
             <td><span class="badge badge-amber">Medium</span></td>
-            <td>BizTalk maps in CHUBB.Sanctions.Compliance, CHUBB.Sanctions.Compliance.Trax, CHUBB.Sanctions.Clearance.Transforms. NtificationRq_To_CadenceRq, TraxSanctions_Canonical_To_CLink maps.</td>
+            <td>BizTalk maps in Insurance.Sanctions.Compliance, Insurance.Sanctions.Compliance.Trax, Insurance.Sanctions.Clearance.Transforms. NtificationRq_To_CadenceRq, TraxSanctions_Canonical_To_CLink maps.</td>
             <td><span class="badge badge-amber">Documented</span></td>
             <td>C# model classes with explicit mapping logic. Canonical domain model as the pivot. Source-to-canonical and canonical-to-target mappers are plain classes — unit testable, version-controllable, readable. No BizTalk XSLT or BTM map required.</td>
           </tr>
